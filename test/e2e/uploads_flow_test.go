@@ -152,6 +152,7 @@ func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, str
 		allow_download BOOLEAN NOT NULL DEFAULT TRUE,
 		allow_original_download BOOLEAN NOT NULL DEFAULT FALSE,
 		watermark_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+		password_changed_at TIMESTAMPTZ,
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
 	mustExec(t, pool, `CREATE TABLE photos (

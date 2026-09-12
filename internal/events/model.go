@@ -51,6 +51,7 @@ type Settings struct {
 	AllowDownload         bool
 	AllowOriginalDownload bool
 	WatermarkEnabled      bool
+	PasswordChangedAt     *time.Time
 	UpdatedAt             time.Time
 }
 

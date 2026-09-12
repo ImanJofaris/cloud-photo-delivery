@@ -26,6 +26,7 @@ This is the master plan. Each phase has its own detailed document under `doc/pha
 - [Phase 3 — Report](phases/Phase 3 - Report.md) — COMPLETE
 - [Phase 4 — Report](phases/Phase 4 - Report.md) — COMPLETE
 - [Phase 4.1 — Report](phases/Phase 4.1 - Report.md) — COMPLETE (lossy WebP + bilinear resize)
+- [Phase 5 — Report](phases/Phase 5 - Report.md) — COMPLETE (public gallery API; UI deferred)
 
 Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase Report.md)
 

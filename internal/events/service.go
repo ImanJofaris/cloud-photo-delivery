@@ -333,11 +333,19 @@ func (s *Service) buildSettings(current Settings, in SettingsInput) (Settings, e
 			if err != nil {
 				return Settings{}, apperr.Internal().WithCause(err)
 			}
+			if hash != next.PasswordHash {
+				now := s.now().UTC().Truncate(time.Second)
+				next.PasswordChangedAt = &now
+			}
 			next.PasswordHash = hash
 			if in.Visibility == nil && next.Visibility == VisibilityPublic {
 				next.Visibility = VisibilityPassword
 			}
 		} else {
+			if next.PasswordHash != "" {
+				now := s.now().UTC().Truncate(time.Second)
+				next.PasswordChangedAt = &now
+			}
 			next.PasswordHash = ""
 		}
 	}

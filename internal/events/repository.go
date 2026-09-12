@@ -117,9 +117,9 @@ func (r *PostgresRepository) Create(ctx context.Context, in CreateInput) (*Event
 
 	s := in.Settings
 	_, err = tx.Exec(ctx,
-		`INSERT INTO event_settings (event_id, visibility, password_hash, allow_download, allow_original_download, watermark_enabled)
-		 VALUES ($1, $2, $3, $4, $5, $6)`,
-		eventID, s.Visibility, nullString(s.PasswordHash), s.AllowDownload, s.AllowOriginalDownload, s.WatermarkEnabled)
+		`INSERT INTO event_settings (event_id, visibility, password_hash, allow_download, allow_original_download, watermark_enabled, password_changed_at)
+		 VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+		eventID, s.Visibility, nullString(s.PasswordHash), s.AllowDownload, s.AllowOriginalDownload, s.WatermarkEnabled, s.PasswordChangedAt)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -241,12 +241,12 @@ func (r *PostgresRepository) SlugExists(ctx context.Context, userID uuid.UUID, s
 }
 
 const settingsColumns = `event_id, visibility, COALESCE(password_hash, ''), allow_download,
-	allow_original_download, watermark_enabled, updated_at`
+	allow_original_download, watermark_enabled, password_changed_at, updated_at`
 
 func scanSettings(row pgx.Row) (*Settings, error) {
 	var s Settings
 	err := row.Scan(&s.EventID, &s.Visibility, &s.PasswordHash, &s.AllowDownload,
-		&s.AllowOriginalDownload, &s.WatermarkEnabled, &s.UpdatedAt)
+		&s.AllowOriginalDownload, &s.WatermarkEnabled, &s.PasswordChangedAt, &s.UpdatedAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
@@ -264,7 +264,7 @@ func getSettingsTx(ctx context.Context, tx pgx.Tx, eventID uuid.UUID) (*Settings
 func (r *PostgresRepository) GetSettings(ctx context.Context, userID, eventID uuid.UUID) (*Settings, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT s.event_id, s.visibility, COALESCE(s.password_hash, ''), s.allow_download,
-			s.allow_original_download, s.watermark_enabled, s.updated_at
+			s.allow_original_download, s.watermark_enabled, s.password_changed_at, s.updated_at
 		 FROM event_settings s
 		 JOIN events e ON e.id = s.event_id
 		 WHERE s.event_id = $1 AND e.user_id = $2 AND e.deleted_at IS NULL`, eventID, userID)
@@ -279,6 +279,7 @@ func (r *PostgresRepository) UpdateSettings(ctx context.Context, userID, eventID
 			allow_download = $5,
 			allow_original_download = $6,
 			watermark_enabled = $7,
+			password_changed_at = $8,
 			updated_at = NOW()
 		 WHERE event_id = $1
 		   AND EXISTS (
@@ -286,6 +287,6 @@ func (r *PostgresRepository) UpdateSettings(ctx context.Context, userID, eventID
 			   WHERE e.id = event_settings.event_id AND e.user_id = $2 AND e.deleted_at IS NULL
 		   )
 		 RETURNING `+settingsColumns, eventID, userID, s.Visibility, nullString(s.PasswordHash),
-		s.AllowDownload, s.AllowOriginalDownload, s.WatermarkEnabled)
+		s.AllowDownload, s.AllowOriginalDownload, s.WatermarkEnabled, s.PasswordChangedAt)
 	return scanSettings(row)
 }

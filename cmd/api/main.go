@@ -14,6 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/gallery"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
@@ -152,6 +153,12 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		return id.String(), true
 	})
 
+	galleryRepo := gallery.NewRepository(pool.Pool)
+	galleryURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
+	galleryTokens := gallery.NewUnlockTokens(cfg.JWTSecret, cfg.GalleryUnlockTTL)
+	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword)
+	galleryHandler := gallery.NewHandler(gallerySvc)
+
 	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -163,6 +170,15 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			r.Post("/auth/logout", authHandler.Logout)
 			r.Post("/auth/password/reset-request", authHandler.RequestPasswordReset)
 			r.Post("/auth/password/reset-confirm", authHandler.ConfirmPasswordReset)
+		})
+
+		// Public gallery (no auth).
+		r.Route("/public/events/{slug}", func(r chi.Router) {
+			r.Get("/", galleryHandler.GetEvent)
+			r.Post("/unlock", galleryHandler.Unlock)
+			r.Get("/photos", galleryHandler.ListPhotos)
+			r.Get("/photos/{photoID}", galleryHandler.GetPhoto)
+			r.Get("/photos/{photoID}/url", galleryHandler.PhotoURL)
 		})
 
 		r.Group(func(r chi.Router) {

@@ -460,6 +460,81 @@ func TestSettings_OriginalRequiresDownload(t *testing.T) {
 	}
 }
 
+func TestSettings_PasswordSetsChangedAt(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, _ := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+
+	pw := "secret123"
+	s, err := svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{Password: &pw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.PasswordChangedAt == nil {
+		t.Fatal("expected password_changed_at to be set")
+	}
+	want := time.Date(2026, 1, 1, 12, 0, 0, 0, time.UTC)
+	if !s.PasswordChangedAt.Equal(want) {
+		t.Fatalf("password_changed_at = %v, want %v", s.PasswordChangedAt, want)
+	}
+}
+
+func TestSettings_SamePasswordDoesNotBumpChangedAt(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, _ := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+
+	pw := "secret123"
+	first, err := svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{Password: &pw})
+	if err != nil {
+		t.Fatal(err)
+	}
+	firstAt := *first.PasswordChangedAt
+
+	// Move the clock forward and update unrelated settings.
+	svc.SetClock(func() time.Time { return time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC) })
+	no := false
+	second, err := svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{AllowDownload: &no})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.PasswordChangedAt == nil || !second.PasswordChangedAt.Equal(firstAt) {
+		t.Fatalf("password_changed_at changed unexpectedly: %v", second.PasswordChangedAt)
+	}
+}
+
+func TestSettings_ClearingPasswordBumpsChangedAt(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, _ := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+
+	pw := "secret123"
+	if _, err := svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{Password: &pw}); err != nil {
+		t.Fatal(err)
+	}
+
+	svc.SetClock(func() time.Time { return time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC) })
+	empty := ""
+	pub := VisibilityPublic
+	s, err := svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{Password: &empty, Visibility: &pub})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s.PasswordHash != "" {
+		t.Fatal("expected password hash cleared")
+	}
+	if s.Visibility != VisibilityPublic {
+		t.Fatalf("visibility = %q, want public", s.Visibility)
+	}
+	want := time.Date(2026, 1, 1, 13, 0, 0, 0, time.UTC)
+	if s.PasswordChangedAt == nil || !s.PasswordChangedAt.Equal(want) {
+		t.Fatalf("password_changed_at = %v, want %v", s.PasswordChangedAt, want)
+	}
+}
+
 func TestList_InvalidStatusRejected(t *testing.T) {
 	svc := newTestService(newFakeRepo(), fixedLimits{})
 	bad := Status("nope")

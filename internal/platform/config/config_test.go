@@ -91,6 +91,12 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.PublicBaseURL != "http://localhost:3000" {
 		t.Errorf("expected default public base url, got %q", cfg.PublicBaseURL)
 	}
+	if cfg.SignedURLTTL != 5*time.Minute {
+		t.Errorf("expected default signed URL TTL 5m, got %v", cfg.SignedURLTTL)
+	}
+	if cfg.GalleryUnlockTTL != 30*time.Minute {
+		t.Errorf("expected default gallery unlock TTL 30m, got %v", cfg.GalleryUnlockTTL)
+	}
 }
 
 func TestValidateStorage(t *testing.T) {

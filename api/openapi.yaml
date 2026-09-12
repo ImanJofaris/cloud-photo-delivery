@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
-  version: 0.4.0
+  version: 0.5.0
   description: API-first backend for the Cloud Photo Delivery SaaS.
 servers:
   - url: http://localhost:8080/api/v1
@@ -12,6 +12,7 @@ tags:
   - name: Account
   - name: Events
   - name: Uploads
+  - name: Public Gallery
 paths:
   /healthz:
     get:
@@ -746,6 +747,227 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /public/events/{slug}:
+    parameters:
+      - $ref: "#/components/parameters/EventSlug"
+    get:
+      tags: [Public Gallery]
+      operationId: getPublicEvent
+      summary: Get a public event by slug (no auth)
+      description: |
+        Returns public metadata for a visible event. Private, soft-deleted, or
+        expired events return 404 (existence is not revealed). Password events
+        return metadata only after unlock; without a valid token the response
+        indicates that unlock is required.
+      security: []
+      responses:
+        "200":
+          description: Public event metadata
+          headers:
+            Cache-Control:
+              description: |
+                `public, max-age=60` for public events; `private, no-store` for
+                password events.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicEventEnvelope"
+        "404":
+          description: Event not found, private, deleted, or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /public/events/{slug}/unlock:
+    parameters:
+      - $ref: "#/components/parameters/EventSlug"
+    post:
+      tags: [Public Gallery]
+      operationId: unlockPublicEvent
+      summary: Unlock a password-protected gallery
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UnlockRequest"
+      responses:
+        "200":
+          description: Correct password; event-scoped unlock token issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UnlockResultEnvelope"
+        "401":
+          description: Incorrect password
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found, private, deleted, or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /public/events/{slug}/photos:
+    parameters:
+      - $ref: "#/components/parameters/EventSlug"
+    get:
+      tags: [Public Gallery]
+      operationId: listPublicPhotos
+      summary: Cursor-paginated listing of READY photos
+      description: |
+        Returns metadata only; image URLs are not embedded. Fetch a signed URL
+        per photo and variant from the `/url` endpoint. Only `READY` photos are
+        listed.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/UnlockToken"
+        - name: cursor
+          in: query
+          description: Opaque keyset cursor returned as nextCursor
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 50
+      responses:
+        "200":
+          description: A page of public photos
+          headers:
+            Cache-Control:
+              description: |
+                `public, max-age=60` for public events; `private, no-store` for
+                password events.
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicPhotoListEnvelope"
+        "401":
+          description: Password event requires a valid unlock token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found, private, deleted, or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Invalid cursor or limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /public/events/{slug}/photos/{photoID}:
+    parameters:
+      - $ref: "#/components/parameters/EventSlug"
+      - $ref: "#/components/parameters/PhotoID"
+    get:
+      tags: [Public Gallery]
+      operationId: getPublicPhoto
+      summary: Get one READY photo's metadata
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/UnlockToken"
+      responses:
+        "200":
+          description: Public photo metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicPhotoEnvelope"
+        "401":
+          description: Password event requires a valid unlock token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event or photo not found, or photo not READY
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /public/events/{slug}/photos/{photoID}/url:
+    parameters:
+      - $ref: "#/components/parameters/EventSlug"
+      - $ref: "#/components/parameters/PhotoID"
+    get:
+      tags: [Public Gallery]
+      operationId: getPublicPhotoURL
+      summary: Get a short-lived signed URL for a photo variant
+      description: |
+        Returns a presigned GET URL valid for `SIGNED_URL_TTL` (default 5
+        minutes). `original` requires `allow_original_download`; any download
+        requires `allow_download`. Responses are never cached.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/UnlockToken"
+        - name: variant
+          in: query
+          required: true
+          schema:
+            $ref: "#/components/schemas/PhotoVariant"
+      responses:
+        "200":
+          description: Signed URL
+          headers:
+            Cache-Control:
+              description: Always `private, no-store` (URL carries credentials).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SignedURLEnvelope"
+        "401":
+          description: Password event requires a valid unlock token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "403":
+          description: Downloads disabled or original download disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event or photo not found, or photo not READY
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Invalid variant
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -760,6 +982,23 @@ components:
       schema:
         type: string
         format: uuid
+    EventSlug:
+      name: slug
+      in: path
+      required: true
+      description: URL slug of the event, unique per operator.
+      schema:
+        type: string
+        maxLength: 255
+    UnlockToken:
+      name: X-Gallery-Unlock
+      in: header
+      required: false
+      description: |
+        Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
+        Required for `password` events; ignored for `public` events.
+      schema:
+        type: string
     PhotoID:
       name: photoID
       in: path
@@ -1204,6 +1443,138 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/UploadStatus"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    PhotoVariant:
+      type: string
+      enum: [thumbnail, medium, large, original]
+      description: |
+        `thumbnail`, `medium`, `large` are generated derivatives; `original` is
+        the uploaded file and is gated by `allow_original_download`.
+    PublicEvent:
+      type: object
+      properties:
+        name:
+          type: string
+        date:
+          type: ["string", "null"]
+          format: date
+        location:
+          type: string
+        description:
+          type: string
+        visibility:
+          $ref: "#/components/schemas/EventVisibility"
+        allowDownload:
+          type: boolean
+        allowOriginalDownload:
+          type: boolean
+        photoCount:
+          type: integer
+          format: int64
+        coverPhotoId:
+          type: ["string", "null"]
+          format: uuid
+        requiresUnlock:
+          type: boolean
+          description: True when the event is password-protected and no valid unlock token was supplied.
+    PublicEventEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PublicEvent"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    UnlockRequest:
+      type: object
+      required: [password]
+      properties:
+        password:
+          type: string
+    UnlockResult:
+      type: object
+      properties:
+        token:
+          type: string
+          description: Event-scoped unlock token; send via the `X-Gallery-Unlock` header.
+        expiresIn:
+          type: integer
+          description: Token lifetime in seconds.
+    UnlockResultEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UnlockResult"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    PublicPhoto:
+      type: object
+      description: Metadata only; image URLs are fetched per variant from the `/url` endpoint.
+      properties:
+        id:
+          type: string
+          format: uuid
+        width:
+          type: ["integer", "null"]
+        height:
+          type: ["integer", "null"]
+        variants:
+          type: array
+          description: Derivative variants available for download.
+          items:
+            $ref: "#/components/schemas/PhotoVariant"
+    PublicPhotoEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PublicPhoto"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    PublicPhotoList:
+      type: object
+      properties:
+        event:
+          $ref: "#/components/schemas/PublicEvent"
+        photos:
+          type: object
+          properties:
+            items:
+              type: array
+              items:
+                $ref: "#/components/schemas/PublicPhoto"
+            nextCursor:
+              type: ["string", "null"]
+    PublicPhotoListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PublicPhotoList"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    SignedURL:
+      type: object
+      properties:
+        url:
+          type: string
+          description: Short-lived presigned GET URL. Never cached or logged.
+        expiresIn:
+          type: integer
+          description: URL lifetime in seconds.
+    SignedURLEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SignedURL"
         error:
           oneOf:
             - type: "null"

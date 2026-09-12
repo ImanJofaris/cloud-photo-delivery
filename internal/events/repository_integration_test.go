@@ -81,6 +81,7 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		allow_download BOOLEAN NOT NULL DEFAULT TRUE,
 		allow_original_download BOOLEAN NOT NULL DEFAULT FALSE,
 		watermark_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+		password_changed_at TIMESTAMPTZ,
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		CONSTRAINT event_settings_visibility_check CHECK (visibility IN ('public','password','private'))
 	)`)

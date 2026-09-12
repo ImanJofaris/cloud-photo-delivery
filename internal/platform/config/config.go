@@ -29,6 +29,9 @@ type Config struct {
 	LockoutDuration  time.Duration
 	PublicBaseURL    string
 
+	SignedURLTTL     time.Duration
+	GalleryUnlockTTL time.Duration
+
 	ShutdownTimeout time.Duration
 
 	WorkerConcurrency int
@@ -60,6 +63,9 @@ func Load() (Config, error) {
 		LockoutMaxFailed: getInt("LOCKOUT_MAX_ATTEMPTS", 5),
 		LockoutDuration:  getDuration("LOCKOUT_DURATION", 15*time.Minute),
 		PublicBaseURL:    getEnv("PUBLIC_BASE_URL", "http://localhost:3000"),
+
+		SignedURLTTL:     getDuration("SIGNED_URL_TTL", 5*time.Minute),
+		GalleryUnlockTTL: getDuration("GALLERY_UNLOCK_TTL", 30*time.Minute),
 	}
 
 	if err := c.validate(); err != nil {
