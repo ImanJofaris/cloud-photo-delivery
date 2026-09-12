@@ -11,6 +11,7 @@ func TestLoad_Valid(t *testing.T) {
 	t.Setenv("HTTP_ADDR", ":9090")
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("SHUTDOWN_TIMEOUT", "5s")
+	t.Setenv("JWT_SECRET", "test-secret")
 
 	cfg, err := Load()
 	if err != nil {
@@ -24,6 +25,16 @@ func TestLoad_Valid(t *testing.T) {
 	}
 	if cfg.IsProd() {
 		t.Fatal("test env should not be prod")
+	}
+}
+
+func TestLoad_MissingJWTSecret(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error when JWT_SECRET missing")
 	}
 }
 
@@ -50,6 +61,7 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("DATABASE_URL", "postgres://x")
 	t.Setenv("HTTP_ADDR", "")
 	t.Setenv("LOG_LEVEL", "")
+	t.Setenv("JWT_SECRET", "test-secret")
 
 	cfg, err := Load()
 	if err != nil {
@@ -63,6 +75,21 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 	if cfg.R2Region != "auto" {
 		t.Errorf("expected default region auto, got %q", cfg.R2Region)
+	}
+	if cfg.AccessTokenTTL != 15*time.Minute {
+		t.Errorf("expected default access TTL 15m, got %v", cfg.AccessTokenTTL)
+	}
+	if cfg.RefreshTokenTTL != 720*time.Hour {
+		t.Errorf("expected default refresh TTL 720h, got %v", cfg.RefreshTokenTTL)
+	}
+	if cfg.LockoutMaxFailed != 5 {
+		t.Errorf("expected default lockout max 5, got %d", cfg.LockoutMaxFailed)
+	}
+	if cfg.LockoutDuration != 15*time.Minute {
+		t.Errorf("expected default lockout duration 15m, got %v", cfg.LockoutDuration)
+	}
+	if cfg.PublicBaseURL != "http://localhost:3000" {
+		t.Errorf("expected default public base url, got %q", cfg.PublicBaseURL)
 	}
 }
 

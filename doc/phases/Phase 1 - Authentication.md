@@ -1,5 +1,7 @@
 # Phase 1 — Authentication & Users
 
+> **Status: COMPLETE.** See the [Phase 1 Report](Phase 1 - Report.md) for what was built and how it was verified.
+
 **Goal:** Operators can register, log in, refresh, log out, reset password, and read/update their profile. Tenant identity is established for all later phases.
 
 **Depends on:** Phase 0.

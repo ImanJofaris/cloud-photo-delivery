@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -72,5 +73,29 @@ func TestHealthz_RequestIDHeader(t *testing.T) {
 
 	if rec.Header().Get("X-Request-ID") == "" {
 		t.Fatal("expected X-Request-ID header")
+	}
+}
+
+func TestProtectedRoute_RequiresAuth(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/account/me", nil))
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
+	}
+}
+
+func TestAuthRoute_RejectsInvalidJSON(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader("{bad"))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("expected 422, got %d", rec.Code)
 	}
 }

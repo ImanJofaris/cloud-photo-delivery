@@ -12,8 +12,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/logging"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 )
@@ -84,6 +86,49 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			return
 		}
 		httpx.Success(w, http.StatusOK, map[string]string{"status": "ready"})
+	})
+
+	// Domain wiring.
+	userRepo := users.NewRepository(pool.Pool)
+	userSvc := users.NewService(userRepo)
+	authRepo := auth.NewRepository(pool.Pool)
+	tokenSvc := auth.NewTokenService(cfg.JWTSecret, cfg.AccessTokenTTL, cfg.RefreshTokenTTL)
+	mailer := &auth.LogMailer{Log: func(msg string, args ...any) { log.Info(msg, args...) }}
+	authSvc := auth.NewService(userRepo, authRepo, tokenSvc, mailer, auth.Config{
+		AccessTTL:        cfg.AccessTokenTTL,
+		RefreshTTL:       cfg.RefreshTokenTTL,
+		PasswordResetTTL: cfg.PasswordResetTTL,
+		LockoutMaxFailed: cfg.LockoutMaxFailed,
+		LockoutDuration:  cfg.LockoutDuration,
+		PublicBaseURL:    cfg.PublicBaseURL,
+	})
+	authHandler := auth.NewHandler(authSvc)
+	userHandler := users.NewHandler(userSvc, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
+
+	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
+
+	r.Route("/api/v1", func(r chi.Router) {
+		r.Group(func(r chi.Router) {
+			r.Use(authLimiter.Middleware(httpx.ClientIP))
+			r.Post("/auth/signup", authHandler.Signup)
+			r.Post("/auth/login", authHandler.Login)
+			r.Post("/auth/refresh", authHandler.Refresh)
+			r.Post("/auth/logout", authHandler.Logout)
+			r.Post("/auth/password/reset-request", authHandler.RequestPasswordReset)
+			r.Post("/auth/password/reset-confirm", authHandler.ConfirmPasswordReset)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(authSvc.RequireAuth)
+			r.Get("/account/me", userHandler.Me)
+			r.Patch("/account/me", userHandler.UpdateMe)
+		})
 	})
 
 	return r

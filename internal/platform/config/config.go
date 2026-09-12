@@ -21,6 +21,14 @@ type Config struct {
 	R2Bucket    string
 	R2Region    string
 
+	JWTSecret        string
+	AccessTokenTTL   time.Duration
+	RefreshTokenTTL  time.Duration
+	PasswordResetTTL time.Duration
+	LockoutMaxFailed int
+	LockoutDuration  time.Duration
+	PublicBaseURL    string
+
 	ShutdownTimeout time.Duration
 }
 
@@ -38,6 +46,14 @@ func Load() (Config, error) {
 		R2Bucket:        os.Getenv("R2_BUCKET"),
 		R2Region:        getEnv("R2_REGION", "auto"),
 		ShutdownTimeout: getDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
+
+		JWTSecret:        os.Getenv("JWT_SECRET"),
+		AccessTokenTTL:   getDuration("ACCESS_TOKEN_TTL", 15*time.Minute),
+		RefreshTokenTTL:  getDuration("REFRESH_TOKEN_TTL", 720*time.Hour),
+		PasswordResetTTL: getDuration("PASSWORD_RESET_TTL", time.Hour),
+		LockoutMaxFailed: getInt("LOCKOUT_MAX_ATTEMPTS", 5),
+		LockoutDuration:  getDuration("LOCKOUT_DURATION", 15*time.Minute),
+		PublicBaseURL:    getEnv("PUBLIC_BASE_URL", "http://localhost:3000"),
 	}
 
 	if err := c.validate(); err != nil {
@@ -58,6 +74,12 @@ func (c Config) validate() error {
 	if c.DatabaseURL == "" {
 		errs = append(errs, "DATABASE_URL is required")
 	}
+	if c.JWTSecret == "" {
+		errs = append(errs, "JWT_SECRET is required")
+	}
+	if c.LockoutMaxFailed < 1 {
+		errs = append(errs, "LOCKOUT_MAX_ATTEMPTS must be at least 1")
+	}
 	if len(errs) > 0 {
 		return errors.New("invalid config: " + strings.Join(errs, "; "))
 	}
@@ -76,6 +98,18 @@ func getEnv(key, fallback string) string {
 		return v
 	}
 	return fallback
+}
+
+func getInt(key string, fallback int) int {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		return fallback
+	}
+	return n
 }
 
 func getDuration(key string, fallback time.Duration) time.Duration {
