@@ -2,29 +2,29 @@ package uploads
 
 import (
 	"context"
-	"encoding/json"
 
 	"github.com/google/uuid"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/jobs"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+// JobProcessPhoto is the job type enqueued when an upload completes. The
+// worker registers this type alongside image.process.
+const JobProcessPhoto = "PROCESS_PHOTO"
+
 type PostgresQueue struct {
-	pool *pgxpool.Pool
+	queue *jobs.PostgresQueue
 }
 
 func NewPostgresQueue(pool *pgxpool.Pool) *PostgresQueue {
-	return &PostgresQueue{pool: pool}
+	return &PostgresQueue{queue: jobs.NewPostgresQueue(pool)}
 }
 
 func (q *PostgresQueue) EnqueueProcessPhoto(ctx context.Context, photoID, eventID uuid.UUID) error {
-	payload, err := json.Marshal(map[string]string{
-		"photoId": photoID.String(),
-		"eventId": eventID.String(),
+	_, err := q.queue.Enqueue(ctx, JobProcessPhoto, photos.ProcessPayload{
+		PhotoID: photoID,
+		EventID: eventID,
 	})
-	if err != nil {
-		return err
-	}
-	_, err = q.pool.Exec(ctx,
-		`INSERT INTO jobs (type, payload) VALUES ('PROCESS_PHOTO', $1)`, payload)
 	return err
 }

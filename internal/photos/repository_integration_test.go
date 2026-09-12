@@ -102,11 +102,13 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		status VARCHAR(20) NOT NULL DEFAULT 'pending',
 		run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		attempts INT NOT NULL DEFAULT 0,
+		max_attempts INT NOT NULL DEFAULT 5,
 		last_error TEXT,
+		locked_at TIMESTAMPTZ,
+		locked_by TEXT,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
-
 	userA := insertUser(t, pool, "a@example.com")
 	userB := insertUser(t, pool, "b@example.com")
 	return pool, userA, userB

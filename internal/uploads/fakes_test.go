@@ -83,6 +83,22 @@ func (f *fakePhotoRepo) MarkProcessing(_ context.Context, id uuid.UUID, _ int64)
 	return &cp, true, nil
 }
 
+func (f *fakePhotoRepo) MarkReady(_ context.Context, id uuid.UUID, width, height int, d photos.Derivatives) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	p, ok := f.byID[id]
+	if !ok {
+		return photos.ErrNotFound
+	}
+	p.Status = photos.StatusReady
+	p.Width = &width
+	p.Height = &height
+	p.ThumbnailKey = &d.Thumbnail.Key
+	p.MediumKey = &d.Medium.Key
+	p.OptimizedKey = &d.Optimized.Key
+	return nil
+}
+
 func (f *fakePhotoRepo) MarkFailed(_ context.Context, id uuid.UUID, msg string) error {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -103,6 +119,17 @@ func (f *fakePhotoRepo) SavePartETag(_ context.Context, photoID uuid.UUID, partN
 	}
 	f.parts[photoID][partNumber] = etag
 	return nil
+}
+
+func (f *fakePhotoRepo) EventOwner(_ context.Context, eventID uuid.UUID) (uuid.UUID, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for _, p := range f.byID {
+		if p.EventID == eventID {
+			return p.EventID, nil
+		}
+	}
+	return uuid.Nil, photos.ErrNotFound
 }
 
 type fakeUploadRepo struct {

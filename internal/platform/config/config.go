@@ -30,6 +30,9 @@ type Config struct {
 	PublicBaseURL    string
 
 	ShutdownTimeout time.Duration
+
+	WorkerConcurrency int
+	WorkerPollEvery   time.Duration
 }
 
 func (c Config) IsProd() bool { return c.Env == "prod" }
@@ -46,6 +49,9 @@ func Load() (Config, error) {
 		R2Bucket:        os.Getenv("R2_BUCKET"),
 		R2Region:        getEnv("R2_REGION", "auto"),
 		ShutdownTimeout: getDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
+
+		WorkerConcurrency: getInt("WORKER_CONCURRENCY", 2),
+		WorkerPollEvery:   getDuration("WORKER_POLL_INTERVAL", time.Second),
 
 		JWTSecret:        os.Getenv("JWT_SECRET"),
 		AccessTokenTTL:   getDuration("ACCESS_TOKEN_TTL", 15*time.Minute),

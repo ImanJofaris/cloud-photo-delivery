@@ -29,8 +29,15 @@ type Repository interface {
 	// MarkProcessing transitions UPLOADING -> PROCESSING exactly once and
 	// increments the owning event's counters in the same transaction.
 	MarkProcessing(ctx context.Context, id uuid.UUID, incrementBytes int64) (*Photo, bool, error)
+	// MarkReady records derivatives and dimensions and transitions
+	// PROCESSING -> READY. It is idempotent: re-running overwrites the same
+	// keys. Returns ErrNotFound if the photo no longer exists.
+	MarkReady(ctx context.Context, id uuid.UUID, width, height int, d Derivatives) error
 	MarkFailed(ctx context.Context, id uuid.UUID, msg string) error
 	SavePartETag(ctx context.Context, photoID uuid.UUID, partNumber int, etag string) error
+	// EventOwner returns the owning user for an event, used by the worker to
+	// rebuild deterministic storage keys.
+	EventOwner(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error)
 }
 
 type PostgresRepository struct {
@@ -142,6 +149,22 @@ func (r *PostgresRepository) getTx(ctx context.Context, tx pgx.Tx, id uuid.UUID)
 	return scanPhoto(row)
 }
 
+func (r *PostgresRepository) MarkReady(ctx context.Context, id uuid.UUID, width, height int, d Derivatives) error {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE photos SET status = $2, width = $3, height = $4,
+			thumbnail_key = $5, medium_key = $6, optimized_key = $7,
+			error_message = NULL, updated_at = NOW()
+		 WHERE id = $1`,
+		id, StatusReady, width, height, d.Thumbnail.Key, d.Medium.Key, d.Optimized.Key)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
+}
+
 func (r *PostgresRepository) MarkFailed(ctx context.Context, id uuid.UUID, msg string) error {
 	tag, err := r.pool.Exec(ctx,
 		`UPDATE photos SET status = $2, error_message = $3, updated_at = NOW()
@@ -161,4 +184,16 @@ func (r *PostgresRepository) SavePartETag(ctx context.Context, photoID uuid.UUID
 		 ON CONFLICT (photo_id, part_number) DO UPDATE SET etag = EXCLUDED.etag`,
 		photoID, partNumber, etag)
 	return err
+}
+
+func (r *PostgresRepository) EventOwner(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error) {
+	var userID uuid.UUID
+	err := r.pool.QueryRow(ctx, `SELECT user_id FROM events WHERE id = $1`, eventID).Scan(&userID)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return uuid.Nil, ErrNotFound
+		}
+		return uuid.Nil, err
+	}
+	return userID, nil
 }

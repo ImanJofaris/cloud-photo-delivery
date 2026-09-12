@@ -24,6 +24,8 @@ This is the master plan. Each phase has its own detailed document under `doc/pha
 - [Phase 1 — Report](phases/Phase 1 - Report.md) — COMPLETE
 - [Phase 2 — Report](phases/Phase 2 - Report.md) — COMPLETE
 - [Phase 3 — Report](phases/Phase 3 - Report.md) — COMPLETE
+- [Phase 4 — Report](phases/Phase 4 - Report.md) — COMPLETE
+- [Phase 4.1 — Report](phases/Phase 4.1 - Report.md) — COMPLETE (lossy WebP + bilinear resize)
 
 Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase Report.md)
 
@@ -53,7 +55,7 @@ Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase
 | Object storage | Cloudflare R2 | S3-compatible API |
 | Local object store | MinIO | For dev + integration tests |
 | Queue | PostgreSQL-backed jobs table | No Redis on day one |
-| Image processing | `disintegration/imaging` (MVP) | Swap for `libvips` if needed |
+| Image processing | `gen2brain/vpx` (pure-Go libwebp port) | Lossy VP8 + lossless VP8L, CGO-free; swap for `libvips` if needed |
 | Auth | JWT access + refresh, bcrypt/argon2 | Bearer for API, API keys for devices |
 | QR | `skip2/go-qrcode` | PNG + SVG output |
 | API contract | OpenAPI 3.1 | `api/openapi.yaml`, code-reviewed first |
@@ -191,5 +193,6 @@ Business logic lives in `internal/<domain>` service structs, separate from HTTP 
 | R2 signing quirks vs S3 | Integration tests run against MinIO; a thin `pkg/r2` abstraction allows swapping. |
 | Large-file multipart complexity | Phase 3 isolates it; ship simple upload first, add multipart behind the same contract. |
 | Image pipeline CPU cost | Choose `imaging` for MVP, containerize so `libvips` can replace it later. |
+| WebP derivative size/egress | Phase 4.1 switched to lossy VP8 via `gen2brain/vpx` (CGO-free) with per-derivative quality 80/82/85; ~4.3× smaller than lossless on worst-case data. |
 | Payment provider for Malaysia | Billing (Phase 8) starts with a provider-agnostic `PaymentProvider` interface (Billplz/Stripe adapters). |
 | Scope creep | Section 26 of the Product Spec is a hard "do not build" list for MVP. |

@@ -75,6 +75,11 @@ func createBucketE2E(t *testing.T, endpoint, bucket string) {
 }
 
 func setupUploadsAPI(t *testing.T) (http.Handler, *pgxpool.Pool) {
+	h, pool, _ := setupUploadsAPIWithEndpoint(t)
+	return h, pool
+}
+
+func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, string) {
 	t.Helper()
 	ctx := context.Background()
 
@@ -188,7 +193,10 @@ func setupUploadsAPI(t *testing.T) (http.Handler, *pgxpool.Pool) {
 		status VARCHAR(20) NOT NULL DEFAULT 'pending',
 		run_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		attempts INT NOT NULL DEFAULT 0,
+		max_attempts INT NOT NULL DEFAULT 5,
 		last_error TEXT,
+		locked_at TIMESTAMPTZ,
+		locked_by TEXT,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
@@ -259,7 +267,7 @@ func setupUploadsAPI(t *testing.T) (http.Handler, *pgxpool.Pool) {
 			})
 		})
 	})
-	return r, pool
+	return r, pool, endpoint
 }
 
 func doReqHeaders(t *testing.T, h http.Handler, method, path, body, bearer string, headers map[string]string) *httptest.ResponseRecorder {

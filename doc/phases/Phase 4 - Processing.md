@@ -1,5 +1,7 @@
 # Phase 4 — Image Processing Worker & Queue
 
+> **Status: COMPLETE.** See the [Phase 4 Report](Phase 4 - Report.md) for what was built and how it was verified.
+
 **Goal:** A PostgreSQL-backed queue and a standalone worker generate thumbnails and optimized images after upload, updating the database so the gallery can serve fast images.
 
 **Depends on:** Phase 3.
