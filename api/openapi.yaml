@@ -1,0 +1,52 @@
+openapi: 3.1.0
+info:
+  title: Cloud Photo Delivery API
+  version: 0.1.0
+  description: API-first backend for the Cloud Photo Delivery SaaS.
+servers:
+  - url: http://localhost:8080/api/v1
+    description: Local development
+tags:
+  - name: Health
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      operationId: getHealth
+      summary: Liveness probe
+      security: []
+      responses:
+        "200":
+          description: Service is alive
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+  /readyz:
+    get:
+      tags: [Health]
+      operationId: getReady
+      summary: Readiness probe (checks database)
+      security: []
+      responses:
+        "200":
+          description: Service is ready
+        "503":
+          description: Service is not ready
+components:
+  schemas:
+    Envelope:
+      type: object
+      properties:
+        data: {}
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string

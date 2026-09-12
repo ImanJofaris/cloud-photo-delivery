@@ -1,0 +1,76 @@
+package main
+
+import (
+	"context"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
+	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
+	"github.com/jackc/pgx/v5/pgxpool"
+)
+
+func testPool(t *testing.T) *database.Pool {
+	t.Helper()
+	cfg, err := pgxpool.ParseConfig("postgres://x:y@127.0.0.1:1/none")
+	if err != nil {
+		t.Fatalf("parse config: %v", err)
+	}
+	// Constructing a pool does not connect until first use.
+	pool, err := pgxpool.NewWithConfig(context.Background(), cfg)
+	if err != nil {
+		t.Fatalf("new pool: %v", err)
+	}
+	t.Cleanup(pool.Close)
+	return &database.Pool{Pool: pool}
+}
+
+func TestHealthz(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d", rec.Code)
+	}
+	var env struct {
+		Data  map[string]string `json:"data"`
+		Error any               `json:"error"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.Data["status"] != "ok" {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
+	}
+}
+
+func TestReadyz_DatabaseDown(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil).WithContext(ctx)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("expected 503, got %d", rec.Code)
+	}
+}
+
+func TestHealthz_RequestIDHeader(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if rec.Header().Get("X-Request-ID") == "" {
+		t.Fatal("expected X-Request-ID header")
+	}
+}
