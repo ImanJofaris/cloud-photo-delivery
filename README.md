@@ -4,19 +4,20 @@ Cloud-based photo delivery SaaS for Malaysian photobooths. See `doc/` for the Pr
 
 ## Documentation
 
+- [AGENTS.md](AGENTS.md) — operating guide: commands, layering rules, environment gotchas.
 - [Developer Onboarding](doc/Developer%20Onboarding.md) — set up and run the project, project map, troubleshooting.
 - [Contributing](doc/Contributing.md) — workflow, layering rules, Definition of Done.
 - [Implementation Plan](doc/Implementation%20Plan.md) — all phases and conventions.
 - [Test Strategy](doc/Test%20Strategy.md) — unit / integration / E2E approach.
-- [Phase 0 Report](doc/phases/Phase%200%20-%20Report.md) — what has been built so far.
+- Completion reports: [Phase 0](doc/phases/Phase%200%20-%20Report.md), [Phase 1](doc/phases/Phase%201%20-%20Report.md), [Phase 2](doc/phases/Phase%202%20-%20Report.md).
 
 ## Status
 
-Phase 0 — Foundation & Scaffold. **Complete.** See the Phase 0 report for details.
+Phases 0–2 are **complete**: foundation, authentication & users, and events & settings. See the phase reports under `doc/phases/` for details. Next up: Phase 3 — Uploads & Object Storage.
 
 ## Stack
 
-- Go 1.24+ (`net/http` + `chi` + `pgx`)
+- Go 1.26+ (`net/http` + `chi` + `pgx`)
 - PostgreSQL 16
 - Cloudflare R2 (S3-compatible); MinIO locally
 - Docker / docker-compose
@@ -36,7 +37,7 @@ curl http://localhost:8080/healthz
 curl http://localhost:8080/readyz
 ```
 
-Worker (placeholder in Phase 0):
+Worker (placeholder until Phase 4):
 
 ```text
 make worker
