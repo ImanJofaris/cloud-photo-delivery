@@ -10,3 +10,14 @@ coverage.html
 .vscode/
 .idea/
 .DS_Store
+
+# Node / frontend
+node_modules/
+.next/
+out/
+dist/
+*.tsbuildinfo
+.eslintcache
+playwright-report/
+test-results/
+.pnpm-store/

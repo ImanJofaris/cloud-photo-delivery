@@ -18,6 +18,14 @@ This is the master plan. Each phase has its own detailed document under `doc/pha
 - [Phase 9 — Lifecycle, ZIP, Analytics & Admin](phases/Phase 9 - Lifecycle and Admin.md)
 - [Phase 10 — Hardening, Observability & Deployment](phases/Phase 10 - Hardening and Deploy.md)
 
+### Frontend track (`apps/web`)
+
+- [Phase F0 — Web Foundation](phases/Phase F0 - Web Foundation.md)
+- [Phase F1 — Auth and Shell](phases/Phase F1 - Auth and Shell.md)
+- [Phase F2 — Events Dashboard](phases/Phase F2 - Events Dashboard.md)
+
+Frontend conventions: [`doc/frontend/Conventions.md`](frontend/Conventions.md).
+
 ## Completion Reports
 
 - [Phase 0 — Report](phases/Phase 0 - Report.md) — COMPLETE
@@ -27,6 +35,9 @@ This is the master plan. Each phase has its own detailed document under `doc/pha
 - [Phase 4 — Report](phases/Phase 4 - Report.md) — COMPLETE
 - [Phase 4.1 — Report](phases/Phase 4.1 - Report.md) — COMPLETE (lossy WebP + bilinear resize)
 - [Phase 5 — Report](phases/Phase 5 - Report.md) — COMPLETE (public gallery API; UI deferred)
+- [Phase F0 — Report](phases/Phase F0 - Report.md) — COMPLETE (web foundation)
+- [Phase F1 — Report](phases/Phase F1 - Report.md) — COMPLETE (BFF-lite auth + shell)
+- [Phase F2 — Report](phases/Phase F2 - Report.md) — COMPLETE (events dashboard)
 
 Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase Report.md)
 
@@ -60,7 +71,7 @@ Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase
 | Auth | JWT access + refresh, bcrypt/argon2 | Bearer for API, API keys for devices |
 | QR | `skip2/go-qrcode` | PNG + SVG output |
 | API contract | OpenAPI 3.1 | `api/openapi.yaml`, code-reviewed first |
-| Frontend | Next.js / React (Phase 5+) | Consumes the API only |
+| Frontend | Next.js 16 App Router + pnpm workspace | `apps/web` + `packages/ui` + generated `packages/api-client`; consumes the API only |
 | Deployment | Docker + docker-compose | Stateless API instances |
 | CI | GitHub Actions | lint, vet, test, build |
 
@@ -69,7 +80,8 @@ Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase
 ```text
 Go 1.26+            (installed)
 Docker Desktop      (installed)
-Node 24+            (installed, for frontend later)
+Node 24+            (installed; frontend in apps/web)
+pnpm                corepack enable
 golangci-lint       go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
 goose OR migrate    go install github.com/pressly/goose/v3/cmd/goose@latest
 mockery (optional)  go install github.com/vektra/mockery/v2@latest
@@ -122,6 +134,11 @@ cloud-photo-delivery/
 │   └── httpx/           # JSON envelope, middleware, errors
 ├── migrations/
 ├── api/openapi.yaml
+├── apps/
+│   └── web/             # Next.js 16 frontend (Phase F0+)
+├── packages/
+│   ├── ui/              # shared shadcn/ui components
+│   └── api-client/      # generated OpenAPI types + typed fetch wrapper
 ├── test/
 │   ├── integration/
 │   └── e2e/

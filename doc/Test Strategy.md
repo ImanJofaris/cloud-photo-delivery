@@ -34,6 +34,8 @@ Testing is part of every phase, not a later phase. This document defines the thr
 | Coverage | `go test -coverprofile`; enforce per-package threshold in CI |
 | Race detection | `go test -race ./...` |
 | Load smoke | `k6` scripts (Phase 10) |
+| Frontend unit | Vitest + Testing Library (jsdom) |
+| Frontend E2E | Playwright against a live Go API |
 
 Integration tests are guarded by build tags so unit runs stay fast:
 
@@ -94,6 +96,12 @@ func TestCompleteUpload_IsIdempotentOnRetry(t *testing.T) { ... }
 
 E2E spins up the real `cmd/api` and `cmd/worker` against containerized Postgres + MinIO.
 
+### Frontend (per FE phase)
+
+- Vitest + Testing Library beside the code: rendering, interaction, form validation, and error-code mapping. Mock at the network boundary, never internal modules.
+- Playwright covers the phase's critical browser flow (auth, event lifecycle, gallery, upload) against a running Go API.
+- Business rules stay in Go tests; the frontend proves it renders and sends the right requests. Details: `doc/frontend/Conventions.md`.
+
 ---
 
 ## 4. Test Data & Isolation
@@ -122,7 +130,7 @@ E2E spins up the real `cmd/api` and `cmd/worker` against containerized Postgres 
 3. go test ./... -race -cover
 4. go test -tags=integration ./... -race
 5. go build ./cmd/api ./cmd/worker
-6. (Phase 5+) Next.js lint + build
+6. Frontend (Phase F0+): pnpm lint, pnpm typecheck, pnpm test, pnpm build
 ```
 
 A phase PR cannot merge unless gates pass and the phase's acceptance criteria are checked off.

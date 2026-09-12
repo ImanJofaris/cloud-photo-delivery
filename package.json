@@ -1,0 +1,24 @@
+{
+  "name": "cloud-photo-delivery",
+  "private": true,
+  "packageManager": "pnpm@12.4.1",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "lint": "pnpm -r --if-present lint",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "test:e2e": "pnpm --filter web test:e2e",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "gen:api": "pnpm --filter @workspace/api-client gen",
+    "shadcn": "node scripts/shadcn.cjs"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3",
+    "prettier-plugin-tailwindcss": "^0.8.0"
+  }
+}

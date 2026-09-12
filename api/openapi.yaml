@@ -1038,6 +1038,7 @@ components:
           type: string
     AuthResponse:
       type: object
+      required: [accessToken, refreshToken, expiresIn, user]
       properties:
         accessToken:
           type: string
@@ -1049,6 +1050,7 @@ components:
           $ref: "#/components/schemas/Profile"
     Profile:
       type: object
+      required: [id, email]
       properties:
         id:
           type: string
@@ -1085,6 +1087,7 @@ components:
             - $ref: "#/components/schemas/Error"
     Error:
       type: object
+      required: [code, message]
       properties:
         code:
           type: string
@@ -1098,6 +1101,20 @@ components:
       enum: [public, password, private]
     Event:
       type: object
+      required:
+        [
+          id,
+          name,
+          slug,
+          status,
+          eventDate,
+          storageBytes,
+          photoCount,
+          guestCount,
+          expiresAt,
+          createdAt,
+          updatedAt,
+        ]
       properties:
         id:
           type: string
@@ -1142,6 +1159,16 @@ components:
           format: date-time
     EventSettings:
       type: object
+      required:
+        [
+          eventId,
+          visibility,
+          passwordProtected,
+          allowDownload,
+          allowOriginalDownload,
+          watermarkEnabled,
+          updatedAt,
+        ]
       properties:
         eventId:
           type: string
@@ -1229,6 +1256,7 @@ components:
       $ref: "#/components/schemas/EventSettingsInput"
     EventDashboard:
       type: object
+      required: [photoCount, storageBytes, guestCount]
       properties:
         photoCount:
           type: integer
@@ -1250,6 +1278,7 @@ components:
             - $ref: "#/components/schemas/Error"
     EventWithSettings:
       type: object
+      required: [event, settings]
       properties:
         event:
           $ref: "#/components/schemas/Event"
@@ -1266,6 +1295,7 @@ components:
             - $ref: "#/components/schemas/Error"
     EventList:
       type: object
+      required: [items, nextCursor]
       properties:
         items:
           type: array
