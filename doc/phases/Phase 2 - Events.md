@@ -1,5 +1,7 @@
 # Phase 2 — Events & Settings
 
+> **Status: COMPLETE.** See the [Phase 2 Report](Phase 2 - Report.md) for what was built and how it was verified.
+
 **Goal:** Operators can create, list, read, update, archive, and delete their own events, with per-event gallery settings. This is the tenant boundary for all photo data.
 
 **Depends on:** Phase 1.

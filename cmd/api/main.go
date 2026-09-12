@@ -13,7 +13,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/logging"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
@@ -111,6 +113,16 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		return id.String(), true
 	})
 
+	eventRepo := events.NewRepository(pool.Pool)
+	eventSvc := events.NewService(eventRepo, limits.NewDefault(), auth.HashPassword)
+	eventHandler := events.NewHandler(eventSvc, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
+
 	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -128,6 +140,22 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			r.Use(authSvc.RequireAuth)
 			r.Get("/account/me", userHandler.Me)
 			r.Patch("/account/me", userHandler.UpdateMe)
+
+			r.Route("/events", func(r chi.Router) {
+				r.Post("/", eventHandler.Create)
+				r.Get("/", eventHandler.List)
+
+				r.Route("/{eventID}", func(r chi.Router) {
+					r.Get("/", eventHandler.Get)
+					r.Patch("/", eventHandler.Update)
+					r.Post("/archive", eventHandler.Archive)
+					r.Delete("/", eventHandler.Delete)
+
+					r.Get("/settings", eventHandler.GetSettings)
+					r.Patch("/settings", eventHandler.UpdateSettings)
+					r.Get("/dashboard", eventHandler.Dashboard)
+				})
+			})
 		})
 	})
 

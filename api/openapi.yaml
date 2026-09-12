@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
-  version: 0.2.0
+  version: 0.3.0
   description: API-first backend for the Cloud Photo Delivery SaaS.
 servers:
   - url: http://localhost:8080/api/v1
@@ -10,6 +10,7 @@ tags:
   - name: Health
   - name: Auth
   - name: Account
+  - name: Events
 paths:
   /healthz:
     get:
@@ -261,12 +262,287 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /events:
+    post:
+      tags: [Events]
+      operationId: createEvent
+      summary: Create an event
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEventRequest"
+      responses:
+        "201":
+          description: Event created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventWithSettingsEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Active event limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+    get:
+      tags: [Events]
+      operationId: listEvents
+      summary: List the authenticated operator's events
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: status
+          in: query
+          schema:
+            $ref: "#/components/schemas/EventStatus"
+        - name: q
+          in: query
+          description: Case-insensitive search on the event name
+          schema:
+            type: string
+        - name: cursor
+          in: query
+          description: Opaque keyset cursor returned as nextCursor
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of events
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventListEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Invalid status or cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    get:
+      tags: [Events]
+      operationId: getEvent
+      summary: Get one event
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+    patch:
+      tags: [Events]
+      operationId: updateEvent
+      summary: Update event fields
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventRequest"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventEnvelope"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+    delete:
+      tags: [Events]
+      operationId: deleteEvent
+      summary: Soft delete an event
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Deleted
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/archive:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    post:
+      tags: [Events]
+      operationId: archiveEvent
+      summary: Archive an event
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Archived event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventEnvelope"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/settings:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    get:
+      tags: [Events]
+      operationId: getEventSettings
+      summary: Get an event's gallery settings
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Event settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSettingsEnvelope"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+    patch:
+      tags: [Events]
+      operationId: updateEventSettings
+      summary: Update an event's gallery settings
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventSettingsRequest"
+      responses:
+        "200":
+          description: Updated settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventSettingsEnvelope"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/dashboard:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    get:
+      tags: [Events]
+      operationId: getEventDashboard
+      summary: Get an event's dashboard aggregates
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Dashboard aggregates
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventDashboardEnvelope"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  parameters:
+    EventID:
+      name: eventID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
   schemas:
     SignupRequest:
       type: object
@@ -343,3 +619,213 @@ components:
           type: string
         message:
           type: string
+    EventStatus:
+      type: string
+      enum: [upcoming, active, completed, archived]
+    EventVisibility:
+      type: string
+      enum: [public, password, private]
+    Event:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        slug:
+          type: string
+        clientName:
+          type: string
+        clientEmail:
+          type: string
+        location:
+          type: string
+        description:
+          type: string
+        eventDate:
+          type: ["string", "null"]
+          format: date
+        status:
+          $ref: "#/components/schemas/EventStatus"
+        coverPhotoId:
+          type: ["string", "null"]
+          format: uuid
+        storageBytes:
+          type: integer
+          format: int64
+        photoCount:
+          type: integer
+          format: int64
+        guestCount:
+          type: integer
+          format: int64
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    EventSettings:
+      type: object
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        visibility:
+          $ref: "#/components/schemas/EventVisibility"
+        passwordProtected:
+          type: boolean
+        allowDownload:
+          type: boolean
+        allowOriginalDownload:
+          type: boolean
+        watermarkEnabled:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+    EventSettingsInput:
+      type: object
+      properties:
+        visibility:
+          $ref: "#/components/schemas/EventVisibility"
+        password:
+          type: string
+          description: Set a gallery password; empty string clears it
+        allowDownload:
+          type: boolean
+        allowOriginalDownload:
+          type: boolean
+        watermarkEnabled:
+          type: boolean
+    CreateEventRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        eventDate:
+          type: string
+          format: date
+        clientName:
+          type: string
+          maxLength: 255
+        clientEmail:
+          type: string
+          format: email
+          maxLength: 320
+        location:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+        status:
+          $ref: "#/components/schemas/EventStatus"
+        expiresAt:
+          type: string
+          format: date-time
+        settings:
+          $ref: "#/components/schemas/EventSettingsInput"
+    UpdateEventRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        eventDate:
+          type: string
+          format: date
+          description: Empty string clears the date
+        clientName:
+          type: string
+        clientEmail:
+          type: string
+          format: email
+        location:
+          type: string
+        description:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+          description: Empty string clears the expiry
+    UpdateEventSettingsRequest:
+      $ref: "#/components/schemas/EventSettingsInput"
+    EventDashboard:
+      type: object
+      properties:
+        photoCount:
+          type: integer
+          format: int64
+        storageBytes:
+          type: integer
+          format: int64
+        guestCount:
+          type: integer
+          format: int64
+    EventEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Event"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    EventWithSettings:
+      type: object
+      properties:
+        event:
+          $ref: "#/components/schemas/Event"
+        settings:
+          $ref: "#/components/schemas/EventSettings"
+    EventWithSettingsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/EventWithSettings"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    EventList:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        nextCursor:
+          type: ["string", "null"]
+    EventListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/EventList"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    EventSettingsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/EventSettings"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    EventDashboardEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/EventDashboard"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"

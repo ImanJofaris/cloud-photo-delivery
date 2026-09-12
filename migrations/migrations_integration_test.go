@@ -56,6 +56,68 @@ func TestMigrations_UpSQLApplies(t *testing.T) {
 	require.True(t, exists)
 }
 
+func TestMigrations_EventsUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	initSQL, err := os.ReadFile("0001_init.sql")
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, extractSection(string(initSQL), "-- +goose Up", "-- +goose Down"))
+	require.NoError(t, err)
+
+	authSQL, err := os.ReadFile("0002_auth.sql")
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx, extractSection(string(authSQL), "-- +goose Up", "-- +goose Down"))
+	require.NoError(t, err)
+
+	eventsSQL, err := os.ReadFile("0003_events.sql")
+	require.NoError(t, err)
+	up := extractSection(string(eventsSQL), "-- +goose Up", "-- +goose Down")
+	require.NotEmpty(t, up)
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+
+	for _, table := range []string{"events", "event_settings"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)", table).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "table %s should exist after up", table)
+	}
+
+	down := extractSection(string(eventsSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, down)
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+
+	for _, table := range []string{"events", "event_settings"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)", table).Scan(&exists)
+		require.NoError(t, err)
+		require.False(t, exists, "table %s should be dropped by down", table)
+	}
+}
+
 func extractSection(s, start, end string) string {
 	i := indexOf(s, start)
 	if i < 0 {
