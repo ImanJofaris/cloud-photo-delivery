@@ -1,5 +1,7 @@
 # Phase 3 — Uploads & Object Storage
 
+> **Status: COMPLETE.** See the [Phase 3 Report](Phase 3 - Report.md) for what was built and how it was verified.
+
 **Goal:** The API issues presigned uploads so clients put photo bytes directly into R2. Supports simple and multipart uploads, completion, idempotency, and failure recovery. **The Go API never touches photo bytes.**
 
 **Depends on:** Phase 2.

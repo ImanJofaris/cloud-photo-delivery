@@ -118,6 +118,65 @@ func TestMigrations_EventsUpDownRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMigrations_PhotosUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	for _, file := range []string{"0001_init.sql", "0002_auth.sql", "0003_events.sql"} {
+		sql, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, extractSection(string(sql), "-- +goose Up", "-- +goose Down"))
+		require.NoError(t, err)
+	}
+
+	photosSQL, err := os.ReadFile("0004_photos.sql")
+	require.NoError(t, err)
+	up := extractSection(string(photosSQL), "-- +goose Up", "-- +goose Down")
+	require.NotEmpty(t, up)
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+
+	for _, table := range []string{"photos", "upload_idempotency", "upload_parts", "jobs"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)", table).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "table %s should exist after up", table)
+	}
+
+	down := extractSection(string(photosSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, down)
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+
+	for _, table := range []string{"photos", "upload_idempotency", "upload_parts", "jobs"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			"SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)", table).Scan(&exists)
+		require.NoError(t, err)
+		require.False(t, exists, "table %s should be dropped by down", table)
+	}
+}
+
 func extractSection(s, start, end string) string {
 	i := indexOf(s, start)
 	if i < 0 {

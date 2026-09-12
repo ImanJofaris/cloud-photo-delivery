@@ -1,0 +1,404 @@
+package uploads
+
+import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
+	"fmt"
+	"sort"
+	"strings"
+	"time"
+
+	"github.com/google/uuid"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
+)
+
+const (
+	MaxFileSize    = 100 * 1024 * 1024
+	MultipartFloor = 10 * 1024 * 1024
+	PartSize       = 10 * 1024 * 1024
+	presignTTL     = 15 * time.Minute
+	maxParts       = 10000
+)
+
+var allowedMimeTypes = map[string]bool{
+	"image/jpeg": true,
+	"image/png":  true,
+	"image/webp": true,
+}
+
+type Clock func() time.Time
+
+type JobQueue interface {
+	EnqueueProcessPhoto(ctx context.Context, photoID, eventID uuid.UUID) error
+}
+
+type InitParams struct {
+	EventID        uuid.UUID
+	Filename       string
+	ContentType    string
+	Size           int64
+	IdempotencyKey string
+}
+
+type InitResult struct {
+	PhotoID    uuid.UUID
+	UploadKind photos.UploadKind
+	UploadURL  string
+	StorageKey string
+	ExpiresAt  time.Time
+	PartSize   int64
+}
+
+type PartURL struct {
+	PartNumber int
+	URL        string
+}
+
+type PartsResult struct {
+	PhotoID  uuid.UUID
+	PartSize int64
+	Parts    []PartURL
+}
+
+type Service struct {
+	photos photos.Repository
+	repo   Repository
+	store  r2.ObjectStore
+	queue  JobQueue
+	now    Clock
+}
+
+func NewService(photosRepo photos.Repository, repo Repository, store r2.ObjectStore, queue JobQueue) *Service {
+	if queue == nil {
+		queue = noopQueue{}
+	}
+	return &Service{photos: photosRepo, repo: repo, store: store, queue: queue, now: time.Now}
+}
+
+func (s *Service) SetClock(now Clock) { s.now = now }
+
+type noopQueue struct{}
+
+func (noopQueue) EnqueueProcessPhoto(context.Context, uuid.UUID, uuid.UUID) error { return nil }
+
+func notFound() *apperr.Error {
+	return apperr.New("UPLOAD_NOT_FOUND", "Upload not found", 404)
+}
+
+func validationError(msg string) *apperr.Error {
+	return apperr.New("VALIDATION_ERROR", msg, 422)
+}
+
+func conflictError(code, msg string) *apperr.Error {
+	return apperr.New(code, msg, 409)
+}
+
+func (s *Service) Initialize(ctx context.Context, userID uuid.UUID, p InitParams) (*InitResult, error) {
+	owned, err := s.repo.EventOwnedBy(ctx, userID, p.EventID)
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	if !owned {
+		return nil, apperr.New("EVENT_NOT_FOUND", "Event not found", 404)
+	}
+
+	filename := strings.TrimSpace(p.Filename)
+	if err := validateUpload(filename, p.ContentType, p.Size); err != nil {
+		return nil, err
+	}
+
+	photoID := uuid.New()
+	storageKey := r2.OriginalKey(userID, p.EventID, photoID, filename)
+	kind := photos.KindSimple
+	if p.Size >= MultipartFloor {
+		kind = photos.KindMultipart
+	}
+
+	if p.IdempotencyKey != "" {
+		hash := requestHash(p.EventID, filename, p.ContentType, p.Size)
+		if existing, err := s.repo.LookupIdempotency(ctx, p.IdempotencyKey); err == nil {
+			if existing.RequestHash != hash {
+				return nil, conflictError("IDEMPOTENCY_CONFLICT", "Idempotency-Key was reused with a different request")
+			}
+			return s.rebuildInit(ctx, userID, existing.PhotoID, kind)
+		} else if !errors.Is(err, ErrNotFound) {
+			return nil, apperr.Internal().WithCause(err)
+		}
+	}
+
+	var multipartID *string
+	if kind == photos.KindMultipart {
+		id, err := s.store.CreateMultipartUpload(ctx, storageKey, p.ContentType)
+		if err != nil {
+			return nil, apperr.Internal().WithCause(err)
+		}
+		multipartID = &id
+	}
+
+	photo, err := s.photos.Create(ctx, photos.CreateInput{
+		EventID:           p.EventID,
+		StorageKey:        storageKey,
+		OriginalFilename:  filename,
+		MimeType:          p.ContentType,
+		FileSize:          p.Size,
+		Status:            photos.StatusUploading,
+		UploadKind:        kind,
+		MultipartUploadID: multipartID,
+	})
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+
+	if p.IdempotencyKey != "" {
+		err := s.repo.SaveIdempotency(ctx, p.IdempotencyKey, IdempotencyRecord{
+			UserID:      userID,
+			PhotoID:     photo.ID,
+			RequestHash: requestHash(p.EventID, filename, p.ContentType, p.Size),
+		})
+		if err != nil {
+			return nil, apperr.Internal().WithCause(err)
+		}
+	}
+
+	return s.buildInitResult(ctx, photo, kind)
+}
+
+func (s *Service) buildInitResult(ctx context.Context, photo *photos.Photo, kind photos.UploadKind) (*InitResult, error) {
+	result := &InitResult{
+		PhotoID:    photo.ID,
+		UploadKind: kind,
+		StorageKey: photo.StorageKey,
+		ExpiresAt:  s.now().Add(presignTTL),
+	}
+	if kind == photos.KindMultipart {
+		uploadID := ""
+		if photo.MultipartUploadID != nil {
+			uploadID = *photo.MultipartUploadID
+		}
+		url, err := s.store.PresignUploadPart(ctx, photo.StorageKey, uploadID, 1, presignTTL)
+		if err != nil {
+			return nil, apperr.Internal().WithCause(err)
+		}
+		result.UploadURL = url
+		result.PartSize = PartSize
+		return result, nil
+	}
+
+	url, err := s.store.PresignPut(ctx, photo.StorageKey, photo.MimeType, presignTTL)
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	result.UploadURL = url
+	return result, nil
+}
+
+func (s *Service) rebuildInit(ctx context.Context, userID, photoID uuid.UUID, kind photos.UploadKind) (*InitResult, error) {
+	photo, err := s.photos.GetByID(ctx, photoID)
+	if err != nil {
+		if errors.Is(err, photos.ErrNotFound) {
+			return nil, notFound()
+		}
+		return nil, apperr.Internal().WithCause(err)
+	}
+	return s.buildInitResult(ctx, photo, kind)
+}
+
+func (s *Service) Parts(ctx context.Context, userID, photoID uuid.UUID, partNumbers []int) (*PartsResult, error) {
+	photo, err := s.photoForUser(ctx, userID, photoID)
+	if err != nil {
+		return nil, err
+	}
+	if photo.UploadKind != photos.KindMultipart {
+		return nil, conflictError("NOT_MULTIPART", "Photo is not a multipart upload")
+	}
+	if len(partNumbers) == 0 {
+		return nil, validationError("At least one part number is required")
+	}
+
+	uploadID := ""
+	if photo.MultipartUploadID != nil {
+		uploadID = *photo.MultipartUploadID
+	}
+	out := make([]PartURL, 0, len(partNumbers))
+	for _, n := range partNumbers {
+		if n < 1 || n > maxParts {
+			return nil, validationError("Part number out of range")
+		}
+		url, err := s.store.PresignUploadPart(ctx, photo.StorageKey, uploadID, n, presignTTL)
+		if err != nil {
+			return nil, apperr.Internal().WithCause(err)
+		}
+		out = append(out, PartURL{PartNumber: n, URL: url})
+	}
+	return &PartsResult{PhotoID: photo.ID, PartSize: PartSize, Parts: out}, nil
+}
+
+type CompletedPart struct {
+	PartNumber int
+	ETag       string
+}
+
+func (s *Service) CompleteMultipart(ctx context.Context, userID, photoID uuid.UUID, parts []CompletedPart) error {
+	photo, err := s.photoForUser(ctx, userID, photoID)
+	if err != nil {
+		return err
+	}
+	if photo.UploadKind != photos.KindMultipart {
+		return conflictError("NOT_MULTIPART", "Photo is not a multipart upload")
+	}
+	if len(parts) == 0 {
+		return validationError("At least one completed part is required")
+	}
+
+	sort.Slice(parts, func(i, j int) bool { return parts[i].PartNumber < parts[j].PartNumber })
+	r2parts := make([]r2.CompletePart, 0, len(parts))
+	for _, p := range parts {
+		if p.PartNumber < 1 || p.PartNumber > maxParts {
+			return validationError("Part number out of range")
+		}
+		if strings.TrimSpace(p.ETag) == "" {
+			return validationError("Part ETag is required")
+		}
+		if err := s.photos.SavePartETag(ctx, photo.ID, p.PartNumber, p.ETag); err != nil {
+			return apperr.Internal().WithCause(err)
+		}
+		r2parts = append(r2parts, r2.CompletePart{PartNumber: p.PartNumber, ETag: p.ETag})
+	}
+
+	uploadID := ""
+	if photo.MultipartUploadID != nil {
+		uploadID = *photo.MultipartUploadID
+	}
+	if err := s.store.CompleteMultipartUpload(ctx, photo.StorageKey, uploadID, r2parts); err != nil {
+		return apperr.Internal().WithCause(err)
+	}
+	return nil
+}
+
+func (s *Service) AbortMultipart(ctx context.Context, userID, photoID uuid.UUID) error {
+	photo, err := s.photoForUser(ctx, userID, photoID)
+	if err != nil {
+		return err
+	}
+	if photo.UploadKind != photos.KindMultipart {
+		return conflictError("NOT_MULTIPART", "Photo is not a multipart upload")
+	}
+	uploadID := ""
+	if photo.MultipartUploadID != nil {
+		uploadID = *photo.MultipartUploadID
+	}
+	if err := s.store.AbortMultipartUpload(ctx, photo.StorageKey, uploadID); err != nil {
+		return apperr.Internal().WithCause(err)
+	}
+	if err := s.photos.MarkFailed(ctx, photo.ID, "upload aborted"); err != nil && !errors.Is(err, photos.ErrNotFound) {
+		return apperr.Internal().WithCause(err)
+	}
+	return nil
+}
+
+func (s *Service) Complete(ctx context.Context, userID, photoID uuid.UUID, idempotencyKey string) (*photos.Photo, error) {
+	photo, err := s.photoForUser(ctx, userID, photoID)
+	if err != nil {
+		return nil, err
+	}
+
+	if idempotencyKey != "" {
+		hash := requestHash(photoID, "complete")
+		if existing, err := s.repo.LookupIdempotency(ctx, idempotencyKey); err == nil {
+			if existing.RequestHash != hash || existing.PhotoID != photoID {
+				return nil, conflictError("IDEMPOTENCY_CONFLICT", "Idempotency-Key was reused with a different request")
+			}
+		} else if errors.Is(err, ErrNotFound) {
+			if err := s.repo.SaveIdempotency(ctx, idempotencyKey, IdempotencyRecord{
+				UserID: userID, PhotoID: photoID, RequestHash: hash,
+			}); err != nil {
+				return nil, apperr.Internal().WithCause(err)
+			}
+		} else {
+			return nil, apperr.Internal().WithCause(err)
+		}
+	}
+
+	if photo.Status == photos.StatusReady || photo.Status == photos.StatusProcessing {
+		return photo, nil
+	}
+
+	size, err := s.store.Head(ctx, photo.StorageKey)
+	if err != nil {
+		if errors.Is(err, r2.ErrNotFound) {
+			return nil, apperr.New("UPLOAD_NOT_FOUND", "Uploaded object was not found", 404)
+		}
+		return nil, apperr.Internal().WithCause(err)
+	}
+	if size != photo.FileSize {
+		return nil, apperr.New("UPLOAD_SIZE_MISMATCH", "Uploaded object size does not match", 422)
+	}
+
+	updated, transitioned, err := s.photos.MarkProcessing(ctx, photo.ID, size)
+	if err != nil {
+		if errors.Is(err, photos.ErrNotFound) {
+			return nil, notFound()
+		}
+		return nil, apperr.Internal().WithCause(err)
+	}
+
+	if transitioned {
+		if err := s.queue.EnqueueProcessPhoto(ctx, updated.ID, updated.EventID); err != nil {
+			return nil, apperr.Internal().WithCause(err)
+		}
+	}
+	return updated, nil
+}
+
+func (s *Service) Status(ctx context.Context, userID, photoID uuid.UUID) (*photos.Photo, error) {
+	return s.photoForUser(ctx, userID, photoID)
+}
+
+func (s *Service) photoForUser(ctx context.Context, userID, photoID uuid.UUID) (*photos.Photo, error) {
+	photo, err := s.photos.GetByID(ctx, photoID)
+	if err != nil {
+		if errors.Is(err, photos.ErrNotFound) {
+			return nil, notFound()
+		}
+		return nil, apperr.Internal().WithCause(err)
+	}
+	owned, err := s.repo.EventOwnedBy(ctx, userID, photo.EventID)
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	if !owned {
+		return nil, notFound()
+	}
+	return photo, nil
+}
+
+func validateUpload(filename, contentType string, size int64) *apperr.Error {
+	if strings.TrimSpace(filename) == "" {
+		return validationError("Filename is required")
+	}
+	if len(filename) > 255 {
+		return validationError("Filename must be 255 characters or fewer")
+	}
+	if !allowedMimeTypes[contentType] {
+		return validationError("Unsupported file type")
+	}
+	if size <= 0 {
+		return validationError("File size must be greater than zero")
+	}
+	if size > MaxFileSize {
+		return validationError("File exceeds the 100 MB limit")
+	}
+	return nil
+}
+
+func requestHash(parts ...any) string {
+	h := sha256.New()
+	for _, p := range parts {
+		fmt.Fprintf(h, "%v|", p)
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}

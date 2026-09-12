@@ -14,12 +14,15 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/logging"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/uploads"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
+	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
 )
 
 func main() {
@@ -123,6 +126,32 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		return id.String(), true
 	})
 
+	photoRepo := photos.NewRepository(pool.Pool)
+	uploadRepo := uploads.NewRepository(pool.Pool)
+	var store r2.ObjectStore = r2.UnavailableStore{}
+	if err := cfg.ValidateStorage(); err == nil {
+		s, err := r2.New(context.Background(), r2.Options{
+			Endpoint:  cfg.R2Endpoint,
+			AccessKey: cfg.R2AccessKey,
+			SecretKey: cfg.R2SecretKey,
+			Bucket:    cfg.R2Bucket,
+			Region:    cfg.R2Region,
+		})
+		if err != nil {
+			log.Error("object store init failed", "error", err)
+			os.Exit(1)
+		}
+		store = s
+	}
+	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool.Pool))
+	uploadHandler := uploads.NewHandler(uploadSvc, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
+
 	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
 
 	r.Route("/api/v1", func(r chi.Router) {
@@ -154,7 +183,17 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 					r.Get("/settings", eventHandler.GetSettings)
 					r.Patch("/settings", eventHandler.UpdateSettings)
 					r.Get("/dashboard", eventHandler.Dashboard)
+
+					r.Post("/uploads", uploadHandler.Initialize)
 				})
+			})
+
+			r.Route("/uploads/{photoID}", func(r chi.Router) {
+				r.Get("/", uploadHandler.Status)
+				r.Post("/parts", uploadHandler.Parts)
+				r.Post("/multipart/complete", uploadHandler.CompleteMultipart)
+				r.Post("/multipart/abort", uploadHandler.AbortMultipart)
+				r.Post("/complete", uploadHandler.Complete)
 			})
 		})
 	})

@@ -5,6 +5,11 @@ import (
 	"time"
 )
 
+type CompletePart struct {
+	PartNumber int
+	ETag       string
+}
+
 type ObjectStore interface {
 	PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (string, error)
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error)
@@ -13,4 +18,9 @@ type ObjectStore interface {
 	Put(ctx context.Context, key, contentType string, body []byte) error
 	Get(ctx context.Context, key string) ([]byte, error)
 	Bucket() string
+
+	CreateMultipartUpload(ctx context.Context, key, contentType string) (string, error)
+	PresignUploadPart(ctx context.Context, key, uploadID string, partNumber int, ttl time.Duration) (string, error)
+	CompleteMultipartUpload(ctx context.Context, key, uploadID string, parts []CompletePart) error
+	AbortMultipartUpload(ctx context.Context, key, uploadID string) error
 }

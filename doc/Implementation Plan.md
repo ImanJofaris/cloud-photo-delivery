@@ -23,6 +23,7 @@ This is the master plan. Each phase has its own detailed document under `doc/pha
 - [Phase 0 — Report](phases/Phase 0 - Report.md) — COMPLETE
 - [Phase 1 — Report](phases/Phase 1 - Report.md) — COMPLETE
 - [Phase 2 — Report](phases/Phase 2 - Report.md) — COMPLETE
+- [Phase 3 — Report](phases/Phase 3 - Report.md) — COMPLETE
 
 Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase Report.md)
 

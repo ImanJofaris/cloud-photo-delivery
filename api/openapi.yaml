@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
-  version: 0.3.0
+  version: 0.4.0
   description: API-first backend for the Cloud Photo Delivery SaaS.
 servers:
   - url: http://localhost:8080/api/v1
@@ -11,6 +11,7 @@ tags:
   - name: Auth
   - name: Account
   - name: Events
+  - name: Uploads
 paths:
   /healthz:
     get:
@@ -529,6 +530,222 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /events/{eventID}/uploads:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    post:
+      tags: [Uploads]
+      operationId: initializeUpload
+      summary: Initialize a photo upload and receive presigned URL(s)
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/InitializeUploadRequest"
+      responses:
+        "201":
+          description: Upload initialized
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InitializeUploadEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Idempotency key reused with a different request body
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error (unsupported type, too large)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /uploads/{photoID}:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    get:
+      tags: [Uploads]
+      operationId: getUploadStatus
+      summary: Poll the status of an upload (for resume/recovery)
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Upload status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadStatusEnvelope"
+        "404":
+          description: Photo not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /uploads/{photoID}/parts:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    post:
+      tags: [Uploads]
+      operationId: getUploadPartURLs
+      summary: Get presigned URLs for multipart part numbers
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UploadPartURLsRequest"
+      responses:
+        "200":
+          description: Presigned part URLs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadPartURLsEnvelope"
+        "404":
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Photo is not a multipart upload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /uploads/{photoID}/multipart/complete:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    post:
+      tags: [Uploads]
+      operationId: completeMultipartUpload
+      summary: Complete a multipart upload with the uploaded part ETags
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CompleteMultipartRequest"
+      responses:
+        "200":
+          description: Multipart upload completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Photo is not a multipart upload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /uploads/{photoID}/multipart/abort:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    post:
+      tags: [Uploads]
+      operationId: abortMultipartUpload
+      summary: Abort a multipart upload
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Aborted
+        "404":
+          description: Photo not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Photo is not a multipart upload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /uploads/{photoID}/complete:
+    parameters:
+      - $ref: "#/components/parameters/PhotoID"
+    post:
+      tags: [Uploads]
+      operationId: completeUpload
+      summary: Verify the uploaded object and mark the photo ready for processing
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/IdempotencyKey"
+      responses:
+        "200":
+          description: Upload completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadStatusEnvelope"
+        "404":
+          description: Photo or object not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Idempotency conflict or invalid upload state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Object size mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -543,6 +760,21 @@ components:
       schema:
         type: string
         format: uuid
+    PhotoID:
+      name: photoID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: Client-supplied key; repeating it with the same body returns the original result.
+      schema:
+        type: string
+        maxLength: 255
   schemas:
     SignupRequest:
       type: object
@@ -825,6 +1057,153 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/EventDashboard"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    PhotoStatus:
+      type: string
+      enum: [UPLOADING, PROCESSING, READY, FAILED]
+    UploadKind:
+      type: string
+      enum: [simple, multipart]
+    InitializeUploadRequest:
+      type: object
+      required: [filename, contentType, size]
+      properties:
+        filename:
+          type: string
+          maxLength: 255
+        contentType:
+          type: string
+          enum: [image/jpeg, image/png, image/webp]
+        size:
+          type: integer
+          format: int64
+          minimum: 1
+          maximum: 104857600
+    InitializeUpload:
+      type: object
+      properties:
+        photoId:
+          type: string
+          format: uuid
+        uploadKind:
+          $ref: "#/components/schemas/UploadKind"
+        uploadUrl:
+          type: string
+          description: Presigned PUT URL (simple uploads). Null for multipart.
+        storageKey:
+          type: string
+        expiresAt:
+          type: string
+          format: date-time
+        partSize:
+          type: ["integer", "null"]
+          format: int64
+          description: Required part size for multipart uploads.
+    InitializeUploadEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/InitializeUpload"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    UploadPartURLsRequest:
+      type: object
+      required: [partNumbers]
+      properties:
+        partNumbers:
+          type: array
+          minItems: 1
+          maxItems: 10000
+          items:
+            type: integer
+            minimum: 1
+            maximum: 10000
+    PartURL:
+      type: object
+      properties:
+        partNumber:
+          type: integer
+        url:
+          type: string
+    UploadPartURLs:
+      type: object
+      properties:
+        photoId:
+          type: string
+          format: uuid
+        partSize:
+          type: integer
+          format: int64
+        parts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PartURL"
+    UploadPartURLsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UploadPartURLs"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    CompletedPart:
+      type: object
+      required: [partNumber, etag]
+      properties:
+        partNumber:
+          type: integer
+          minimum: 1
+          maximum: 10000
+        etag:
+          type: string
+    CompleteMultipartRequest:
+      type: object
+      required: [parts]
+      properties:
+        parts:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/CompletedPart"
+    UploadStatus:
+      type: object
+      properties:
+        photoId:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/PhotoStatus"
+        uploadKind:
+          $ref: "#/components/schemas/UploadKind"
+        filename:
+          type: string
+        mimeType:
+          type: string
+        fileSize:
+          type: integer
+          format: int64
+        errorMessage:
+          type: ["string", "null"]
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    UploadStatusEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/UploadStatus"
         error:
           oneOf:
             - type: "null"

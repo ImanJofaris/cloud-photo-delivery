@@ -3,7 +3,9 @@
 package r2_test
 
 import (
+	"bytes"
 	"context"
+	"net/http"
 	"testing"
 	"time"
 
@@ -107,4 +109,51 @@ func TestS3Store_RoundTrip(t *testing.T) {
 
 	_, err = store.Head(ctx, "test/hello.txt")
 	require.ErrorIs(t, err, r2.ErrNotFound)
+}
+
+func TestS3Store_MultipartUpload(t *testing.T) {
+	ctx := context.Background()
+	endpoint := startMinio(t)
+	createBucket(t, endpoint, "cpd-photos")
+
+	store, err := r2.New(ctx, r2.Options{
+		Endpoint:  endpoint,
+		AccessKey: "minioadmin",
+		SecretKey: "minioadmin",
+		Bucket:    "cpd-photos",
+		Region:    "us-east-1",
+		UseSSL:    false,
+	})
+	require.NoError(t, err)
+
+	key := "test/multipart.bin"
+	uploadID, err := store.CreateMultipartUpload(ctx, key, "application/octet-stream")
+	require.NoError(t, err)
+	require.NotEmpty(t, uploadID)
+
+	partBody := bytes.Repeat([]byte("a"), 5*1024*1024)
+	partURL, err := store.PresignUploadPart(ctx, key, uploadID, 1, time.Minute)
+	require.NoError(t, err)
+	require.NotEmpty(t, partURL)
+
+	req, err := http.NewRequest(http.MethodPut, partURL, bytes.NewReader(partBody))
+	require.NoError(t, err)
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	etag := resp.Header.Get("ETag")
+	require.NotEmpty(t, etag)
+
+	require.NoError(t, store.CompleteMultipartUpload(ctx, key, uploadID, []r2.CompletePart{
+		{PartNumber: 1, ETag: etag},
+	}))
+
+	size, err := store.Head(ctx, key)
+	require.NoError(t, err)
+	require.EqualValues(t, len(partBody), size)
+
+	abortID, err := store.CreateMultipartUpload(ctx, "test/abort.bin", "application/octet-stream")
+	require.NoError(t, err)
+	require.NoError(t, store.AbortMultipartUpload(ctx, "test/abort.bin", abortID))
 }

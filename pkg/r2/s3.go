@@ -149,3 +149,60 @@ func isNotFound(err error) bool {
 	var nsf *types.NotFound
 	return errors.As(err, &nsf)
 }
+
+func (s *S3Store) CreateMultipartUpload(ctx context.Context, key, contentType string) (string, error) {
+	out, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		ContentType: aws.String(contentType),
+	})
+	if err != nil {
+		return "", fmt.Errorf("create multipart upload: %w", err)
+	}
+	return aws.ToString(out.UploadId), nil
+}
+
+func (s *S3Store) PresignUploadPart(ctx context.Context, key, uploadID string, partNumber int, ttl time.Duration) (string, error) {
+	req, err := s.presign.PresignUploadPart(ctx, &s3.UploadPartInput{
+		Bucket:     aws.String(s.bucket),
+		Key:        aws.String(key),
+		UploadId:   aws.String(uploadID),
+		PartNumber: aws.Int32(int32(partNumber)),
+	}, s3.WithPresignExpires(ttl))
+	if err != nil {
+		return "", fmt.Errorf("presign upload part: %w", err)
+	}
+	return req.URL, nil
+}
+
+func (s *S3Store) CompleteMultipartUpload(ctx context.Context, key, uploadID string, parts []CompletePart) error {
+	completed := make([]types.CompletedPart, 0, len(parts))
+	for _, p := range parts {
+		completed = append(completed, types.CompletedPart{
+			ETag:       aws.String(p.ETag),
+			PartNumber: aws.Int32(int32(p.PartNumber)),
+		})
+	}
+	_, err := s.client.CompleteMultipartUpload(ctx, &s3.CompleteMultipartUploadInput{
+		Bucket:          aws.String(s.bucket),
+		Key:             aws.String(key),
+		UploadId:        aws.String(uploadID),
+		MultipartUpload: &types.CompletedMultipartUpload{Parts: completed},
+	})
+	if err != nil {
+		return fmt.Errorf("complete multipart upload: %w", err)
+	}
+	return nil
+}
+
+func (s *S3Store) AbortMultipartUpload(ctx context.Context, key, uploadID string) error {
+	_, err := s.client.AbortMultipartUpload(ctx, &s3.AbortMultipartUploadInput{
+		Bucket:   aws.String(s.bucket),
+		Key:      aws.String(key),
+		UploadId: aws.String(uploadID),
+	})
+	if err != nil {
+		return fmt.Errorf("abort multipart upload: %w", err)
+	}
+	return nil
+}
