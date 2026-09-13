@@ -1435,8 +1435,11 @@ paths:
       summary: Get a short-lived signed URL for a photo variant
       description: |
         Returns a presigned GET URL valid for `SIGNED_URL_TTL` (default 5
-        minutes). `original` requires `allow_original_download`; any download
-        requires `allow_download`. Responses are never cached.
+        minutes). View variants (`thumbnail`, `medium`, `large`) are always
+        served for a visible event; they are needed to render the gallery and
+        are not gated by `allow_download`. `original` requires both
+        `allow_download` and `allow_original_download`. Responses are never
+        cached.
       security: []
       parameters:
         - $ref: "#/components/parameters/UnlockToken"
@@ -1464,7 +1467,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
         "403":
-          description: Downloads disabled or original download disabled
+          description: Original download disabled by event settings
           content:
             application/json:
               schema:
@@ -2304,8 +2307,9 @@ components:
       type: string
       enum: [thumbnail, medium, large, original]
       description: |
-        `thumbnail`, `medium`, `large` are generated derivatives; `original` is
-        the uploaded file and is gated by `allow_original_download`.
+        `thumbnail`, `medium`, `large` are generated derivatives and are always
+        served for a visible event; `original` is the uploaded file and is
+        gated by `allow_download` and `allow_original_download`.
     PublicEvent:
       type: object
       properties:
@@ -2407,7 +2411,7 @@ components:
           type: ["integer", "null"]
         variants:
           type: array
-          description: Derivative variants available for download.
+          description: Derivative variants available for viewing.
           items:
             $ref: "#/components/schemas/PhotoVariant"
     PublicPhotoEnvelope:

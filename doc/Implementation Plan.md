@@ -28,7 +28,7 @@ This is the master plan. Each phase has its own detailed document under `doc/pha
 
 Frontend conventions: [`doc/frontend/Conventions.md`](frontend/Conventions.md).
 
-Ordering: F3 includes its own owner-facing photo API prerequisites (list, owner signed URLs, re-presign, delete) and is independent of Phase 7. Phase 7 (branding) must land before F4, whose backend prerequisite fixes gallery view/download semantics (`doc/phases/Phase F4 - Public Gallery.md` §2). Remaining frontend surfaces (devices, QR/branding, billing) get phase docs when their backend phases land.
+Ordering: F3 shipped its own owner-facing photo API prerequisites (list, owner signed URLs, re-presign, delete) and is independent of Phase 7. Phase 7 (branding) landed before F4, whose §2.1 backend prerequisite fixed gallery view/download semantics (`doc/phases/Phase F4 - Public Gallery.md` §2). Remaining frontend surfaces (devices, QR/branding, billing) get phase docs when their backend phases land.
 
 ## Completion Reports
 
@@ -45,6 +45,7 @@ Ordering: F3 includes its own owner-facing photo API prerequisites (list, owner 
 - [Phase F1 — Report](phases/Phase F1 - Report.md) — COMPLETE (BFF-lite auth + shell)
 - [Phase F2 — Report](phases/Phase F2 - Report.md) — COMPLETE (events dashboard)
 - [Phase F3 — Report](phases/Phase F3 - Report.md) — COMPLETE (photo uploads & library)
+- [Phase F4 — Report](phases/Phase F4 - Report.md) — COMPLETE (public gallery)
 
 Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase Report.md)
 

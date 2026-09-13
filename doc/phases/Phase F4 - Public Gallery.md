@@ -1,5 +1,7 @@
 # Phase F4 — Public Gallery
 
+> **Status: COMPLETE.** See the [Phase F4 Report](Phase F4 - Report.md) for what was built and how it was verified.
+
 **Goal:** Guests open `/e/{slug}` on a phone with no account, unlock password-protected galleries, browse a branded, lazy-loading photo grid, view photos full screen, and download when the event permits.
 
 **Depends on:** Phase F0 (env, api-client); Phase 5 (public gallery API); Phase 7 (branding in the public DTO); backend prerequisite in §2.1.

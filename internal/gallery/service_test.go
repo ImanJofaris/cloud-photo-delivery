@@ -180,16 +180,40 @@ func TestService_ListPhotos_InvalidCursor(t *testing.T) {
 	require.Equal(t, "VALIDATION_ERROR", codeOf(t, err))
 }
 
-func TestService_PhotoURL_DownloadDisabled(t *testing.T) {
-	svc, repo, _ := newTestService()
-	e, s := publicEvent("wedding")
-	s.AllowDownload = false
-	repo.addEvent(e, s)
-	p := readyPhoto(e.ID, time.Now())
-	repo.photos[e.ID] = append(repo.photos[e.ID], p)
+func TestService_PhotoURL_SettingsCombinations(t *testing.T) {
+	cases := []struct {
+		name                  string
+		allowDownload         bool
+		allowOriginalDownload bool
+		variant               string
+		wantCode              string
+	}{
+		{"thumbnail served when downloads off", false, false, "thumbnail", ""},
+		{"medium served when downloads off", false, false, "medium", ""},
+		{"large served when downloads off", false, false, "large", ""},
+		{"original blocked when downloads off", false, true, "original", "DOWNLOAD_DISABLED"},
+		{"original blocked when originals off", true, false, "original", "ORIGINAL_DOWNLOAD_DISABLED"},
+		{"original served when both on", true, true, "original", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo, _ := newTestService()
+			e, s := publicEvent("wedding")
+			s.AllowDownload = tc.allowDownload
+			s.AllowOriginalDownload = tc.allowOriginalDownload
+			repo.addEvent(e, s)
+			p := readyPhoto(e.ID, time.Now())
+			repo.photos[e.ID] = append(repo.photos[e.ID], p)
 
-	_, err := svc.PhotoURL(context.Background(), "wedding", "", p.ID.String(), "large")
-	require.Equal(t, "DOWNLOAD_DISABLED", codeOf(t, err))
+			res, err := svc.PhotoURL(context.Background(), "wedding", "", p.ID.String(), tc.variant)
+			if tc.wantCode == "" {
+				require.NoError(t, err)
+				require.NotEmpty(t, res.URL)
+				return
+			}
+			require.Equal(t, tc.wantCode, codeOf(t, err))
+		})
+	}
 }
 
 func TestService_PhotoURL_OriginalDisabled(t *testing.T) {

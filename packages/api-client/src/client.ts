@@ -59,7 +59,12 @@ export function unwrapEnvelope<T>(result: ClientResult): T {
   const body = result.data as RawEnvelope | undefined
 
   if (result.error !== undefined) {
-    const { code, message } = normalizeError(result.error)
+    const raw = result.error
+    const errorBody =
+      raw && typeof raw === "object" && "error" in raw
+        ? (raw as RawEnvelope).error
+        : raw
+    const { code, message } = normalizeError(errorBody)
     throw new ApiError(code, message, response.status)
   }
 

@@ -44,8 +44,8 @@ export function SharePanel({ slug }: { slug: string }) {
           </Button>
         </div>
         <p className="text-xs text-muted-foreground">
-          The gallery page ships in a later phase. The link already works once
-          the public gallery is deployed.
+          Guests open this link without an account. Password and private
+          visibility are controlled in Settings; QR codes point here too.
         </p>
       </CardContent>
     </Card>

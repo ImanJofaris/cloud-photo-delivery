@@ -292,6 +292,17 @@ func TestE2E_PublicGalleryFlow(t *testing.T) {
 	rec = doReq(t, h, http.MethodGet, "/api/v1/public/events/"+slug+"/photos/"+photoID.String()+"/url?variant=original", "", "")
 	require.Equal(t, http.StatusForbidden, rec.Code)
 	require.Contains(t, rec.Body.String(), "ORIGINAL_DOWNLOAD_DISABLED")
+
+	// View-only event: rendering variants stay available, downloads do not.
+	rec = doReq(t, h, http.MethodPatch, "/api/v1/events/"+eventID+"/settings", `{"allowDownload":false}`, access)
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+
+	rec = doReq(t, h, http.MethodGet, "/api/v1/public/events/"+slug+"/photos/"+photoID.String()+"/url?variant=large", "", "")
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+
+	rec = doReq(t, h, http.MethodGet, "/api/v1/public/events/"+slug+"/photos/"+photoID.String()+"/url?variant=original", "", "")
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "DOWNLOAD_DISABLED")
 }
 
 func TestE2E_PasswordGalleryFlow(t *testing.T) {

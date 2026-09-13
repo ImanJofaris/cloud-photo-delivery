@@ -196,7 +196,7 @@ Package coverage (`internal/gallery`, integration included): **83.8%** total; `c
 - **Frontend deferred.** No `apps/web`; the Next.js gallery (grid, lazy loading, viewer) is a later phase.
 - **Load smoke deferred.** The 1,000 concurrent metadata read check remains a Phase 10 item; metadata responses are already CDN-friendly (`public, max-age=60`).
 - **Public endpoints are not rate-limited.** `main.go` still applies `authLimiter` only to auth routes; hardening is Phase 10.
-- **View-only galleries are not possible.** Per the phase spec, `allow_download=false` returns `DOWNLOAD_DISABLED` for every variant, so guests cannot render images either. A view/download distinction (or watermark-only viewing) should be addressed in Phase 7 (branding/watermark).
+- **View-only galleries are not possible.** Per the phase spec, `allow_download=false` returned `DOWNLOAD_DISABLED` for every variant, so guests could not render images either. Fixed by the [Phase F4 — Public Gallery](Phase F4 - Public Gallery.md) §2.1 backend prerequisite: view variants (`thumbnail`, `medium`, `large`) are always served; only `original` is gated by `allow_download` + `allow_original_download`.
 - **`watermark_enabled` is still unused** by the read path; derivates are served unmodified.
 - **No per-event CDN caching or public bucket** by design; the `internal/photos/urls.go` seam allows a later `PublicURL` path for public-event thumbnails.
 - `-race` not run locally (no gcc); CI runs it on Linux.

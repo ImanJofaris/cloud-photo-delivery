@@ -195,11 +195,15 @@ func (s *Service) PhotoURL(ctx context.Context, slug, unlockToken, photoID, vari
 	if !v.Valid() {
 		return nil, validationError("Invalid variant")
 	}
-	if !ve.Settings.AllowDownload {
-		return nil, forbidden("DOWNLOAD_DISABLED", "Downloads are disabled for this event")
-	}
-	if v.IsOriginal() && !ve.Settings.AllowOriginalDownload {
-		return nil, forbidden("ORIGINAL_DOWNLOAD_DISABLED", "Original downloads are disabled for this event")
+	// View variants render the gallery and are always served for a visible
+	// event; only the original is a download and gated by the event settings.
+	if v.IsOriginal() {
+		if !ve.Settings.AllowDownload {
+			return nil, forbidden("DOWNLOAD_DISABLED", "Downloads are disabled for this event")
+		}
+		if !ve.Settings.AllowOriginalDownload {
+			return nil, forbidden("ORIGINAL_DOWNLOAD_DISABLED", "Original downloads are disabled for this event")
+		}
 	}
 	id, err := uuid.Parse(photoID)
 	if err != nil {

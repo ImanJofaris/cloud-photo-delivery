@@ -143,6 +143,7 @@ Frontend phases (F-prefixed) follow the same workflow; step 3 becomes UI/data wo
 - PowerShell 5.1 does not support `&&`; chain with `;` or `cmd1; if ($?) { cmd2 }`.
 - `$pid` is a read-only automatic variable — use a different name (`$apipid`).
 - `cmd/api` reads configuration from environment variables via `os.Getenv`. The `-config` flag is currently ignored and `.env` is **not** auto-loaded; export the vars (or use a tool) before running.
+- Long-running servers started with `Start-Process` from a captured shell can make that command hang until the servers exit (the shell waits on the process tree). Start them detached (e.g. WMI `Win32_Process.Create` around a `.cmd` wrapper that sets env vars and redirects logs), or keep them running across commands and only kill them explicitly.
 - Integration tests each spin up their own Postgres container and create tables inline; they do not run goose. The migration down-path is covered by `migrations/migrations_integration_test.go`.
 
 ## Doc drift to be aware of

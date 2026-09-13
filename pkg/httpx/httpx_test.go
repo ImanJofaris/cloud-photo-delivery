@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
@@ -151,6 +152,9 @@ func TestCORS_Preflight(t *testing.T) {
 	}
 	if rec.Header().Get("Access-Control-Allow-Origin") != "*" {
 		t.Fatal("missing CORS header")
+	}
+	if !strings.Contains(rec.Header().Get("Access-Control-Allow-Headers"), "X-Gallery-Unlock") {
+		t.Fatal("missing gallery unlock header in CORS allowlist")
 	}
 }
 

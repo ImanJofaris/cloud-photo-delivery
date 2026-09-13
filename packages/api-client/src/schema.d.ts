@@ -759,8 +759,11 @@ export interface paths {
         /**
          * Get a short-lived signed URL for a photo variant
          * @description Returns a presigned GET URL valid for `SIGNED_URL_TTL` (default 5
-         *     minutes). `original` requires `allow_original_download`; any download
-         *     requires `allow_download`. Responses are never cached.
+         *     minutes). View variants (`thumbnail`, `medium`, `large`) are always
+         *     served for a visible event; they are needed to render the gallery and
+         *     are not gated by `allow_download`. `original` requires both
+         *     `allow_download` and `allow_original_download`. Responses are never
+         *     cached.
          */
         get: operations["getPublicPhotoURL"];
         put?: never;
@@ -1155,8 +1158,9 @@ export interface components {
             error?: null | components["schemas"]["Error"];
         };
         /**
-         * @description `thumbnail`, `medium`, `large` are generated derivatives; `original` is
-         *     the uploaded file and is gated by `allow_original_download`.
+         * @description `thumbnail`, `medium`, `large` are generated derivatives and are always
+         *     served for a visible event; `original` is the uploaded file and is
+         *     gated by `allow_download` and `allow_original_download`.
          * @enum {string}
          */
         PhotoVariant: "thumbnail" | "medium" | "large" | "original";
@@ -1217,7 +1221,7 @@ export interface components {
             id?: string;
             width?: number | null;
             height?: number | null;
-            /** @description Derivative variants available for download. */
+            /** @description Derivative variants available for viewing. */
             variants?: components["schemas"]["PhotoVariant"][];
         };
         PublicPhotoEnvelope: {
@@ -3065,7 +3069,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description Downloads disabled or original download disabled */
+            /** @description Original download disabled by event settings */
             403: {
                 headers: {
                     [name: string]: unknown;

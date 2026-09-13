@@ -37,6 +37,24 @@ describe("unwrapEnvelope", () => {
     }
   })
 
+  it("unwraps the envelope when openapi-fetch puts it in the error slot", () => {
+    expect.assertions(3)
+
+    try {
+      unwrapEnvelope({
+        error: {
+          data: null,
+          error: { code: "UNAUTHORIZED", message: "Incorrect password" },
+        },
+        response: jsonResponse({}, 401),
+      })
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError)
+      expect((error as ApiError).code).toBe("UNAUTHORIZED")
+      expect((error as ApiError).status).toBe(401)
+    }
+  })
+
   it("throws ApiError when openapi-fetch reports a transport error", () => {
     expect.assertions(2)
 

@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/gallery"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
@@ -303,6 +304,79 @@ func TestSignedURL_RetrievesObjectFromMinIO(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 	require.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestGalleryService_ViewVsDownloadIntegration(t *testing.T) {
+	ctx := context.Background()
+	endpoint := startMinio(t)
+
+	store, err := r2.New(ctx, r2.Options{
+		Endpoint:  endpoint,
+		AccessKey: "minioadmin",
+		SecretKey: "minioadmin",
+		Bucket:    "cpd-photos",
+		Region:    "us-east-1",
+	})
+	require.NoError(t, err)
+	createBucket(t, endpoint)
+
+	pool, userID := setupDB(t)
+	eventID := seedEvent(t, pool, userID, "gallery-views", "public", nil)
+	photoID := insertPhoto(t, pool, eventID, "READY", time.Now())
+
+	var storageKey string
+	require.NoError(t, pool.QueryRow(ctx, `SELECT storage_key FROM photos WHERE id = $1`, photoID).Scan(&storageKey))
+	for _, key := range []string{"t", "m", "o", storageKey} {
+		require.NoError(t, store.Put(ctx, key, "image/webp", []byte("bytes-"+key)))
+	}
+
+	svc := gallery.NewService(
+		gallery.NewRepository(pool),
+		photos.NewSignedURLGenerator(store, time.Minute),
+		gallery.NewUnlockTokens("secret", time.Minute),
+		func(hash, password string) bool { return hash == "hash:"+password },
+		nil,
+	)
+
+	setDownload := func(allowDownload, allowOriginal bool) {
+		t.Helper()
+		_, err := pool.Exec(ctx,
+			`UPDATE event_settings SET allow_download = $1, allow_original_download = $2 WHERE event_id = $3`,
+			allowDownload, allowOriginal, eventID)
+		require.NoError(t, err)
+	}
+	assertServed := func(variant string) {
+		t.Helper()
+		res, err := svc.PhotoURL(ctx, "gallery-views", "", photoID.String(), variant)
+		require.NoError(t, err, "variant=%s", variant)
+		resp, err := http.Get(res.URL)
+		require.NoError(t, err)
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusOK, resp.StatusCode, "variant=%s", variant)
+	}
+	assertCode := func(variant, code string) {
+		t.Helper()
+		_, err := svc.PhotoURL(ctx, "gallery-views", "", photoID.String(), variant)
+		var appErr *apperr.Error
+		require.ErrorAs(t, err, &appErr)
+		require.Equal(t, code, appErr.Code)
+	}
+
+	// Downloads off: view variants still render, original is blocked.
+	setDownload(false, false)
+	for _, variant := range []string{"thumbnail", "medium", "large"} {
+		assertServed(variant)
+	}
+	assertCode("original", "DOWNLOAD_DISABLED")
+
+	// Downloads on, originals off.
+	setDownload(true, false)
+	assertServed("large")
+	assertCode("original", "ORIGINAL_DOWNLOAD_DISABLED")
+
+	// Downloads on, originals on.
+	setDownload(true, true)
+	assertServed("original")
 }
 
 func createBucket(t *testing.T, endpoint string) {
