@@ -4,6 +4,8 @@
 
 **Goal:** The API issues presigned uploads so clients put photo bytes directly into R2. Supports simple and multipart uploads, completion, idempotency, and failure recovery. **The Go API never touches photo bytes.**
 
+> The operator-facing upload UI ships in [Phase F3 — Photo Uploads](Phase F3 - Photo Uploads.md), which adds the backend prerequisites that UI needs: owner photo list, owner signed URLs, re-presign for interrupted simple uploads, and photo delete.
+
 **Depends on:** Phase 2.
 
 **Exit criteria:** A client can initialize, upload, complete, and retry an upload; the photo row moves `UPLOADING → READY` (processing enqueued); duplicate `Idempotency-Key` never creates two photos.

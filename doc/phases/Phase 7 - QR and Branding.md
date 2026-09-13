@@ -52,11 +52,7 @@ GET   /api/v1/account/branding
 PATCH /api/v1/account/branding
 ```
 
-Public gallery DTO gains:
-
-```json
-{ "branding": { "businessName": "...", "logoUrl": "...", "primaryColor": "#..." } }
-```
+Public gallery DTO gains a nullable `branding` object. The full field contract the gallery UI consumes is defined in [Phase F4 — Public Gallery](Phase F4 - Public Gallery.md) §2.2: `businessName`, `logoUrl`, `primaryColor`, `secondaryColor`, `contactEmail`, `contactPhone`, `websiteUrl`. `logoUrl` must be safe inside the 60-second cacheable metadata response; if it is signed/short-lived, expose a logo key and let the client fetch it per render.
 
 ---
 

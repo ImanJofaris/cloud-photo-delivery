@@ -8,7 +8,7 @@
 
 **Exit criteria:** A guest with no account can load an event, page through photos, open a photo, and download it; private/password events are protected; originals are never permanently public.
 
-**Scope note (API-first):** Phase 5 delivers the **API only**. The Next.js gallery UI (§5) is deferred to a later phase; the API remains the source of truth.
+**Scope note (API-first):** Phase 5 delivers the **API only**. The Next.js gallery UI (§5) is deferred to [Phase F4 — Public Gallery](Phase F4 - Public Gallery.md), which also fixes the view-vs-download semantics noted in the Phase 5 report; the API remains the source of truth.
 
 **Locked decisions (see §8):**
 - Unlock tokens are **stateless, event-scoped signed tokens** (separate issuer), not DB-backed.
