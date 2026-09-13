@@ -1,3 +1,5 @@
+import Link from "next/link"
+
 import { Button } from "@workspace/ui/components/button"
 
 import { ApiStatus } from "@/components/api-status"
@@ -31,7 +33,18 @@ export default async function Page() {
         </p>
       </div>
       <ApiStatus status={status} />
-      <Button>Get started</Button>
+      <div className="flex items-center gap-3">
+        <Button render={<Link href="/signup" />} nativeButton={false}>
+          Get started
+        </Button>
+        <Button
+          variant="ghost"
+          render={<Link href="/login" />}
+          nativeButton={false}
+        >
+          Log in
+        </Button>
+      </div>
     </main>
   )
 }
