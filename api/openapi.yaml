@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
-  version: 0.8.0
+  version: 0.12.0
   description: API-first backend for the Cloud Photo Delivery SaaS.
 servers:
   - url: http://localhost:8080/api/v1
@@ -14,6 +14,9 @@ tags:
   - name: Uploads
   - name: Devices
   - name: Billing
+  - name: Exports
+  - name: Analytics
+  - name: Admin
   - name: Public Gallery
 paths:
   /healthz:
@@ -363,6 +366,42 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /account/analytics:
+    get:
+      tags: [Analytics]
+      operationId: getAccountAnalytics
+      summary: Get analytics aggregated across the operator's events
+      description: |
+        Returns all-time totals plus a per-day series for the requested window
+        (default 30 days, UTC days). Counters are recorded when the public
+        gallery is viewed; downloads when an original file is fetched; QR scans
+        when the gallery opens with `?src=qr`. `uniqueVisitors` is the sum of
+        exact daily uniques, so a visitor returning on another day counts
+        again.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AnalyticsDays"
+      responses:
+        "200":
+          description: Account analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AccountAnalyticsEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
   /events:
     post:
       tags: [Events]
@@ -548,6 +587,172 @@ paths:
                 $ref: "#/components/schemas/Envelope"
         "409":
           description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/extend:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    post:
+      tags: [Events]
+      operationId: extendEvent
+      summary: Extend an event's expiry
+      description: |
+        Extends the expiry from the later of now and the current `expiresAt`.
+        An `expired` event is re-activated.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ExtendEventRequest"
+      responses:
+        "200":
+          description: Extended event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/exports:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    post:
+      tags: [Exports]
+      operationId: createEventExport
+      summary: Request a bulk ZIP export of an event's photos
+      description: |
+        Creates an async ZIP export containing the event's original photo
+        uploads. If the event already has a `pending` or `processing` export,
+        that export is returned instead of creating a duplicate. Poll
+        `GET /events/{eventID}/exports/{exportID}` until `status` is `ready`,
+        then download `downloadUrl` before `expiresAt`.
+      security:
+        - bearerAuth: []
+      responses:
+        "202":
+          description: Export accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error (the event has no photos to export)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/exports/{exportID}:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+      - $ref: "#/components/parameters/ExportID"
+    get:
+      tags: [Exports]
+      operationId: getEventExport
+      summary: Poll an export's status
+      description: |
+        Returns the export. `downloadUrl` is a short-lived signed URL and is
+        present only while the export is `ready` and has not expired.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: The export
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ExportEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Export not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/analytics:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    get:
+      tags: [Analytics]
+      operationId: getEventAnalytics
+      summary: Get an event's analytics
+      description: |
+        Returns all-time totals plus a per-day series for the requested window
+        (default 30 days, UTC days) for one owned event. `uniqueVisitors` is the
+        sum of exact daily uniques, so a visitor returning on another day counts
+        again.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/AnalyticsDays"
+      responses:
+        "200":
+          description: Event analytics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventAnalyticsEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
           content:
             application/json:
               schema:
@@ -1570,6 +1775,161 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /admin/stats:
+    get:
+      tags: [Admin]
+      operationId: getAdminStats
+      summary: Get SaaS-wide totals
+      description: |
+        Admin only. Returns platform totals: operator accounts, non-deleted
+        events, photos excluding failed uploads, summed tenant storage, revenue
+        from paid invoices, and non-terminal subscriptions.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Platform totals
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminStatsEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "403":
+          description: Authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      operationId: listAdminUsers
+      summary: List operator accounts
+      description: Admin only. Newest first, keyset paginated.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque keyset cursor returned as nextCursor
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of operator accounts
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminUserListEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "403":
+          description: Authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Invalid cursor or limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /admin/subscriptions:
+    get:
+      tags: [Admin]
+      operationId: listAdminSubscriptions
+      summary: List subscriptions across all tenants
+      description: Admin only. Newest first, keyset paginated.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque keyset cursor returned as nextCursor
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of subscriptions
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminSubscriptionListEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "403":
+          description: Authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Invalid cursor or limit
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /admin/health:
+    get:
+      tags: [Admin]
+      operationId: getAdminHealth
+      summary: Get the system health summary
+      description: |
+        Admin only. Reports job-queue depth and failed jobs. `status` is
+        `degraded` when at least one job has failed permanently.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: System health
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AdminHealthEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "403":
+          description: Authenticated user is not an admin
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
   /public/events/{slug}:
     parameters:
       - $ref: "#/components/parameters/EventSlug"
@@ -1582,7 +1942,19 @@ paths:
         expired events return 404 (existence is not revealed). Password events
         return metadata only after unlock; without a valid token the response
         indicates that unlock is required.
+
+        Each successful view is recorded as a gallery view, plus a QR scan when
+        `src=qr` is present. Unique visitors are counted per UTC day using a
+        salted hash of the client IP and user agent; no PII is stored.
       security: []
+      parameters:
+        - name: src
+          in: query
+          required: false
+          description: Traffic source. `qr` marks the open as a QR scan.
+          schema:
+            type: string
+            enum: [qr]
       responses:
         "200":
           description: Public event metadata
@@ -1748,7 +2120,8 @@ paths:
         served for a visible event; they are needed to render the gallery and
         are not gated by `allow_download`. `original` requires both
         `allow_download` and `allow_original_download`. Responses are never
-        cached.
+        cached. Issuing an `original` URL records a download counter for the
+        event.
       security: []
       parameters:
         - $ref: "#/components/parameters/UnlockToken"
@@ -1815,6 +2188,23 @@ components:
       schema:
         type: string
         format: uuid
+    ExportID:
+      name: exportID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AnalyticsDays:
+      name: days
+      in: query
+      required: false
+      description: Number of UTC days in the daily series, including today.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 365
+        default: 30
     EventSlug:
       name: slug
       in: path
@@ -2030,7 +2420,7 @@ components:
           type: string
     EventStatus:
       type: string
-      enum: [upcoming, active, completed, archived]
+      enum: [upcoming, active, completed, archived, expired]
     EventVisibility:
       type: string
       enum: [public, password, private]
@@ -2187,6 +2577,15 @@ components:
           type: string
           format: date-time
           description: Empty string clears the expiry
+    ExtendEventRequest:
+      type: object
+      required: [days]
+      properties:
+        days:
+          type: integer
+          minimum: 1
+          maximum: 3650
+          description: Days to extend from the later of now and the current expiry
     UpdateEventSettingsRequest:
       $ref: "#/components/schemas/EventSettingsInput"
     EventDashboard:
@@ -2261,6 +2660,133 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/EventDashboard"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    AnalyticsCounters:
+      type: object
+      required: [galleryViews, uniqueVisitors, downloads, qrScans]
+      properties:
+        galleryViews:
+          type: integer
+          format: int64
+        uniqueVisitors:
+          type: integer
+          format: int64
+        downloads:
+          type: integer
+          format: int64
+        qrScans:
+          type: integer
+          format: int64
+    AnalyticsDay:
+      type: object
+      required: [date, galleryViews, uniqueVisitors, downloads, qrScans]
+      properties:
+        date:
+          type: string
+          format: date
+          description: UTC day the counters belong to.
+        galleryViews:
+          type: integer
+          format: int64
+        uniqueVisitors:
+          type: integer
+          format: int64
+        downloads:
+          type: integer
+          format: int64
+        qrScans:
+          type: integer
+          format: int64
+    EventAnalytics:
+      type: object
+      required: [eventId, photoCount, totals, daily]
+      properties:
+        eventId:
+          type: string
+          format: uuid
+        photoCount:
+          type: integer
+          format: int64
+        totals:
+          $ref: "#/components/schemas/AnalyticsCounters"
+        daily:
+          type: array
+          description: Days with recorded activity inside the requested window.
+          items:
+            $ref: "#/components/schemas/AnalyticsDay"
+    EventAnalyticsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/EventAnalytics"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    AccountAnalytics:
+      type: object
+      required: [eventCount, photoCount, totals, daily]
+      properties:
+        eventCount:
+          type: integer
+          format: int64
+        photoCount:
+          type: integer
+          format: int64
+        totals:
+          $ref: "#/components/schemas/AnalyticsCounters"
+        daily:
+          type: array
+          description: Days with recorded activity inside the requested window.
+          items:
+            $ref: "#/components/schemas/AnalyticsDay"
+    AccountAnalyticsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/AccountAnalytics"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    ExportStatus:
+      type: string
+      enum: [pending, processing, ready, failed, expired]
+    Export:
+      type: object
+      required:
+        [id, eventId, status, fileSize, expiresAt, createdAt, downloadUrl]
+      properties:
+        id:
+          type: string
+          format: uuid
+        eventId:
+          type: string
+          format: uuid
+        status:
+          $ref: "#/components/schemas/ExportStatus"
+        fileSize:
+          type: ["integer", "null"]
+          format: int64
+        expiresAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        downloadUrl:
+          type: ["string", "null"]
+          description: |
+            Short-lived signed URL for the ZIP archive. Present only while the
+            export is `ready` and has not expired.
+    ExportEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Export"
         error:
           oneOf:
             - type: "null"
@@ -3028,3 +3554,167 @@ components:
         paidAt:
           type: string
           format: date-time
+    AdminStats:
+      type: object
+      required: [users, events, photos, storageBytes, revenueCents, subscriptions]
+      properties:
+        users:
+          type: integer
+          format: int64
+        events:
+          type: integer
+          format: int64
+          description: Non-deleted events.
+        photos:
+          type: integer
+          format: int64
+          description: Photos excluding failed uploads.
+        storageBytes:
+          type: integer
+          format: int64
+          description: Sum of tenant storage counters.
+        revenueCents:
+          type: integer
+          format: int64
+          description: Sum of paid invoices.
+        subscriptions:
+          type: integer
+          format: int64
+          description: Non-terminal subscriptions (trialing, active, past_due).
+    AdminStatsEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/AdminStats"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    AdminUser:
+      type: object
+      required: [id, email, isAdmin, storageBytes, eventCount, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+        businessName:
+          type: string
+        isAdmin:
+          type: boolean
+        storageBytes:
+          type: integer
+          format: int64
+        eventCount:
+          type: integer
+          format: int64
+          description: Non-deleted events owned by the account.
+        createdAt:
+          type: string
+          format: date-time
+    AdminUserList:
+      type: object
+      required: [users, nextCursor]
+      properties:
+        users:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminUser"
+        nextCursor:
+          type: ["string", "null"]
+    AdminUserListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/AdminUserList"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    AdminSubscription:
+      type: object
+      required: [id, userId, planId, status, interval, cancelAtPeriodEnd, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        userId:
+          type: string
+          format: uuid
+        userEmail:
+          type: string
+        planId:
+          type: string
+        status:
+          $ref: "#/components/schemas/SubscriptionStatus"
+        interval:
+          type: string
+        currentPeriodEnd:
+          type: ["string", "null"]
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+    AdminSubscriptionList:
+      type: object
+      required: [subscriptions, nextCursor]
+      properties:
+        subscriptions:
+          type: array
+          items:
+            $ref: "#/components/schemas/AdminSubscription"
+        nextCursor:
+          type: ["string", "null"]
+    AdminSubscriptionListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/AdminSubscriptionList"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    AdminQueueHealth:
+      type: object
+      required: [pending, running, failed]
+      properties:
+        pending:
+          type: integer
+          format: int64
+        running:
+          type: integer
+          format: int64
+        failed:
+          type: integer
+          format: int64
+        oldestPendingAt:
+          type: ["string", "null"]
+          format: date-time
+    AdminHealth:
+      type: object
+      required: [status, queueDepth, queue, checkedAt]
+      properties:
+        status:
+          type: string
+          enum: [ok, degraded]
+        queueDepth:
+          type: integer
+          format: int64
+          description: Pending plus running jobs.
+        queue:
+          $ref: "#/components/schemas/AdminQueueHealth"
+        checkedAt:
+          type: string
+          format: date-time
+    AdminHealthEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/AdminHealth"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"

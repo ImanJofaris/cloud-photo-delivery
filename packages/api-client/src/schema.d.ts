@@ -208,6 +208,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/account/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get analytics aggregated across the operator's events
+         * @description Returns all-time totals plus a per-day series for the requested window
+         *     (default 30 days, UTC days). Counters are recorded when the public
+         *     gallery is viewed; downloads when an original file is fetched; QR scans
+         *     when the gallery opens with `?src=qr`. `uniqueVisitors` is the sum of
+         *     exact daily uniques, so a visitor returning on another day counts
+         *     again.
+         */
+        get: operations["getAccountAnalytics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -260,6 +285,104 @@ export interface paths {
         put?: never;
         /** Archive an event */
         post: operations["archiveEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/extend": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Extend an event's expiry
+         * @description Extends the expiry from the later of now and the current `expiresAt`.
+         *     An `expired` event is re-activated.
+         */
+        post: operations["extendEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a bulk ZIP export of an event's photos
+         * @description Creates an async ZIP export containing the event's original photo
+         *     uploads. If the event already has a `pending` or `processing` export,
+         *     that export is returned instead of creating a duplicate. Poll
+         *     `GET /events/{eventID}/exports/{exportID}` until `status` is `ready`,
+         *     then download `downloadUrl` before `expiresAt`.
+         */
+        post: operations["createEventExport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/exports/{exportID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+                exportID: components["parameters"]["ExportID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Poll an export's status
+         * @description Returns the export. `downloadUrl` is a short-lived signed URL and is
+         *     present only while the export is `ready` and has not expired.
+         */
+        get: operations["getEventExport"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/analytics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get an event's analytics
+         * @description Returns all-time totals plus a per-day series for the requested window
+         *     (default 30 days, UTC days) for one owned event. `uniqueVisitors` is the
+         *     sum of exact daily uniques, so a visitor returning on another day counts
+         *     again.
+         */
+        get: operations["getEventAnalytics"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -830,6 +953,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get SaaS-wide totals
+         * @description Admin only. Returns platform totals: operator accounts, non-deleted
+         *     events, photos excluding failed uploads, summed tenant storage, revenue
+         *     from paid invoices, and non-terminal subscriptions.
+         */
+        get: operations["getAdminStats"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List operator accounts
+         * @description Admin only. Newest first, keyset paginated.
+         */
+        get: operations["listAdminUsers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/subscriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List subscriptions across all tenants
+         * @description Admin only. Newest first, keyset paginated.
+         */
+        get: operations["listAdminSubscriptions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/health": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the system health summary
+         * @description Admin only. Reports job-queue depth and failed jobs. `status` is
+         *     `degraded` when at least one job has failed permanently.
+         */
+        get: operations["getAdminHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/events/{slug}": {
         parameters: {
             query?: never;
@@ -846,6 +1052,10 @@ export interface paths {
          *     expired events return 404 (existence is not revealed). Password events
          *     return metadata only after unlock; without a valid token the response
          *     indicates that unlock is required.
+         *
+         *     Each successful view is recorded as a gallery view, plus a QR scan when
+         *     `src=qr` is present. Unique visitors are counted per UTC day using a
+         *     salted hash of the client IP and user agent; no PII is stored.
          */
         get: operations["getPublicEvent"];
         put?: never;
@@ -940,7 +1150,8 @@ export interface paths {
          *     served for a visible event; they are needed to render the gallery and
          *     are not gated by `allow_download`. `original` requires both
          *     `allow_download` and `allow_original_download`. Responses are never
-         *     cached.
+         *     cached. Issuing an `original` URL records a download counter for the
+         *     event.
          */
         get: operations["getPublicPhotoURL"];
         put?: never;
@@ -1049,7 +1260,7 @@ export interface components {
             message: string;
         };
         /** @enum {string} */
-        EventStatus: "upcoming" | "active" | "completed" | "archived";
+        EventStatus: "upcoming" | "active" | "completed" | "archived" | "expired";
         /** @enum {string} */
         EventVisibility: "public" | "password" | "private";
         Event: {
@@ -1130,6 +1341,10 @@ export interface components {
              */
             expiresAt?: string;
         };
+        ExtendEventRequest: {
+            /** @description Days to extend from the later of now and the current expiry */
+            days: number;
+        };
         UpdateEventSettingsRequest: components["schemas"]["EventSettingsInput"];
         EventDashboard: {
             /** Format: int64 */
@@ -1165,6 +1380,81 @@ export interface components {
         };
         EventDashboardEnvelope: {
             data?: components["schemas"]["EventDashboard"];
+            error?: null | components["schemas"]["Error"];
+        };
+        AnalyticsCounters: {
+            /** Format: int64 */
+            galleryViews: number;
+            /** Format: int64 */
+            uniqueVisitors: number;
+            /** Format: int64 */
+            downloads: number;
+            /** Format: int64 */
+            qrScans: number;
+        };
+        AnalyticsDay: {
+            /**
+             * Format: date
+             * @description UTC day the counters belong to.
+             */
+            date: string;
+            /** Format: int64 */
+            galleryViews: number;
+            /** Format: int64 */
+            uniqueVisitors: number;
+            /** Format: int64 */
+            downloads: number;
+            /** Format: int64 */
+            qrScans: number;
+        };
+        EventAnalytics: {
+            /** Format: uuid */
+            eventId: string;
+            /** Format: int64 */
+            photoCount: number;
+            totals: components["schemas"]["AnalyticsCounters"];
+            /** @description Days with recorded activity inside the requested window. */
+            daily: components["schemas"]["AnalyticsDay"][];
+        };
+        EventAnalyticsEnvelope: {
+            data?: components["schemas"]["EventAnalytics"];
+            error?: null | components["schemas"]["Error"];
+        };
+        AccountAnalytics: {
+            /** Format: int64 */
+            eventCount: number;
+            /** Format: int64 */
+            photoCount: number;
+            totals: components["schemas"]["AnalyticsCounters"];
+            /** @description Days with recorded activity inside the requested window. */
+            daily: components["schemas"]["AnalyticsDay"][];
+        };
+        AccountAnalyticsEnvelope: {
+            data?: components["schemas"]["AccountAnalytics"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /** @enum {string} */
+        ExportStatus: "pending" | "processing" | "ready" | "failed" | "expired";
+        Export: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            eventId: string;
+            status: components["schemas"]["ExportStatus"];
+            /** Format: int64 */
+            fileSize: number | null;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * @description Short-lived signed URL for the ZIP archive. Present only while the
+             *     export is `ready` and has not expired.
+             */
+            downloadUrl: string | null;
+        };
+        ExportEnvelope: {
+            data?: components["schemas"]["Export"];
             error?: null | components["schemas"]["Error"];
         };
         EventURL: {
@@ -1560,10 +1850,119 @@ export interface components {
             /** Format: date-time */
             paidAt?: string;
         };
+        AdminStats: {
+            /** Format: int64 */
+            users: number;
+            /**
+             * Format: int64
+             * @description Non-deleted events.
+             */
+            events: number;
+            /**
+             * Format: int64
+             * @description Photos excluding failed uploads.
+             */
+            photos: number;
+            /**
+             * Format: int64
+             * @description Sum of tenant storage counters.
+             */
+            storageBytes: number;
+            /**
+             * Format: int64
+             * @description Sum of paid invoices.
+             */
+            revenueCents: number;
+            /**
+             * Format: int64
+             * @description Non-terminal subscriptions (trialing, active, past_due).
+             */
+            subscriptions: number;
+        };
+        AdminStatsEnvelope: {
+            data?: components["schemas"]["AdminStats"];
+            error?: null | components["schemas"]["Error"];
+        };
+        AdminUser: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            businessName?: string;
+            isAdmin: boolean;
+            /** Format: int64 */
+            storageBytes: number;
+            /**
+             * Format: int64
+             * @description Non-deleted events owned by the account.
+             */
+            eventCount: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdminUserList: {
+            users: components["schemas"]["AdminUser"][];
+            nextCursor: string | null;
+        };
+        AdminUserListEnvelope: {
+            data?: components["schemas"]["AdminUserList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        AdminSubscription: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            userId: string;
+            userEmail?: string;
+            planId: string;
+            status: components["schemas"]["SubscriptionStatus"];
+            interval: string;
+            /** Format: date-time */
+            currentPeriodEnd?: string | null;
+            cancelAtPeriodEnd: boolean;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        AdminSubscriptionList: {
+            subscriptions: components["schemas"]["AdminSubscription"][];
+            nextCursor: string | null;
+        };
+        AdminSubscriptionListEnvelope: {
+            data?: components["schemas"]["AdminSubscriptionList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        AdminQueueHealth: {
+            /** Format: int64 */
+            pending: number;
+            /** Format: int64 */
+            running: number;
+            /** Format: int64 */
+            failed: number;
+            /** Format: date-time */
+            oldestPendingAt?: string | null;
+        };
+        AdminHealth: {
+            /** @enum {string} */
+            status: "ok" | "degraded";
+            /**
+             * Format: int64
+             * @description Pending plus running jobs.
+             */
+            queueDepth: number;
+            queue: components["schemas"]["AdminQueueHealth"];
+            /** Format: date-time */
+            checkedAt: string;
+        };
+        AdminHealthEnvelope: {
+            data?: components["schemas"]["AdminHealth"];
+            error?: null | components["schemas"]["Error"];
+        };
     };
     responses: never;
     parameters: {
         EventID: string;
+        ExportID: string;
+        /** @description Number of UTC days in the daily series, including today. */
+        AnalyticsDays: number;
         /** @description URL slug of the event, unique per operator. */
         EventSlug: string;
         /**
@@ -2012,6 +2411,47 @@ export interface operations {
             };
         };
     };
+    getAccountAnalytics: {
+        parameters: {
+            query?: {
+                /** @description Number of UTC days in the daily series, including today. */
+                days?: components["parameters"]["AnalyticsDays"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Account analytics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountAnalyticsEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     listEvents: {
         parameters: {
             query?: {
@@ -2252,6 +2692,210 @@ export interface operations {
             };
             /** @description Invalid status transition */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    extendEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtendEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Extended event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid status transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    createEventExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Export accepted */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error (the event has no photos to export) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEventExport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+                exportID: components["parameters"]["ExportID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Export not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEventAnalytics: {
+        parameters: {
+            query?: {
+                /** @description Number of UTC days in the daily series, including today. */
+                days?: components["parameters"]["AnalyticsDays"];
+            };
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event analytics */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventAnalyticsEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3515,9 +4159,190 @@ export interface operations {
             };
         };
     };
-    getPublicEvent: {
+    getAdminStats: {
         parameters: {
             query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Platform totals */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStatsEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Authenticated user is not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listAdminUsers: {
+        parameters: {
+            query?: {
+                /** @description Opaque keyset cursor returned as nextCursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of operator accounts */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserListEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Authenticated user is not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid cursor or limit */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listAdminSubscriptions: {
+        parameters: {
+            query?: {
+                /** @description Opaque keyset cursor returned as nextCursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of subscriptions */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSubscriptionListEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Authenticated user is not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid cursor or limit */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getAdminHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description System health */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminHealthEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Authenticated user is not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getPublicEvent: {
+        parameters: {
+            query?: {
+                /** @description Traffic source. `qr` marks the open as a QR scan. */
+                src?: "qr";
+            };
             header?: never;
             path: {
                 /** @description URL slug of the event, unique per operator. */
