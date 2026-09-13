@@ -143,3 +143,109 @@ analytics.rollup   -> optional nightly aggregation
 - [ ] All master DoD items.
 - [ ] OpenAPI documents exports, analytics, admin.
 - [ ] Admin authorization tested (non-admin → 403).
+
+---
+
+## 8. Delivery Slices
+
+Phase 9 ships in four independently verifiable slices, each with its own migration,
+OpenAPI update, tests, and gates. The Phase 9 report is written after the last slice.
+
+| Slice | Scope | Migration |
+|---|---|---|
+| 9A | Lifecycle & extend: `expired` status, retention-derived expiry, `event.expire`, expiry warnings, `event.purge` (grace), `POST /events/{id}/extend` | `0010_lifecycle.sql` |
+| 9B | Bulk ZIP exports: `exports` table, `zip.generate`, `export.cleanup`, export status API | `0011_exports.sql` |
+| 9C | Analytics: `event_analytics` + `event_visitors`, gallery counters, event/account analytics endpoints | `0012_analytics.sql` |
+| 9D | Admin API & reconciliation: `users.is_admin`, `RequireAdmin`, `/admin/*`, `storage.reconcile` | `0013_admin.sql` |
+
+**Status:** 9A complete (2026-09-13) with unit, integration, and E2E coverage plus a
+reversible `0010_lifecycle.sql`. 9B complete (2026-09-13) with unit, integration, and
+E2E coverage plus a reversible `0011_exports.sql`. 9C complete (2026-09-13) with unit,
+integration, and E2E coverage plus a reversible `0012_analytics.sql`. 9D complete
+(2026-09-14) with unit, integration, and E2E coverage plus a reversible
+`0013_admin.sql`. **Phase 9 is complete** — see `Phase 9 - Report.md`.
+
+### Locked decisions
+
+- **Expiry status:** add `expired` to `events.status`; gallery already 404s on
+  `expires_at`, so access is unaffected. Extend re-activates (`expired → active`).
+- **Retention:** when `expiresAt` is omitted at creation it derives from the plan's
+  `retentionDays` (`0` = never). Existing null-expiry events stay never-expire.
+- **Purge trigger:** `event.purge` selects soft-deleted events past the grace period
+  **or** expired events past the grace period. Order: delete R2 objects → delete DB
+  rows → decrement `users.storage_bytes`. Idempotent and resumable by re-reading keys.
+- **Scheduling:** no external cron. A worker-side ticker enqueues `event.expire` and
+  `event.purge` every 15 minutes; `EnqueueUnique` dedupes against pending/running jobs.
+  `export.cleanup` runs hourly and `storage.reconcile` daily (9B/9D).
+- **ZIP strategy (9B):** `archive/zip` to a temp file (bounded memory), uploaded with a
+  new streaming `PutReader`; no in-memory archives.
+- **Unique visitors (9C):** exact daily uniques via `event_visitors(event_id, day,
+  visitor_hash)` where the hash is salted `IP+UA`; no PII stored. Hashes are
+  HMAC-SHA256 keyed by `ANALYTICS_HASH_SALT` (falls back to `JWT_SECRET`).
+- **Admin auth (9D):** `users.is_admin` column, checked by a `RequireAdmin` middleware
+  after `RequireAuth`; non-admin → `FORBIDDEN` (403).
+- **Doc drift:** the planned `webhook_events` table is already covered by
+  `billing_webhook_events` (`0009_billing.sql`); no duplicate table.
+- **`analytics.rollup`:** skipped — per-day counter rows make a separate rollup job
+  redundant.
+
+### Slice 9A details
+
+- `events` gains `expiry_warned_at` and a partial `idx_events_expires_at` index.
+- Transitions added: `upcoming|active|completed → expired`, `expired → active`.
+- `event.expire` marks due events and emits one warning per event inside
+  `EXPIRY_WARN_DAYS` (default 7). Warnings go through an `events.Notifier` interface;
+  the worker wires a log-based notifier until a real mailer exists.
+- `event.purge` grace is `EVENT_PURGE_GRACE_DAYS` (default 30) and is enforced by a
+  worker-side ticker; handlers are batch-loop and safe to re-run.
+- `POST /api/v1/events/{eventID}/extend` body `{"days":30}` (1–3650), extends from
+  `max(now, expires_at)` and re-activates expired events.
+- Tests: unit (selection, warnings, extend, purge counters, scheduler), integration
+  (purge against Postgres + MinIO, expiry marking, extend), E2E (short retention →
+  backdated expiry → expire → grace → purge → gallery 404 + R2 empty).
+
+### Slice 9C details
+
+- `event_analytics(event_id, day, ...)` holds per-day counters and
+  `event_visitors(event_id, day, visitor_hash)` provides exact daily uniques; both
+  cascade when the event is purged.
+- The gallery records `gallery_views` on every successful
+  `GET /public/events/{slug}` (public or unlocked), `qr_scans` when `?src=qr` is
+  present, and `downloads` when an `original` URL is issued. Recording is
+  best-effort and never fails a gallery read.
+- Visitor hashes are HMAC-SHA256 of `IP + UA` keyed by `ANALYTICS_HASH_SALT`
+  (defaults to `JWT_SECRET`); no PII is stored and the same visitor on a new UTC
+  day counts again.
+- `GET /api/v1/events/{eventID}/analytics` and `GET /api/v1/account/analytics`
+  return all-time totals plus a `?days=1..365` (default 30) UTC daily series, 404
+  for other tenants, and aggregate the account across non-deleted events.
+- Tests: unit (window validation, ownership, hashing, handler envelopes),
+  integration (per-day upsert/unique math, tenant scoping, migration round trip),
+  E2E (public view + QR + download → event/account analytics, cross-tenant 404).
+
+### Slice 9D details
+
+- `users.is_admin BOOLEAN NOT NULL DEFAULT FALSE` plus a partial `idx_users_is_admin`;
+  there is no API to change it (operators are promoted with SQL).
+- `internal/admin` owns the admin concern: `Repository` (cross-tenant SQL), `Service`
+  (cursor/limit normalization, `degraded` health), `Handler` (envelopes), and
+  `RequireAdmin` middleware mounted after `RequireAuth` (401 without auth, 403
+  `FORBIDDEN` for non-admins, 500 for lookup failures).
+- `GET /api/v1/admin/stats` returns users, non-deleted events, non-FAILED photos,
+  summed tenant storage, paid-invoice revenue, and non-terminal subscriptions.
+  `GET /api/v1/admin/users` and `/admin/subscriptions` are keyset paginated
+  (`(created_at, id)`, default 20, max 100). `GET /api/v1/admin/health` reports pending/
+  running/failed job counts and the oldest pending `run_at`.
+- `storage.reconcile` runs daily (and at worker startup) and compares
+  `SUM(users.storage_bytes)` and the non-`UPLOADING` photo count with the size/count of
+  R2 keys under `tenant/` containing `/originals/` (derivatives, exports, and branding
+  assets are excluded). Drift is reported through `admin.ReconcileReporter`
+  (log-based in the worker); the job never deletes objects.
+- `pkg/r2.S3Store.ListObjects(prefix)` follows `ListObjectsV2` pagination and is
+  intentionally outside `r2.ObjectStore`; the reconcile job consumes a narrow
+  `admin.ObjectLister` interface.
+- Tests: unit (cursor/limit, service aggregates, `RequireAdmin` 200/401/403/500,
+  handler envelopes, reconcile drift math), integration (repo aggregates and
+  exclusions, queue health, `is_admin`, migration round trip, MinIO `ListObjects`),
+  E2E (non-admin 403, stats/pagination/subscriptions/health, injected orphan drift
+  detected and not deleted).
