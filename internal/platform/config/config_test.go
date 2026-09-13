@@ -12,6 +12,7 @@ func TestLoad_Valid(t *testing.T) {
 	t.Setenv("LOG_LEVEL", "debug")
 	t.Setenv("SHUTDOWN_TIMEOUT", "5s")
 	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
 
 	cfg, err := Load()
 	if err != nil {
@@ -19,6 +20,9 @@ func TestLoad_Valid(t *testing.T) {
 	}
 	if cfg.Env != "test" || cfg.DatabaseURL != "postgres://x" || cfg.HTTPAddr != ":9090" {
 		t.Fatalf("unexpected config: %+v", cfg)
+	}
+	if cfg.BillingProvider != "manual" {
+		t.Fatalf("expected default billing provider manual, got %q", cfg.BillingProvider)
 	}
 	if cfg.ShutdownTimeout != 5*time.Second {
 		t.Fatalf("unexpected shutdown timeout: %v", cfg.ShutdownTimeout)
@@ -35,6 +39,29 @@ func TestLoad_MissingJWTSecret(t *testing.T) {
 
 	if _, err := Load(); err == nil {
 		t.Fatal("expected error when JWT_SECRET missing")
+	}
+}
+
+func TestLoad_MissingBillingWebhookSecret(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error when BILLING_WEBHOOK_SECRET missing")
+	}
+}
+
+func TestLoad_InvalidBillingProvider(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
+	t.Setenv("BILLING_PROVIDER", "stripe")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for unsupported BILLING_PROVIDER")
 	}
 }
 
@@ -62,6 +89,7 @@ func TestLoad_Defaults(t *testing.T) {
 	t.Setenv("HTTP_ADDR", "")
 	t.Setenv("LOG_LEVEL", "")
 	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
 
 	cfg, err := Load()
 	if err != nil {

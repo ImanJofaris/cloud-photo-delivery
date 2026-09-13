@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
-  version: 0.7.0
+  version: 0.8.0
   description: API-first backend for the Cloud Photo Delivery SaaS.
 servers:
   - url: http://localhost:8080/api/v1
@@ -13,6 +13,7 @@ tags:
   - name: Events
   - name: Uploads
   - name: Devices
+  - name: Billing
   - name: Public Gallery
 paths:
   /healthz:
@@ -844,6 +845,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Plan limit reached (photosPerEvent or storageBytes)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
         "422":
           description: Validation error (unsupported type, too large)
           content:
@@ -1256,6 +1263,308 @@ paths:
                 $ref: "#/components/schemas/Envelope"
         "409":
           description: Device has been revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/plans:
+    get:
+      tags: [Billing]
+      operationId: listPlans
+      summary: List available plans
+      description: Plans are data; `limits` carries the entitlement values (`0` means unlimited).
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Active plans
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlanListEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/subscription:
+    get:
+      tags: [Billing]
+      operationId: getSubscription
+      summary: Get the effective plan, subscription, and usage
+      description: |
+        Returns the latest subscription (if any), the effective plan (Free when
+        no non-terminal subscription exists), and current usage counters.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Effective billing state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionViewEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/subscribe:
+    post:
+      tags: [Billing]
+      operationId: subscribe
+      summary: Start a subscription
+      description: |
+        Creates the subscription plus an open invoice and returns a provider
+        checkout session. The `manual` provider activates immediately and
+        returns an offline `manual://` checkout URL.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SubscribeRequest"
+      responses:
+        "201":
+          description: Subscription created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscribeResultEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: A non-terminal subscription already exists
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Unknown or inactive plan, or invalid interval
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/upgrade:
+    post:
+      tags: [Billing]
+      operationId: upgradeSubscription
+      summary: Upgrade to a higher-priced plan
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanChangeRequest"
+      responses:
+        "200":
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "404":
+          description: No subscription to change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Target plan is not an upgrade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/downgrade:
+    post:
+      tags: [Billing]
+      operationId: downgradeSubscription
+      summary: Downgrade to a lower-priced plan
+      description: |
+        Soft downgrade: existing data is never deleted. New usage is blocked
+        until the tenant is back within the target plan's limits.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlanChangeRequest"
+      responses:
+        "200":
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "404":
+          description: No subscription to change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Target plan is not a downgrade
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/cancel:
+    post:
+      tags: [Billing]
+      operationId: cancelSubscription
+      summary: Cancel the subscription at period end
+      description: |
+        Keeps the current plan active until `currentPeriodEnd`, then expires it
+        on the next read. Matching webhooks may expire it immediately.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cancellation scheduled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "404":
+          description: No active subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/resume:
+    post:
+      tags: [Billing]
+      operationId: resumeSubscription
+      summary: Resume a subscription scheduled to cancel
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cancellation reversed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SubscriptionEnvelope"
+        "404":
+          description: No active subscription
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Subscription is not resumable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/invoices:
+    get:
+      tags: [Billing]
+      operationId: listInvoices
+      summary: List invoices (cursor pagination)
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque keyset cursor returned as nextCursor
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        "200":
+          description: A page of invoices
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InvoiceListEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Invalid cursor
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /billing/webhook:
+    post:
+      tags: [Billing]
+      operationId: billingWebhook
+      summary: Provider callback (unauthenticated, signed)
+      description: |
+        Verifies the provider HMAC signature over the raw request body and
+        applies the event exactly once per `(provider, providerRef)`.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BillingWebhookPayload"
+      responses:
+        "202":
+          description: Event accepted (duplicates are acknowledged)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "400":
+          description: Malformed webhook payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "401":
+          description: Signature verification failed
           content:
             application/json:
               schema:
@@ -2465,3 +2774,257 @@ components:
           oneOf:
             - type: "null"
             - $ref: "#/components/schemas/Error"
+    BillingPlanLimits:
+      type: object
+      required: [activeEvents, photosPerEvent, storageBytes, retentionDays, apiAccess]
+      properties:
+        activeEvents:
+          type: integer
+          description: Maximum concurrent active events; `0` means unlimited.
+        photosPerEvent:
+          type: integer
+          description: Maximum photos per event; `0` means unlimited.
+        storageBytes:
+          type: integer
+          format: int64
+          description: Total storage bytes for the tenant; `0` means unlimited.
+        retentionDays:
+          type: integer
+          description: Gallery retention window. Expiry enforcement lands in Phase 9.
+        apiAccess:
+          type: boolean
+    Plan:
+      type: object
+      required: [id, name, priceCents, currency, interval, limits, active]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        priceCents:
+          type: integer
+        currency:
+          type: string
+        interval:
+          type: string
+          enum: [month, year]
+        limits:
+          $ref: "#/components/schemas/BillingPlanLimits"
+        active:
+          type: boolean
+    PlanList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Plan"
+    PlanListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/PlanList"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    SubscriptionStatus:
+      type: string
+      enum: [trialing, active, past_due, canceled, expired]
+    Subscription:
+      type: object
+      required:
+        [
+          id,
+          planId,
+          status,
+          interval,
+          cancelAtPeriodEnd,
+          currentPeriodStart,
+          currentPeriodEnd,
+          createdAt,
+          updatedAt,
+        ]
+      properties:
+        id:
+          type: string
+          format: uuid
+        planId:
+          type: string
+        status:
+          $ref: "#/components/schemas/SubscriptionStatus"
+        provider:
+          type: ["string", "null"]
+        providerRef:
+          type: ["string", "null"]
+        interval:
+          type: string
+          enum: [month, year]
+        currentPeriodStart:
+          type: ["string", "null"]
+          format: date-time
+        currentPeriodEnd:
+          type: ["string", "null"]
+          format: date-time
+        cancelAtPeriodEnd:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SubscriptionEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Subscription"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    SubscriptionUsage:
+      type: object
+      required: [activeEvents, storageBytes]
+      properties:
+        activeEvents:
+          type: integer
+        storageBytes:
+          type: integer
+          format: int64
+    SubscriptionView:
+      type: object
+      required: [subscription, plan, usage]
+      properties:
+        subscription:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Subscription"
+        plan:
+          $ref: "#/components/schemas/Plan"
+        usage:
+          $ref: "#/components/schemas/SubscriptionUsage"
+    SubscriptionViewEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SubscriptionView"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    SubscribeRequest:
+      type: object
+      required: [planId]
+      properties:
+        planId:
+          type: string
+        interval:
+          type: string
+          enum: [month, year]
+          description: Defaults to the plan's billing interval.
+    PlanChangeRequest:
+      type: object
+      required: [planId]
+      properties:
+        planId:
+          type: string
+    CheckoutSession:
+      type: object
+      required: [providerRef, url, expiresAt]
+      properties:
+        providerRef:
+          type: string
+        url:
+          type: string
+          description: Provider checkout URL; the `manual` provider returns an offline `manual://` URL.
+        expiresAt:
+          type: string
+          format: date-time
+    SubscribeResult:
+      type: object
+      required: [subscription, checkout]
+      properties:
+        subscription:
+          $ref: "#/components/schemas/Subscription"
+        checkout:
+          $ref: "#/components/schemas/CheckoutSession"
+    SubscribeResultEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/SubscribeResult"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    InvoiceStatus:
+      type: string
+      enum: [open, paid, void]
+    Invoice:
+      type: object
+      required: [id, amountCents, currency, status, issuedAt, paidAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        subscriptionId:
+          type: ["string", "null"]
+          format: uuid
+        amountCents:
+          type: integer
+        currency:
+          type: string
+        status:
+          $ref: "#/components/schemas/InvoiceStatus"
+        providerRef:
+          type: ["string", "null"]
+        issuedAt:
+          type: string
+          format: date-time
+        paidAt:
+          type: ["string", "null"]
+          format: date-time
+    InvoiceList:
+      type: object
+      required: [items, nextCursor]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Invoice"
+        nextCursor:
+          type: ["string", "null"]
+    InvoiceListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/InvoiceList"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    BillingWebhookPayload:
+      type: object
+      required: [id, type]
+      properties:
+        id:
+          type: string
+          description: Provider event id; duplicates are ignored.
+        type:
+          type: string
+          enum: [checkout.completed, invoice.paid, subscription.canceled]
+        providerRef:
+          type: string
+          description: Subscription provider reference.
+        invoiceRef:
+          type: string
+          description: Invoice provider reference for `invoice.paid`.
+        amountCents:
+          type: integer
+        currency:
+          type: string
+        paidAt:
+          type: string
+          format: date-time

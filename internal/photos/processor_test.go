@@ -114,6 +114,8 @@ func (f *fakeRepo) EventOwnedBy(context.Context, uuid.UUID, uuid.UUID) (bool, er
 	return true, nil
 }
 func (f *fakeRepo) ListByEvent(context.Context, ListInput) ([]*Photo, error) { return nil, nil }
+
+func (f *fakeRepo) CountByEvent(context.Context, uuid.UUID) (int64, error) { return 0, nil }
 func (f *fakeRepo) DeleteOwned(context.Context, uuid.UUID, uuid.UUID) (*DeletedPhoto, error) {
 	return nil, ErrNotFound
 }

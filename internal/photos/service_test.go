@@ -69,6 +69,8 @@ func (f *ownerRepoFake) ListByEvent(_ context.Context, in ListInput) ([]*Photo, 
 	return f.listed, f.listErr
 }
 
+func (f *ownerRepoFake) CountByEvent(context.Context, uuid.UUID) (int64, error) { return 0, nil }
+
 func (f *ownerRepoFake) DeleteOwned(_ context.Context, photoID, _ uuid.UUID) (*DeletedPhoto, error) {
 	if f.deleteErr != nil {
 		return nil, f.deleteErr

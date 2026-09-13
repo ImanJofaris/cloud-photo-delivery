@@ -19,7 +19,7 @@ func newTestService(t *testing.T) (*Service, *fakePhotoRepo, *fakeUploadRepo, *f
 	uploadRepo := newFakeUploadRepo()
 	store := &fakeStore{headSize: 1024}
 	queue := &fakeQueue{}
-	svc := NewService(photoRepo, uploadRepo, store, queue)
+	svc := NewService(photoRepo, uploadRepo, store, queue, nil)
 	svc.SetClock(func() time.Time { return time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC) })
 
 	userID := uuid.New()
@@ -337,7 +337,7 @@ func TestInitialize_IdempotentRebuildNotFound(t *testing.T) {
 }
 
 func TestNewService_NilQueueIsNoop(t *testing.T) {
-	svc := NewService(newFakePhotoRepo(), newFakeUploadRepo(), &fakeStore{}, nil)
+	svc := NewService(newFakePhotoRepo(), newFakeUploadRepo(), &fakeStore{}, nil, nil)
 	require.NoError(t, svc.queue.EnqueueProcessPhoto(context.Background(), uuid.New(), uuid.New()))
 }
 
@@ -367,7 +367,7 @@ func TestInitialize_StoreErrorIsInternal(t *testing.T) {
 	userID := uuid.New()
 	eventID := uuid.New()
 	uploadRepo.owners[eventID] = userID
-	svc := NewService(photoRepo, uploadRepo, &errorStore{pushErr: true}, &fakeQueue{})
+	svc := NewService(photoRepo, uploadRepo, &errorStore{pushErr: true}, &fakeQueue{}, nil)
 
 	_, err := svc.Initialize(context.Background(), Actor{UserID: userID}, InitParams{
 		EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 1024,
@@ -440,7 +440,7 @@ func TestAbortMultipart_StoreErrorIsInternal(t *testing.T) {
 	userID := uuid.New()
 	eventID := uuid.New()
 	uploadRepo.owners[eventID] = userID
-	svc := NewService(photoRepo, uploadRepo, &fakeStore{}, &fakeQueue{})
+	svc := NewService(photoRepo, uploadRepo, &fakeStore{}, &fakeQueue{}, nil)
 	ctx := context.Background()
 
 	res, err := svc.Initialize(ctx, Actor{UserID: userID}, InitParams{EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 20 * 1024 * 1024})
@@ -449,4 +449,74 @@ func TestAbortMultipart_StoreErrorIsInternal(t *testing.T) {
 	svc.store = &errorStore{}
 	err = svc.AbortMultipart(ctx, Actor{UserID: userID}, res.PhotoID)
 	require.Equal(t, "INTERNAL_ERROR", err.(*apperr.Error).Code)
+}
+
+func newLimitService(t *testing.T, limits fakeLimits) (*Service, *fakeUploadRepo, uuid.UUID, uuid.UUID) {
+	t.Helper()
+	photoRepo := newFakePhotoRepo()
+	uploadRepo := newFakeUploadRepo()
+	userID := uuid.New()
+	eventID := uuid.New()
+	uploadRepo.owned[eventID] = true
+	uploadRepo.owners[eventID] = userID
+	svc := NewService(photoRepo, uploadRepo, &fakeStore{}, &fakeQueue{}, limits)
+	svc.SetClock(func() time.Time { return time.Date(2026, 9, 12, 10, 0, 0, 0, time.UTC) })
+	return svc, uploadRepo, userID, eventID
+}
+
+func TestInitialize_BlocksWhenPhotosPerEventLimitReached(t *testing.T) {
+	svc, _, userID, eventID := newLimitService(t, fakeLimits{maxPhotos: 2})
+	ctx := context.Background()
+
+	for i := 0; i < 2; i++ {
+		_, err := svc.Initialize(ctx, Actor{UserID: userID}, InitParams{
+			EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 100,
+		})
+		require.NoError(t, err)
+	}
+
+	_, err := svc.Initialize(ctx, Actor{UserID: userID}, InitParams{
+		EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 100,
+	})
+	require.Error(t, err)
+	var appErr *apperr.Error
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, "PLAN_LIMIT_REACHED", appErr.Code)
+	require.Contains(t, appErr.Message, "photosPerEvent")
+}
+
+func TestInitialize_BlocksWhenStorageLimitExceeded(t *testing.T) {
+	svc, uploadRepo, userID, eventID := newLimitService(t, fakeLimits{maxBytes: 1000})
+	uploadRepo.storageBytes[userID] = 950
+
+	_, err := svc.Initialize(context.Background(), Actor{UserID: userID}, InitParams{
+		EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 100,
+	})
+	require.Error(t, err)
+	var appErr *apperr.Error
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, "PLAN_LIMIT_REACHED", appErr.Code)
+	require.Contains(t, appErr.Message, "storageBytes")
+}
+
+func TestInitialize_UnlimitedPlanBypassesLimits(t *testing.T) {
+	svc, uploadRepo, userID, eventID := newLimitService(t, fakeLimits{})
+	uploadRepo.storageBytes[userID] = 1 << 40
+
+	_, err := svc.Initialize(context.Background(), Actor{UserID: userID}, InitParams{
+		EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: MaxFileSize,
+	})
+	require.NoError(t, err, "zero limits mean unlimited")
+}
+
+func TestInitialize_LimitLookupErrorIsInternal(t *testing.T) {
+	svc, _, userID, eventID := newLimitService(t, fakeLimits{err: errors.New("db down")})
+
+	_, err := svc.Initialize(context.Background(), Actor{UserID: userID}, InitParams{
+		EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 100,
+	})
+	require.Error(t, err)
+	var appErr *apperr.Error
+	require.ErrorAs(t, err, &appErr)
+	require.Equal(t, "INTERNAL_ERROR", appErr.Code)
 }

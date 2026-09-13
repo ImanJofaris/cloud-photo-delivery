@@ -60,6 +60,8 @@ type Repository interface {
 	EventOwnedBy(ctx context.Context, userID, eventID uuid.UUID) (bool, error)
 	// ListByEvent returns the owner's photos, newest first.
 	ListByEvent(ctx context.Context, in ListInput) ([]*Photo, error)
+	// CountByEvent counts photos that count against a plan quota (all but FAILED).
+	CountByEvent(ctx context.Context, eventID uuid.UUID) (int64, error)
 	// DeleteOwned removes a photo owned by the user and adjusts event
 	// counters exactly once for photos that were counted at completion.
 	DeleteOwned(ctx context.Context, photoID, userID uuid.UUID) (*DeletedPhoto, error)
@@ -150,6 +152,13 @@ func (r *PostgresRepository) MarkProcessing(ctx context.Context, id uuid.UUID, i
 		_, err = tx.Exec(ctx,
 			`UPDATE events SET photo_count = photo_count + 1, storage_bytes = storage_bytes + $2, updated_at = NOW()
 			 WHERE id = $1`,
+			photo.EventID, incrementBytes)
+		if err != nil {
+			return nil, false, err
+		}
+		_, err = tx.Exec(ctx,
+			`UPDATE users SET storage_bytes = storage_bytes + $2, updated_at = NOW()
+			 WHERE id = (SELECT user_id FROM events WHERE id = $1)`,
 			photo.EventID, incrementBytes)
 		if err != nil {
 			return nil, false, err
@@ -268,6 +277,14 @@ func (r *PostgresRepository) ListByEvent(ctx context.Context, in ListInput) ([]*
 	return out, rows.Err()
 }
 
+func (r *PostgresRepository) CountByEvent(ctx context.Context, eventID uuid.UUID) (int64, error) {
+	var count int64
+	err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM photos WHERE event_id = $1 AND status <> $2`,
+		eventID, StatusFailed).Scan(&count)
+	return count, err
+}
+
 func (r *PostgresRepository) DeleteOwned(ctx context.Context, photoID, userID uuid.UUID) (*DeletedPhoto, error) {
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
@@ -316,6 +333,12 @@ func (r *PostgresRepository) DeleteOwned(ctx context.Context, photoID, userID uu
 			`UPDATE events SET photo_count = GREATEST(photo_count - 1, 0),
 			        storage_bytes = GREATEST(storage_bytes - $2, 0), updated_at = NOW()
 			 WHERE id = $1`, out.EventID, fileSize)
+		if err != nil {
+			return nil, err
+		}
+		_, err = tx.Exec(ctx,
+			`UPDATE users SET storage_bytes = GREATEST(storage_bytes - $2, 0), updated_at = NOW()
+			 WHERE id = (SELECT user_id FROM events WHERE id = $1)`, out.EventID, fileSize)
 		if err != nil {
 			return nil, err
 		}

@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
 )
 
@@ -84,14 +85,18 @@ type Service struct {
 	repo   Repository
 	store  r2.ObjectStore
 	queue  JobQueue
+	limits limits.PlanLimits
 	now    Clock
 }
 
-func NewService(photosRepo photos.Repository, repo Repository, store r2.ObjectStore, queue JobQueue) *Service {
+func NewService(photosRepo photos.Repository, repo Repository, store r2.ObjectStore, queue JobQueue, planLimits limits.PlanLimits) *Service {
 	if queue == nil {
 		queue = noopQueue{}
 	}
-	return &Service{photos: photosRepo, repo: repo, store: store, queue: queue, now: time.Now}
+	if planLimits == nil {
+		planLimits = limits.NewDefault()
+	}
+	return &Service{photos: photosRepo, repo: repo, store: store, queue: queue, limits: planLimits, now: time.Now}
 }
 
 func (s *Service) SetClock(now Clock) { s.now = now }
@@ -123,6 +128,9 @@ func (s *Service) Initialize(ctx context.Context, actor Actor, p InitParams) (*I
 
 	filename := strings.TrimSpace(p.Filename)
 	if err := validateUpload(filename, p.ContentType, p.Size); err != nil {
+		return nil, err
+	}
+	if err := s.enforcePlanLimits(ctx, actor.UserID, p.EventID, p.Size); err != nil {
 		return nil, err
 	}
 
@@ -418,6 +426,37 @@ func (s *Service) actorOwnsEvent(ctx context.Context, actor Actor, eventID uuid.
 		return actor.AssignedEvent != nil && *actor.AssignedEvent == eventID, nil
 	}
 	return s.repo.EventOwnedBy(ctx, actor.UserID, eventID)
+}
+
+func (s *Service) enforcePlanLimits(ctx context.Context, userID, eventID uuid.UUID, size int64) error {
+	maxPhotos, err := s.limits.MaxPhotosPerEvent(ctx, userID.String())
+	if err != nil {
+		return apperr.Internal().WithCause(err)
+	}
+	if maxPhotos > 0 {
+		count, err := s.photos.CountByEvent(ctx, eventID)
+		if err != nil {
+			return apperr.Internal().WithCause(err)
+		}
+		if count >= int64(maxPhotos) {
+			return apperr.New("PLAN_LIMIT_REACHED", "photosPerEvent limit reached for your plan", 402)
+		}
+	}
+
+	maxBytes, err := s.limits.MaxStorageBytes(ctx, userID.String())
+	if err != nil {
+		return apperr.Internal().WithCause(err)
+	}
+	if maxBytes > 0 {
+		used, err := s.repo.UserStorageBytes(ctx, userID)
+		if err != nil {
+			return apperr.Internal().WithCause(err)
+		}
+		if used+size > maxBytes {
+			return apperr.New("PLAN_LIMIT_REACHED", "storageBytes limit reached for your plan", 402)
+		}
+	}
+	return nil
 }
 
 func validateUpload(filename, contentType string, size int64) *apperr.Error {

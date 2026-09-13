@@ -21,6 +21,7 @@ type IdempotencyRecord struct {
 
 type Repository interface {
 	EventOwnedBy(ctx context.Context, userID, eventID uuid.UUID) (bool, error)
+	UserStorageBytes(ctx context.Context, userID uuid.UUID) (int64, error)
 	LookupIdempotency(ctx context.Context, key string) (*IdempotencyRecord, error)
 	SaveIdempotency(ctx context.Context, key string, rec IdempotencyRecord) error
 	PartETags(ctx context.Context, photoID uuid.UUID) (map[int]string, error)
@@ -40,6 +41,18 @@ func (r *PostgresRepository) EventOwnedBy(ctx context.Context, userID, eventID u
 		`SELECT EXISTS (SELECT 1 FROM events WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL)`,
 		eventID, userID).Scan(&exists)
 	return exists, err
+}
+
+func (r *PostgresRepository) UserStorageBytes(ctx context.Context, userID uuid.UUID) (int64, error) {
+	var bytes int64
+	err := r.pool.QueryRow(ctx, `SELECT storage_bytes FROM users WHERE id = $1`, userID).Scan(&bytes)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return 0, ErrNotFound
+		}
+		return 0, err
+	}
+	return bytes, nil
 }
 
 func (r *PostgresRepository) LookupIdempotency(ctx context.Context, key string) (*IdempotencyRecord, error) {

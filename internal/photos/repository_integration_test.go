@@ -48,6 +48,7 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		email VARCHAR(320) NOT NULL UNIQUE,
 		password_hash TEXT NOT NULL,
 		business_name VARCHAR(255),
+		storage_bytes BIGINT NOT NULL DEFAULT 0,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
@@ -191,6 +192,33 @@ func TestPhotosRepository_MarkProcessingIncrementsCountersOnce(t *testing.T) {
 	require.NoError(t, err)
 	require.EqualValues(t, 1, photoCount)
 	require.EqualValues(t, 4096, storageBytes)
+
+	var userStorage int64
+	err = pool.QueryRow(context.Background(),
+		`SELECT storage_bytes FROM users WHERE id = $1`, userA).Scan(&userStorage)
+	require.NoError(t, err)
+	require.EqualValues(t, 4096, userStorage, "user storage increments in the same transaction")
+}
+
+func TestPhotosRepository_CountByEventExcludesFailed(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	first := createUploadingPhoto(t, pool, eventID, 100)
+	second := createUploadingPhoto(t, pool, eventID, 100)
+	require.NoError(t, repo.MarkFailed(ctx, second.ID, "bad image"))
+
+	count, err := repo.CountByEvent(ctx, eventID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count, "FAILED photos do not count against quota")
+
+	_, _, err = repo.MarkProcessing(ctx, first.ID, 0)
+	require.NoError(t, err)
+	count, err = repo.CountByEvent(ctx, eventID)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, count)
 }
 
 func TestPhotosRepository_SavePartETagUpsert(t *testing.T) {
@@ -381,6 +409,10 @@ func TestPhotosRepository_DeleteOwnedAdjustsCountersOnce(t *testing.T) {
 	photoCount, storageBytes := eventCounters(t, pool, eventID)
 	require.Zero(t, photoCount)
 	require.Zero(t, storageBytes)
+
+	var userStorage int64
+	require.NoError(t, pool.QueryRow(ctx, `SELECT storage_bytes FROM users WHERE id = $1`, userA).Scan(&userStorage))
+	require.Zero(t, userStorage, "user storage decrements in the same transaction")
 
 	_, err = repo.GetByID(ctx, p.ID)
 	require.ErrorIs(t, err, photos.ErrNotFound)

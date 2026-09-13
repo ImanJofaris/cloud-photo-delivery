@@ -113,6 +113,7 @@ func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, str
 		email_verified_at TIMESTAMPTZ,
 		failed_login_count INT NOT NULL DEFAULT 0,
 		locked_until TIMESTAMPTZ,
+		storage_bytes BIGINT NOT NULL DEFAULT 0,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
@@ -252,7 +253,7 @@ func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, str
 
 	photoRepo := photos.NewRepository(pool)
 	uploadRepo := uploads.NewRepository(pool)
-	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool))
+	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool), limits.NewDefault())
 	uploadHandler := uploads.NewHandler(uploadSvc, func(r *http.Request) (uploads.Actor, bool) {
 		if device, ok := devices.FromContext(r.Context()); ok {
 			return uploads.Actor{

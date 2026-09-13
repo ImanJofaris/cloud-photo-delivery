@@ -13,12 +13,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/billing"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/billing/provider"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/devices"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/gallery"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
-	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/logging"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/qr"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/uploads"
@@ -120,7 +121,18 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 	})
 
 	eventRepo := events.NewRepository(pool.Pool)
-	eventSvc := events.NewService(eventRepo, limits.NewDefault(), auth.HashPassword)
+	billingRepo := billing.NewRepository(pool.Pool)
+	billingProvider := provider.NewManual(cfg.BillingWebhookSecret)
+	billingSvc := billing.NewService(billingRepo, billingProvider)
+	billingHandler := billing.NewHandler(billingSvc, billingProvider, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
+	entitlements := billing.NewEntitlements(billingRepo)
+	eventSvc := events.NewService(eventRepo, entitlements, auth.HashPassword)
 	eventHandler := events.NewHandler(eventSvc, func(req *http.Request) (string, bool) {
 		id, ok := auth.UserID(req.Context())
 		if !ok {
@@ -162,7 +174,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		}
 		return id.String(), true
 	})
-	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool.Pool))
+	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool.Pool), entitlements)
 	uploadHandler := uploads.NewHandler(uploadSvc, func(req *http.Request) (uploads.Actor, bool) {
 		if device, ok := devices.FromContext(req.Context()); ok {
 			return uploads.Actor{
@@ -234,6 +246,9 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			r.Get("/photos/{photoID}/url", galleryHandler.PhotoURL)
 		})
 
+		// Provider callback: unauthenticated but signature-verified.
+		r.Post("/billing/webhook", billingHandler.Webhook)
+
 		r.Group(func(r chi.Router) {
 			r.Use(authSvc.RequireAuth)
 			r.Get("/account/me", userHandler.Me)
@@ -241,6 +256,17 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			r.Get("/account/branding", brandingHandler.Get)
 			r.Patch("/account/branding", brandingHandler.Update)
 			r.Post("/account/branding/assets", brandingHandler.CreateAssetUpload)
+
+			r.Route("/billing", func(r chi.Router) {
+				r.Get("/plans", billingHandler.Plans)
+				r.Get("/subscription", billingHandler.GetSubscription)
+				r.Post("/subscribe", billingHandler.Subscribe)
+				r.Post("/upgrade", billingHandler.Upgrade)
+				r.Post("/downgrade", billingHandler.Downgrade)
+				r.Post("/cancel", billingHandler.Cancel)
+				r.Post("/resume", billingHandler.Resume)
+				r.Get("/invoices", billingHandler.Invoices)
+			})
 
 			r.Route("/events", func(r chi.Router) {
 				r.Post("/", eventHandler.Create)

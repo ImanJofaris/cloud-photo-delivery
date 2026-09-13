@@ -395,7 +395,7 @@ func (s *Service) enforceActiveLimit(ctx context.Context, userID uuid.UUID) erro
 		return apperr.Internal().WithCause(err)
 	}
 	if count >= max {
-		return apperr.New("PLAN_LIMIT_REACHED", "Active event limit reached for your plan", 402)
+		return apperr.New("PLAN_LIMIT_REACHED", "activeEvents limit reached for your plan", 402)
 	}
 	return nil
 }

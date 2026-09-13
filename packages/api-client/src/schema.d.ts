@@ -653,6 +653,183 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/billing/plans": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List available plans
+         * @description Plans are data; `limits` carries the entitlement values (`0` means unlimited).
+         */
+        get: operations["listPlans"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/subscription": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the effective plan, subscription, and usage
+         * @description Returns the latest subscription (if any), the effective plan (Free when
+         *     no non-terminal subscription exists), and current usage counters.
+         */
+        get: operations["getSubscription"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start a subscription
+         * @description Creates the subscription plus an open invoice and returns a provider
+         *     checkout session. The `manual` provider activates immediately and
+         *     returns an offline `manual://` checkout URL.
+         */
+        post: operations["subscribe"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/upgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upgrade to a higher-priced plan */
+        post: operations["upgradeSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/downgrade": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Downgrade to a lower-priced plan
+         * @description Soft downgrade: existing data is never deleted. New usage is blocked
+         *     until the tenant is back within the target plan's limits.
+         */
+        post: operations["downgradeSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel the subscription at period end
+         * @description Keeps the current plan active until `currentPeriodEnd`, then expires it
+         *     on the next read. Matching webhooks may expire it immediately.
+         */
+        post: operations["cancelSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Resume a subscription scheduled to cancel */
+        post: operations["resumeSubscription"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List invoices (cursor pagination) */
+        get: operations["listInvoices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/billing/webhook": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Provider callback (unauthenticated, signed)
+         * @description Verifies the provider HMAC signature over the raw request body and
+         *     applies the event exactly once per `(provider, providerRef)`.
+         */
+        post: operations["billingWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/events/{slug}": {
         parameters: {
             query?: never;
@@ -1248,6 +1425,140 @@ export interface components {
         SignedURLEnvelope: {
             data?: components["schemas"]["SignedURL"];
             error?: null | components["schemas"]["Error"];
+        };
+        BillingPlanLimits: {
+            /** @description Maximum concurrent active events; `0` means unlimited. */
+            activeEvents: number;
+            /** @description Maximum photos per event; `0` means unlimited. */
+            photosPerEvent: number;
+            /**
+             * Format: int64
+             * @description Total storage bytes for the tenant; `0` means unlimited.
+             */
+            storageBytes: number;
+            /** @description Gallery retention window. Expiry enforcement lands in Phase 9. */
+            retentionDays: number;
+            apiAccess: boolean;
+        };
+        Plan: {
+            id: string;
+            name: string;
+            priceCents: number;
+            currency: string;
+            /** @enum {string} */
+            interval: "month" | "year";
+            limits: components["schemas"]["BillingPlanLimits"];
+            active: boolean;
+        };
+        PlanList: {
+            items: components["schemas"]["Plan"][];
+        };
+        PlanListEnvelope: {
+            data?: components["schemas"]["PlanList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /** @enum {string} */
+        SubscriptionStatus: "trialing" | "active" | "past_due" | "canceled" | "expired";
+        Subscription: {
+            /** Format: uuid */
+            id: string;
+            planId: string;
+            status: components["schemas"]["SubscriptionStatus"];
+            provider?: string | null;
+            providerRef?: string | null;
+            /** @enum {string} */
+            interval: "month" | "year";
+            /** Format: date-time */
+            currentPeriodStart: string | null;
+            /** Format: date-time */
+            currentPeriodEnd: string | null;
+            cancelAtPeriodEnd: boolean;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        SubscriptionEnvelope: {
+            data?: components["schemas"]["Subscription"];
+            error?: null | components["schemas"]["Error"];
+        };
+        SubscriptionUsage: {
+            activeEvents: number;
+            /** Format: int64 */
+            storageBytes: number;
+        };
+        SubscriptionView: {
+            subscription: null | components["schemas"]["Subscription"];
+            plan: components["schemas"]["Plan"];
+            usage: components["schemas"]["SubscriptionUsage"];
+        };
+        SubscriptionViewEnvelope: {
+            data?: components["schemas"]["SubscriptionView"];
+            error?: null | components["schemas"]["Error"];
+        };
+        SubscribeRequest: {
+            planId: string;
+            /**
+             * @description Defaults to the plan's billing interval.
+             * @enum {string}
+             */
+            interval?: "month" | "year";
+        };
+        PlanChangeRequest: {
+            planId: string;
+        };
+        CheckoutSession: {
+            providerRef: string;
+            /** @description Provider checkout URL; the `manual` provider returns an offline `manual://` URL. */
+            url: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        SubscribeResult: {
+            subscription: components["schemas"]["Subscription"];
+            checkout: components["schemas"]["CheckoutSession"];
+        };
+        SubscribeResultEnvelope: {
+            data?: components["schemas"]["SubscribeResult"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /** @enum {string} */
+        InvoiceStatus: "open" | "paid" | "void";
+        Invoice: {
+            /** Format: uuid */
+            id: string;
+            /** Format: uuid */
+            subscriptionId?: string | null;
+            amountCents: number;
+            currency: string;
+            status: components["schemas"]["InvoiceStatus"];
+            providerRef?: string | null;
+            /** Format: date-time */
+            issuedAt: string;
+            /** Format: date-time */
+            paidAt: string | null;
+        };
+        InvoiceList: {
+            items: components["schemas"]["Invoice"][];
+            nextCursor: string | null;
+        };
+        InvoiceListEnvelope: {
+            data?: components["schemas"]["InvoiceList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        BillingWebhookPayload: {
+            /** @description Provider event id; duplicates are ignored. */
+            id: string;
+            /** @enum {string} */
+            type: "checkout.completed" | "invoice.paid" | "subscription.canceled";
+            /** @description Subscription provider reference. */
+            providerRef?: string;
+            /** @description Invoice provider reference for `invoice.paid`. */
+            invoiceRef?: string;
+            amountCents?: number;
+            currency?: string;
+            /** Format: date-time */
+            paidAt?: string;
         };
     };
     responses: never;
@@ -2264,6 +2575,15 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
+            /** @description Plan limit reached (photosPerEvent or storageBytes) */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
             /** @description Event not found (also for other tenants) */
             404: {
                 headers: {
@@ -2815,6 +3135,377 @@ export interface operations {
             };
             /** @description Device has been revoked */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listPlans: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Active plans */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PlanListEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Effective billing state */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionViewEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubscribeRequest"];
+            };
+        };
+        responses: {
+            /** @description Subscription created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscribeResultEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description A non-terminal subscription already exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Unknown or inactive plan, or invalid interval */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    upgradeSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Subscription updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionEnvelope"];
+                };
+            };
+            /** @description No subscription to change */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid status transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Target plan is not an upgrade */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    downgradeSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PlanChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Subscription updated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionEnvelope"];
+                };
+            };
+            /** @description No subscription to change */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid status transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Target plan is not a downgrade */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    cancelSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancellation scheduled */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionEnvelope"];
+                };
+            };
+            /** @description No active subscription */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid status transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    resumeSubscription: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Cancellation reversed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubscriptionEnvelope"];
+                };
+            };
+            /** @description No active subscription */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Subscription is not resumable */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listInvoices: {
+        parameters: {
+            query?: {
+                /** @description Opaque keyset cursor returned as nextCursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of invoices */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceListEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    billingWebhook: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BillingWebhookPayload"];
+            };
+        };
+        responses: {
+            /** @description Event accepted (duplicates are acknowledged) */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Malformed webhook payload */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Signature verification failed */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

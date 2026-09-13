@@ -154,6 +154,14 @@ func (l fixedLimits) MaxActiveEvents(ctx context.Context, userID string) (int, e
 	return l.max, l.err
 }
 
+func (l fixedLimits) MaxPhotosPerEvent(ctx context.Context, userID string) (int, error) {
+	return 0, l.err
+}
+
+func (l fixedLimits) MaxStorageBytes(ctx context.Context, userID string) (int64, error) {
+	return 0, l.err
+}
+
 func testHash(pw string) (string, error) { return "hashed:" + pw, nil }
 
 func newTestService(repo Repository, l PlanLimits) *Service {

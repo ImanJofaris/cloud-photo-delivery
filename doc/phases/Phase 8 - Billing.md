@@ -1,5 +1,7 @@
 # Phase 8 — Billing & Subscriptions
 
+> **Status: COMPLETE.** See the [Phase 8 Report](Phase 8 - Report.md) for what was built and how it was verified.
+
 **Goal:** Plans, subscription lifecycle, and storage/feature limits. Payments integrate through a provider-agnostic interface so a Malaysian gateway (e.g. Billplz) or Stripe can be plugged in.
 
 **Depends on:** Phase 2 (events). Limit hooks used by Phases 2/3 become real here.

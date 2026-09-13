@@ -140,24 +140,42 @@ func (f *fakePhotoRepo) ListByEvent(context.Context, photos.ListInput) ([]*photo
 	return nil, nil
 }
 
+func (f *fakePhotoRepo) CountByEvent(_ context.Context, eventID uuid.UUID) (int64, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	var count int64
+	for _, p := range f.byID {
+		if p.EventID == eventID && p.Status != photos.StatusFailed {
+			count++
+		}
+	}
+	return count, nil
+}
+
 func (f *fakePhotoRepo) DeleteOwned(context.Context, uuid.UUID, uuid.UUID) (*photos.DeletedPhoto, error) {
 	return nil, photos.ErrNotFound
 }
 
 type fakeUploadRepo struct {
-	owned       map[uuid.UUID]bool
-	owners      map[uuid.UUID]uuid.UUID
-	idempotency map[string]IdempotencyRecord
-	partETags   map[uuid.UUID]map[int]string
+	owned        map[uuid.UUID]bool
+	owners       map[uuid.UUID]uuid.UUID
+	idempotency  map[string]IdempotencyRecord
+	partETags    map[uuid.UUID]map[int]string
+	storageBytes map[uuid.UUID]int64
 }
 
 func newFakeUploadRepo() *fakeUploadRepo {
 	return &fakeUploadRepo{
-		owned:       map[uuid.UUID]bool{},
-		owners:      map[uuid.UUID]uuid.UUID{},
-		idempotency: map[string]IdempotencyRecord{},
-		partETags:   map[uuid.UUID]map[int]string{},
+		owned:        map[uuid.UUID]bool{},
+		owners:       map[uuid.UUID]uuid.UUID{},
+		idempotency:  map[string]IdempotencyRecord{},
+		partETags:    map[uuid.UUID]map[int]string{},
+		storageBytes: map[uuid.UUID]int64{},
 	}
+}
+
+func (f *fakeUploadRepo) UserStorageBytes(_ context.Context, userID uuid.UUID) (int64, error) {
+	return f.storageBytes[userID], nil
 }
 
 func (f *fakeUploadRepo) EventOwnedBy(_ context.Context, userID, eventID uuid.UUID) (bool, error) {
@@ -261,4 +279,23 @@ func (f *fakeQueue) EnqueueProcessPhoto(_ context.Context, photoID, _ uuid.UUID)
 	}
 	f.enqueued = append(f.enqueued, photoID)
 	return nil
+}
+
+type fakeLimits struct {
+	maxEvents int
+	maxPhotos int
+	maxBytes  int64
+	err       error
+}
+
+func (f fakeLimits) MaxActiveEvents(context.Context, string) (int, error) {
+	return f.maxEvents, f.err
+}
+
+func (f fakeLimits) MaxPhotosPerEvent(context.Context, string) (int, error) {
+	return f.maxPhotos, f.err
+}
+
+func (f fakeLimits) MaxStorageBytes(context.Context, string) (int64, error) {
+	return f.maxBytes, f.err
 }

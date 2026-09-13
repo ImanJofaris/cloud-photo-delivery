@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
@@ -423,6 +424,92 @@ func TestMigrations_BrandingUpDownRoundTrip(t *testing.T) {
 	).Scan(&exists)
 	require.NoError(t, err)
 	require.False(t, exists, "tenant_branding table should be dropped by down")
+}
+
+func TestMigrations_BillingUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	for _, file := range []string{
+		"0001_init.sql", "0002_auth.sql", "0003_events.sql",
+		"0004_photos.sql", "0005_jobs.sql", "0006_gallery.sql", "0007_devices.sql", "0008_branding.sql",
+	} {
+		sql, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, extractSection(string(sql), "-- +goose Up", "-- +goose Down"))
+		require.NoError(t, err)
+	}
+
+	var userID uuid.UUID
+	err = pool.QueryRow(ctx,
+		`INSERT INTO users (email, password_hash) VALUES ('bill@example.com', 'hash') RETURNING id`).Scan(&userID)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx,
+		`INSERT INTO events (user_id, name, slug, storage_bytes) VALUES ($1, 'wedding', 'wedding', 500)`, userID)
+	require.NoError(t, err)
+
+	billingSQL, err := os.ReadFile("0009_billing.sql")
+	require.NoError(t, err)
+	up := extractSection(string(billingSQL), "-- +goose Up", "-- +goose Down")
+	require.NotEmpty(t, up)
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+
+	for _, table := range []string{"plans", "subscriptions", "invoices", "billing_webhook_events"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)`, table).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "table %s should exist after up", table)
+	}
+
+	var storageBytes int64
+	err = pool.QueryRow(ctx, `SELECT storage_bytes FROM users WHERE id = $1`, userID).Scan(&storageBytes)
+	require.NoError(t, err)
+	require.EqualValues(t, 500, storageBytes, "existing event storage is backfilled")
+
+	var planCount int
+	err = pool.QueryRow(ctx, `SELECT COUNT(*) FROM plans`).Scan(&planCount)
+	require.NoError(t, err)
+	require.Equal(t, 4, planCount, "four plans are seeded")
+
+	down := extractSection(string(billingSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, down)
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+
+	for _, table := range []string{"plans", "subscriptions", "invoices", "billing_webhook_events"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)`, table).Scan(&exists)
+		require.NoError(t, err)
+		require.False(t, exists, "table %s should be dropped by down", table)
+	}
+	var columnExists bool
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'storage_bytes')`).
+		Scan(&columnExists)
+	require.NoError(t, err)
+	require.False(t, columnExists, "users.storage_bytes should be dropped by down")
 }
 
 func extractSection(s, start, end string) string {

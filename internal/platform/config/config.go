@@ -32,6 +32,9 @@ type Config struct {
 	SignedURLTTL     time.Duration
 	GalleryUnlockTTL time.Duration
 
+	BillingProvider      string
+	BillingWebhookSecret string
+
 	ShutdownTimeout time.Duration
 
 	WorkerConcurrency int
@@ -66,6 +69,9 @@ func Load() (Config, error) {
 
 		SignedURLTTL:     getDuration("SIGNED_URL_TTL", 5*time.Minute),
 		GalleryUnlockTTL: getDuration("GALLERY_UNLOCK_TTL", 30*time.Minute),
+
+		BillingProvider:      getEnv("BILLING_PROVIDER", "manual"),
+		BillingWebhookSecret: os.Getenv("BILLING_WEBHOOK_SECRET"),
 	}
 
 	if err := c.validate(); err != nil {
@@ -91,6 +97,14 @@ func (c Config) validate() error {
 	}
 	if c.LockoutMaxFailed < 1 {
 		errs = append(errs, "LOCKOUT_MAX_ATTEMPTS must be at least 1")
+	}
+	switch c.BillingProvider {
+	case "manual":
+	default:
+		errs = append(errs, "BILLING_PROVIDER must be one of manual")
+	}
+	if c.BillingWebhookSecret == "" {
+		errs = append(errs, "BILLING_WEBHOOK_SECRET is required")
 	}
 	if len(errs) > 0 {
 		return errors.New("invalid config: " + strings.Join(errs, "; "))
