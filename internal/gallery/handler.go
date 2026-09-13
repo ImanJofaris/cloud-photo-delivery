@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 )
 
@@ -16,16 +17,27 @@ const (
 )
 
 type publicEventDTO struct {
-	Name                  string  `json:"name"`
-	Date                  *string `json:"date"`
-	Location              string  `json:"location"`
-	Description           string  `json:"description"`
-	Visibility            string  `json:"visibility"`
-	AllowDownload         bool    `json:"allowDownload"`
-	AllowOriginalDownload bool    `json:"allowOriginalDownload"`
-	PhotoCount            int64   `json:"photoCount"`
-	CoverPhotoID          *string `json:"coverPhotoId"`
-	RequiresUnlock        bool    `json:"requiresUnlock"`
+	Name                  string             `json:"name"`
+	Date                  *string            `json:"date"`
+	Location              string             `json:"location"`
+	Description           string             `json:"description"`
+	Visibility            string             `json:"visibility"`
+	AllowDownload         bool               `json:"allowDownload"`
+	AllowOriginalDownload bool               `json:"allowOriginalDownload"`
+	PhotoCount            int64              `json:"photoCount"`
+	CoverPhotoID          *string            `json:"coverPhotoId"`
+	RequiresUnlock        bool               `json:"requiresUnlock"`
+	Branding              *publicBrandingDTO `json:"branding"`
+}
+
+type publicBrandingDTO struct {
+	BusinessName   *string `json:"businessName"`
+	LogoURL        *string `json:"logoUrl"`
+	PrimaryColor   *string `json:"primaryColor"`
+	SecondaryColor *string `json:"secondaryColor"`
+	ContactEmail   *string `json:"contactEmail"`
+	ContactPhone   *string `json:"contactPhone"`
+	WebsiteURL     *string `json:"websiteUrl"`
 }
 
 type publicPhotoDTO struct {
@@ -39,7 +51,7 @@ type unlockRequest struct {
 	Password string `json:"password"`
 }
 
-func toPublicEventDTO(e *events.Event, s *events.Settings, requiresUnlock bool) publicEventDTO {
+func toPublicEventDTO(e *events.Event, s *events.Settings, requiresUnlock bool, branding *users.BrandingView) publicEventDTO {
 	dto := publicEventDTO{
 		Name:                  e.Name,
 		Location:              e.Location,
@@ -49,6 +61,7 @@ func toPublicEventDTO(e *events.Event, s *events.Settings, requiresUnlock bool) 
 		AllowOriginalDownload: s.AllowOriginalDownload,
 		PhotoCount:            e.PhotoCount,
 		RequiresUnlock:        requiresUnlock,
+		Branding:              toPublicBrandingDTO(branding),
 	}
 	if e.EventDate != nil {
 		d := e.EventDate.Format("2006-01-02")
@@ -59,6 +72,33 @@ func toPublicEventDTO(e *events.Event, s *events.Settings, requiresUnlock bool) 
 		dto.CoverPhotoID = &c
 	}
 	return dto
+}
+
+func toPublicBrandingDTO(b *users.BrandingView) *publicBrandingDTO {
+	if b == nil {
+		return nil
+	}
+	if b.BusinessName == "" && b.LogoURL == "" && b.PrimaryColor == "" && b.SecondaryColor == "" &&
+		b.ContactEmail == "" && b.ContactPhone == "" && b.WebsiteURL == "" {
+		return nil
+	}
+	dto := &publicBrandingDTO{
+		BusinessName:   optionalString(b.BusinessName),
+		LogoURL:        optionalString(b.LogoURL),
+		PrimaryColor:   optionalString(b.PrimaryColor),
+		SecondaryColor: optionalString(b.SecondaryColor),
+		ContactEmail:   optionalString(b.ContactEmail),
+		ContactPhone:   optionalString(b.ContactPhone),
+		WebsiteURL:     optionalString(b.WebsiteURL),
+	}
+	return dto
+}
+
+func optionalString(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func toPublicPhotoDTO(p *photos.Photo) publicPhotoDTO {
@@ -126,7 +166,7 @@ func (h *Handler) GetEvent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	cacheHeader(w, ve.Settings)
-	httpx.Success(w, http.StatusOK, toPublicEventDTO(ve.Event, ve.Settings, requiresUnlock))
+	httpx.Success(w, http.StatusOK, toPublicEventDTO(ve.Event, ve.Settings, requiresUnlock, ve.Branding))
 }
 
 func (h *Handler) Unlock(w http.ResponseWriter, r *http.Request) {
@@ -164,7 +204,7 @@ func (h *Handler) ListPhotos(w http.ResponseWriter, r *http.Request) {
 	}
 	cacheHeader(w, ve.Settings)
 	httpx.Success(w, http.StatusOK, map[string]any{
-		"event": toPublicEventDTO(ve.Event, ve.Settings, false),
+		"event": toPublicEventDTO(ve.Event, ve.Settings, false, ve.Branding),
 		"photos": map[string]any{
 			"items":      items,
 			"nextCursor": next,

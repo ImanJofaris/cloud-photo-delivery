@@ -40,6 +40,7 @@ Ordering: F3 includes its own owner-facing photo API prerequisites (list, owner 
 - [Phase 4.1 — Report](phases/Phase 4.1 - Report.md) — COMPLETE (lossy WebP + bilinear resize)
 - [Phase 5 — Report](phases/Phase 5 - Report.md) — COMPLETE (public gallery API; UI deferred)
 - [Phase 6 — Report](phases/Phase 6 - Report.md) — COMPLETE (devices & API keys)
+- [Phase 7 — Report](phases/Phase 7 - Report.md) — COMPLETE (QR codes & branding)
 - [Phase F0 — Report](phases/Phase F0 - Report.md) — COMPLETE (web foundation)
 - [Phase F1 — Report](phases/Phase F1 - Report.md) — COMPLETE (BFF-lite auth + shell)
 - [Phase F2 — Report](phases/Phase F2 - Report.md) — COMPLETE (events dashboard)

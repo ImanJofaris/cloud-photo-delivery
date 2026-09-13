@@ -366,6 +366,65 @@ func TestMigrations_DevicesUpDownRoundTrip(t *testing.T) {
 	require.False(t, exists, "devices table should be dropped by down")
 }
 
+func TestMigrations_BrandingUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	for _, file := range []string{
+		"0001_init.sql", "0002_auth.sql", "0003_events.sql",
+		"0004_photos.sql", "0005_jobs.sql", "0006_gallery.sql", "0007_devices.sql",
+	} {
+		sql, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, extractSection(string(sql), "-- +goose Up", "-- +goose Down"))
+		require.NoError(t, err)
+	}
+
+	brandingSQL, err := os.ReadFile("0008_branding.sql")
+	require.NoError(t, err)
+	up := extractSection(string(brandingSQL), "-- +goose Up", "-- +goose Down")
+	require.NotEmpty(t, up)
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+
+	var exists bool
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenant_branding')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.True(t, exists, "tenant_branding table should exist after up")
+
+	down := extractSection(string(brandingSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, down)
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'tenant_branding')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.False(t, exists, "tenant_branding table should be dropped by down")
+}
+
 func extractSection(s, start, end string) string {
 	i := indexOf(s, start)
 	if i < 0 {

@@ -20,6 +20,7 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/logging"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/qr"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/uploads"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
@@ -127,6 +128,14 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		}
 		return id.String(), true
 	})
+	qrSvc := qr.NewService(eventSvc, cfg.PublicBaseURL)
+	qrHandler := qr.NewHandler(qrSvc, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
 
 	photoRepo := photos.NewRepository(pool.Pool)
 	uploadRepo := uploads.NewRepository(pool.Pool)
@@ -145,6 +154,14 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		}
 		store = s
 	}
+	brandingSvc := users.NewBrandingService(userRepo, store, cfg.SignedURLTTL)
+	brandingHandler := users.NewBrandingHandler(brandingSvc, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
 	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool.Pool))
 	uploadHandler := uploads.NewHandler(uploadSvc, func(req *http.Request) (uploads.Actor, bool) {
 		if device, ok := devices.FromContext(req.Context()); ok {
@@ -174,7 +191,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 	galleryRepo := gallery.NewRepository(pool.Pool)
 	galleryURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	galleryTokens := gallery.NewUnlockTokens(cfg.JWTSecret, cfg.GalleryUnlockTTL)
-	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword)
+	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword, brandingSvc)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	photoURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
@@ -221,6 +238,9 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			r.Use(authSvc.RequireAuth)
 			r.Get("/account/me", userHandler.Me)
 			r.Patch("/account/me", userHandler.UpdateMe)
+			r.Get("/account/branding", brandingHandler.Get)
+			r.Patch("/account/branding", brandingHandler.Update)
+			r.Post("/account/branding/assets", brandingHandler.CreateAssetUpload)
 
 			r.Route("/events", func(r chi.Router) {
 				r.Post("/", eventHandler.Create)
@@ -235,6 +255,9 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 					r.Get("/settings", eventHandler.GetSettings)
 					r.Patch("/settings", eventHandler.UpdateSettings)
 					r.Get("/dashboard", eventHandler.Dashboard)
+					r.Get("/url", qrHandler.URL)
+					r.Get("/qr.png", qrHandler.PNG)
+					r.Get("/qr.svg", qrHandler.SVG)
 				})
 			})
 

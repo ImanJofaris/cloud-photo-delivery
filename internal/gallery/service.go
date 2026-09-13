@@ -9,18 +9,20 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 )
 
 type PasswordVerifier func(hash, password string) bool
 type Service struct {
-	repo   Repository
-	urls   *photos.SignedURLGenerator
-	tokens *UnlockTokens
-	verify PasswordVerifier
+	repo     Repository
+	urls     *photos.SignedURLGenerator
+	tokens   *UnlockTokens
+	verify   PasswordVerifier
+	branding BrandingProvider
 }
 
-func NewService(repo Repository, urls *photos.SignedURLGenerator, tokens *UnlockTokens, verify PasswordVerifier) *Service {
-	return &Service{repo: repo, urls: urls, tokens: tokens, verify: verify}
+func NewService(repo Repository, urls *photos.SignedURLGenerator, tokens *UnlockTokens, verify PasswordVerifier, branding BrandingProvider) *Service {
+	return &Service{repo: repo, urls: urls, tokens: tokens, verify: verify, branding: branding}
 }
 
 func notFound() *apperr.Error {
@@ -89,7 +91,22 @@ func (s *Service) GetEvent(ctx context.Context, slug, unlockToken string) (*Visi
 			requiresUnlock = false
 		}
 	}
-	return &VisibleEvent{Event: event, Settings: settings}, requiresUnlock, nil
+	branding, err := s.loadBranding(ctx, event.UserID)
+	if err != nil {
+		return nil, false, err
+	}
+	return &VisibleEvent{Event: event, Settings: settings, Branding: branding}, requiresUnlock, nil
+}
+
+func (s *Service) loadBranding(ctx context.Context, userID uuid.UUID) (*users.BrandingView, error) {
+	if s.branding == nil {
+		return nil, nil
+	}
+	view, err := s.branding.Get(ctx, userID)
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	return view, nil
 }
 
 func (s *Service) Unlock(ctx context.Context, slug, password string) (*UnlockResult, error) {
@@ -137,6 +154,11 @@ func (s *Service) ListPhotos(ctx context.Context, slug, unlockToken, cursor stri
 	if err != nil {
 		return nil, nil, apperr.Internal().WithCause(err)
 	}
+	branding, err := s.loadBranding(ctx, ve.Event.UserID)
+	if err != nil {
+		return nil, nil, err
+	}
+	ve.Branding = branding
 	page := &PhotoPage{Items: items}
 	if len(items) == n && len(items) > 0 {
 		last := items[len(items)-1]

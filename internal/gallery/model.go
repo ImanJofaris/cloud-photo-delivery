@@ -7,11 +7,13 @@ import (
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 )
 
 type VisibleEvent struct {
 	Event    *events.Event
 	Settings *events.Settings
+	Branding *users.BrandingView
 }
 
 type PhotoPage struct {
@@ -65,6 +67,12 @@ type Repository interface {
 	GetSettingsByEventID(ctx context.Context, eventID uuid.UUID) (*events.Settings, error)
 	ListReadyPhotos(ctx context.Context, eventID uuid.UUID, cursor *Cursor, limit int) ([]*photos.Photo, error)
 	ReadyPhoto(ctx context.Context, eventID, photoID uuid.UUID) (*photos.Photo, error)
+}
+
+// BrandingProvider resolves an operator's branding for the gallery DTO. A
+// missing branding row yields an empty view, not an error.
+type BrandingProvider interface {
+	Get(ctx context.Context, userID uuid.UUID) (*users.BrandingView, error)
 }
 
 type Clock func() time.Time

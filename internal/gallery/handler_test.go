@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/stretchr/testify/require"
 )
 
@@ -189,4 +190,59 @@ func TestHandler_Unlock_InvalidJSON(t *testing.T) {
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 	require.Equal(t, "VALIDATION_ERROR", decodeEnvelope(t, rec)["error"].(map[string]any)["code"])
+}
+
+func TestHandler_GetEvent_Branding(t *testing.T) {
+	svc, repo, _, branding := newTestServiceFull()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	branding.view = &users.BrandingView{
+		BusinessName: "Booth Co",
+		PrimaryColor: "#112233",
+		ContactEmail: "hello@example.com",
+	}
+	h := NewHandler(svc)
+
+	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding", nil), map[string]string{"slug": "wedding"})
+	rec := httptest.NewRecorder()
+	h.GetEvent(rec, r)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	data := decodeEnvelope(t, rec)["data"].(map[string]any)
+	b := data["branding"].(map[string]any)
+	require.Equal(t, "Booth Co", b["businessName"])
+	require.Equal(t, "#112233", b["primaryColor"])
+	require.Equal(t, "hello@example.com", b["contactEmail"])
+	require.Nil(t, b["logoUrl"])
+}
+
+func TestHandler_GetEvent_BrandingNullWhenUnset(t *testing.T) {
+	h, repo := newTestHandler()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+
+	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding", nil), map[string]string{"slug": "wedding"})
+	rec := httptest.NewRecorder()
+	h.GetEvent(rec, r)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	data := decodeEnvelope(t, rec)["data"].(map[string]any)
+	require.Nil(t, data["branding"])
+}
+
+func TestHandler_ListPhotos_IncludesBranding(t *testing.T) {
+	svc, repo, _, branding := newTestServiceFull()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	branding.view = &users.BrandingView{BusinessName: "Booth Co"}
+	h := NewHandler(svc)
+
+	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding/photos", nil), map[string]string{"slug": "wedding"})
+	rec := httptest.NewRecorder()
+	h.ListPhotos(rec, r)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	data := decodeEnvelope(t, rec)["data"].(map[string]any)
+	event := data["event"].(map[string]any)
+	require.Equal(t, "Booth Co", event["branding"].(map[string]any)["businessName"])
 }

@@ -36,6 +36,12 @@ func ThumbnailKey(userID, eventID, photoID uuid.UUID) string {
 	return derivedKey(userID, eventID, photoID, "thumbnails")
 }
 
+// BrandingAssetKey returns a per-tenant key for a branding asset upload. kind
+// and ext are validated by the caller.
+func BrandingAssetKey(userID uuid.UUID, kind, ext string) string {
+	return path.Join("tenant", userID.String(), "branding", kind, uuid.NewString()+"."+ext)
+}
+
 // SafeFilename strips any path components from a client-supplied filename so a
 // crafted name like "../../etc/passwd" cannot escape the photo prefix.
 func SafeFilename(name string) string {

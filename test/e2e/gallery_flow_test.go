@@ -17,6 +17,7 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/internal/gallery"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/qr"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -122,6 +123,18 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
+	mustExec(t, pool, `CREATE TABLE tenant_branding (
+		user_id UUID PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+		business_name VARCHAR(255),
+		logo_key TEXT,
+		profile_image_key TEXT,
+		primary_color VARCHAR(9),
+		secondary_color VARCHAR(9),
+		contact_email VARCHAR(320),
+		contact_phone VARCHAR(40),
+		website_url VARCHAR(320),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	)`)
 
 	endpoint := startMinioE2E(t)
 	createBucketE2E(t, endpoint, "cpd-photos")
@@ -157,12 +170,29 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 		}
 		return id.String(), true
 	})
+	qrSvc := qr.NewService(eventSvc, "http://localhost:3000")
+	qrHandler := qr.NewHandler(qrSvc, func(r *http.Request) (string, bool) {
+		id, ok := auth.UserID(r.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
+	brandingSvc := users.NewBrandingService(userRepo, store, 5*time.Minute)
+	brandingHandler := users.NewBrandingHandler(brandingSvc, func(r *http.Request) (string, bool) {
+		id, ok := auth.UserID(r.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
 
 	galleryRepo := gallery.NewRepository(pool)
 	gallerySvc := gallery.NewService(galleryRepo,
 		photos.NewSignedURLGenerator(store, 5*time.Minute),
 		gallery.NewUnlockTokens("e2e-secret", 30*time.Minute),
-		auth.VerifyPassword)
+		auth.VerifyPassword,
+		brandingSvc)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	r := chi.NewRouter()
@@ -179,6 +209,12 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 			r.Use(authSvc.RequireAuth)
 			r.Post("/events", eventHandler.Create)
 			r.Patch("/events/{eventID}/settings", eventHandler.UpdateSettings)
+			r.Get("/events/{eventID}/url", qrHandler.URL)
+			r.Get("/events/{eventID}/qr.png", qrHandler.PNG)
+			r.Get("/events/{eventID}/qr.svg", qrHandler.SVG)
+			r.Get("/account/branding", brandingHandler.Get)
+			r.Patch("/account/branding", brandingHandler.Update)
+			r.Post("/account/branding/assets", brandingHandler.CreateAssetUpload)
 		})
 	})
 	return r, pool, store

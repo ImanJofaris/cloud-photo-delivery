@@ -9,6 +9,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 )
 
 type fakeRepo struct {
@@ -152,4 +153,18 @@ func publicEvent(slug string) (*events.Event, *events.Settings) {
 	e := &events.Event{ID: id, Name: "Wedding", Slug: slug, PhotoCount: 3}
 	s := &events.Settings{EventID: id, Visibility: events.VisibilityPublic, AllowDownload: true}
 	return e, s
+}
+
+type fakeBrandingProvider struct {
+	view   *users.BrandingView
+	err    error
+	userID uuid.UUID
+}
+
+func (f *fakeBrandingProvider) Get(_ context.Context, userID uuid.UUID) (*users.BrandingView, error) {
+	f.userID = userID
+	if f.err != nil {
+		return nil, f.err
+	}
+	return f.view, nil
 }

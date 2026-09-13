@@ -4,2655 +4,3094 @@
  */
 
 export interface paths {
-  "/healthz": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Liveness probe */
-    get: operations["getHealth"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/readyz": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Readiness probe (checks database) */
-    get: operations["getReady"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/signup": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Register a new operator account */
-    post: operations["signup"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/login": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Log in with email and password */
-    post: operations["login"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/refresh": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Exchange a refresh token for a new token pair */
-    post: operations["refresh"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/logout": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Revoke a refresh token */
-    post: operations["logout"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/password/reset-request": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Request a password reset email (always returns 200) */
-    post: operations["requestPasswordReset"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/auth/password/reset-confirm": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Set a new password using a reset token */
-    post: operations["confirmPasswordReset"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/account/me": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** Get the authenticated user's profile */
-    get: operations["getMe"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    /** Update the authenticated user's profile */
-    patch: operations["updateMe"]
-    trace?: never
-  }
-  "/events": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** List the authenticated operator's events */
-    get: operations["listEvents"]
-    put?: never
-    /** Create an event */
-    post: operations["createEvent"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/events/{eventID}": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    /** Get one event */
-    get: operations["getEvent"]
-    put?: never
-    post?: never
-    /** Soft delete an event */
-    delete: operations["deleteEvent"]
-    options?: never
-    head?: never
-    /** Update event fields */
-    patch: operations["updateEvent"]
-    trace?: never
-  }
-  "/events/{eventID}/archive": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Archive an event */
-    post: operations["archiveEvent"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/events/{eventID}/settings": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    /** Get an event's gallery settings */
-    get: operations["getEventSettings"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    /** Update an event's gallery settings */
-    patch: operations["updateEventSettings"]
-    trace?: never
-  }
-  "/events/{eventID}/dashboard": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    /** Get an event's dashboard aggregates */
-    get: operations["getEventDashboard"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/events/{eventID}/photos": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    /**
-     * List an event's photos for its owner
-     * @description Cursor-paginated, newest first, includes photos in every processing
-     *     state (unlike the public gallery, which lists READY photos only).
-     *     Accepts an operator JWT or a device key assigned to the event.
-     */
-    get: operations["listEventPhotos"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/events/{eventID}/uploads": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Initialize a photo upload and receive presigned URL(s)
-     * @description Accepts an operator JWT (any owned event) or a device key assigned to
-     *     the target event. Devices may only initialize uploads for their
-     *     assigned event; other events return 404.
-     */
-    post: operations["initializeUpload"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/uploads/{photoID}": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    /** Poll the status of an upload (for resume/recovery) */
-    get: operations["getUploadStatus"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/uploads/{photoID}/url": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Re-issue a presigned PUT for an interrupted simple upload
-     * @description Only for simple uploads still in the UPLOADING state. Multipart
-     *     uploads re-request part URLs from `/uploads/{photoID}/parts` instead.
-     */
-    post: operations["represignSimpleUpload"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/uploads/{photoID}/parts": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Get presigned URLs for multipart part numbers */
-    post: operations["getUploadPartURLs"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/uploads/{photoID}/multipart/complete": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Complete a multipart upload with the uploaded part ETags */
-    post: operations["completeMultipartUpload"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/uploads/{photoID}/multipart/abort": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Abort a multipart upload */
-    post: operations["abortMultipartUpload"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/uploads/{photoID}/complete": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Verify the uploaded object and mark the photo ready for processing */
-    post: operations["completeUpload"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/photos/{photoID}/url": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    /**
-     * Get a short-lived signed URL for an owned photo variant
-     * @description Owner/device access to a photo, including photos still processing
-     *     (for variants that exist) and originals regardless of the event's
-     *     guest-facing download settings. Responses are never cached.
-     */
-    get: operations["getPhotoURL"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/photos/{photoID}": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    /**
-     * Delete a photo and enqueue cleanup of its stored objects
-     * @description Removes the photo row, aborts any in-progress multipart upload, and
-     *     enqueues an object cleanup job for the original and its derivatives.
-     *     Event counters are decremented exactly once.
-     */
-    delete: operations["deletePhoto"]
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/devices": {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    /** List the authenticated operator's devices */
-    get: operations["listDevices"]
-    put?: never
-    /**
-     * Register a photobooth device and issue its API key
-     * @description The raw API key is returned exactly once, in this response. Only its
-     *     SHA-256 hash is stored; store the key on the device immediately.
-     */
-    post: operations["createDevice"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/devices/{deviceID}": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        deviceID: components["parameters"]["DeviceID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    post?: never
-    /** Revoke a device key (kept for audit) */
-    delete: operations["revokeDevice"]
-    options?: never
-    head?: never
-    /** Rename a device */
-    patch: operations["updateDevice"]
-    trace?: never
-  }
-  "/devices/{deviceID}/rotate": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        deviceID: components["parameters"]["DeviceID"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /**
-     * Rotate a device key
-     * @description Invalidates the previous key immediately and returns the new key once.
-     */
-    post: operations["rotateDeviceKey"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public/events/{slug}": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-      }
-      cookie?: never
-    }
-    /**
-     * Get a public event by slug (no auth)
-     * @description Returns public metadata for a visible event. Private, soft-deleted, or
-     *     expired events return 404 (existence is not revealed). Password events
-     *     return metadata only after unlock; without a valid token the response
-     *     indicates that unlock is required.
-     */
-    get: operations["getPublicEvent"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public/events/{slug}/unlock": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-      }
-      cookie?: never
-    }
-    get?: never
-    put?: never
-    /** Unlock a password-protected gallery */
-    post: operations["unlockPublicEvent"]
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public/events/{slug}/photos": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-      }
-      cookie?: never
-    }
-    /**
-     * Cursor-paginated listing of READY photos
-     * @description Returns metadata only; image URLs are not embedded. Fetch a signed URL
-     *     per photo and variant from the `/url` endpoint. Only `READY` photos are
-     *     listed.
-     */
-    get: operations["listPublicPhotos"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public/events/{slug}/photos/{photoID}": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    /** Get one READY photo's metadata */
-    get: operations["getPublicPhoto"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
-  "/public/events/{slug}/photos/{photoID}/url": {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    /**
-     * Get a short-lived signed URL for a photo variant
-     * @description Returns a presigned GET URL valid for `SIGNED_URL_TTL` (default 5
-     *     minutes). `original` requires `allow_original_download`; any download
-     *     requires `allow_download`. Responses are never cached.
-     */
-    get: operations["getPublicPhotoURL"]
-    put?: never
-    post?: never
-    delete?: never
-    options?: never
-    head?: never
-    patch?: never
-    trace?: never
-  }
+    "/healthz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Liveness probe */
+        get: operations["getHealth"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/readyz": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Readiness probe (checks database) */
+        get: operations["getReady"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/signup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Register a new operator account */
+        post: operations["signup"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Log in with email and password */
+        post: operations["login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/refresh": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange a refresh token for a new token pair */
+        post: operations["refresh"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Revoke a refresh token */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/reset-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request a password reset email (always returns 200) */
+        post: operations["requestPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/password/reset-confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set a new password using a reset token */
+        post: operations["confirmPasswordReset"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/account/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the authenticated user's profile */
+        get: operations["getMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update the authenticated user's profile */
+        patch: operations["updateMe"];
+        trace?: never;
+    };
+    "/account/branding": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the authenticated operator's branding
+         * @description Returns the tenant's branding. When no branding has been configured the
+         *     string fields are null. Asset keys are replaced by short-lived signed
+         *     URLs. Empty string inputs clear a field on update.
+         */
+        get: operations["getBranding"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update the authenticated operator's branding
+         * @description Partial update: omitted fields are left unchanged; sending an empty
+         *     string clears the field. `logoKey`/`profileImageKey` must come from
+         *     `POST /account/branding/assets`.
+         */
+        patch: operations["updateBranding"];
+        trace?: never;
+    };
+    "/account/branding/assets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Presign an upload for a branding asset
+         * @description Returns a presigned PUT URL and the object key for a logo or profile
+         *     image. Upload the bytes straight to storage, then set the key via
+         *     `PATCH /account/branding`. Allowed types are PNG, JPEG, and WebP.
+         */
+        post: operations["createBrandingAssetUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated operator's events */
+        get: operations["listEvents"];
+        put?: never;
+        /** Create an event */
+        post: operations["createEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /** Get one event */
+        get: operations["getEvent"];
+        put?: never;
+        post?: never;
+        /** Soft delete an event */
+        delete: operations["deleteEvent"];
+        options?: never;
+        head?: never;
+        /** Update event fields */
+        patch: operations["updateEvent"];
+        trace?: never;
+    };
+    "/events/{eventID}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive an event */
+        post: operations["archiveEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /** Get an event's gallery settings */
+        get: operations["getEventSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update an event's gallery settings */
+        patch: operations["updateEventSettings"];
+        trace?: never;
+    };
+    "/events/{eventID}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /** Get an event's dashboard aggregates */
+        get: operations["getEventDashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get the event's canonical public gallery URL
+         * @description Returns the URL encoded into the event's QR codes:
+         *     `<PUBLIC_BASE_URL>/e/{slug}`. Never a signed URL.
+         */
+        get: operations["getEventPublicURL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/qr.png": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Download the event's QR code as a PNG
+         * @description Encodes the canonical public gallery URL. `size` is the image width and
+         *     height in pixels; values are clamped to 64–2048 (default 512). Only the
+         *     owning operator can fetch an event's QR code.
+         */
+        get: operations["getEventQRPNG"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/qr.svg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Download the event's QR code as an SVG
+         * @description Encodes the canonical public gallery URL as vector graphics. Only the
+         *     owning operator can fetch an event's QR code.
+         */
+        get: operations["getEventQRSVG"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * List an event's photos for its owner
+         * @description Cursor-paginated, newest first, includes photos in every processing
+         *     state (unlike the public gallery, which lists READY photos only).
+         *     Accepts an operator JWT or a device key assigned to the event.
+         */
+        get: operations["listEventPhotos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/events/{eventID}/uploads": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Initialize a photo upload and receive presigned URL(s)
+         * @description Accepts an operator JWT (any owned event) or a device key assigned to
+         *     the target event. Devices may only initialize uploads for their
+         *     assigned event; other events return 404.
+         */
+        post: operations["initializeUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{photoID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        /** Poll the status of an upload (for resume/recovery) */
+        get: operations["getUploadStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{photoID}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Re-issue a presigned PUT for an interrupted simple upload
+         * @description Only for simple uploads still in the UPLOADING state. Multipart
+         *     uploads re-request part URLs from `/uploads/{photoID}/parts` instead.
+         */
+        post: operations["represignSimpleUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{photoID}/parts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Get presigned URLs for multipart part numbers */
+        post: operations["getUploadPartURLs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{photoID}/multipart/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Complete a multipart upload with the uploaded part ETags */
+        post: operations["completeMultipartUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{photoID}/multipart/abort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Abort a multipart upload */
+        post: operations["abortMultipartUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/uploads/{photoID}/complete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify the uploaded object and mark the photo ready for processing */
+        post: operations["completeUpload"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/photos/{photoID}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a short-lived signed URL for an owned photo variant
+         * @description Owner/device access to a photo, including photos still processing
+         *     (for variants that exist) and originals regardless of the event's
+         *     guest-facing download settings. Responses are never cached.
+         */
+        get: operations["getPhotoURL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/photos/{photoID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete a photo and enqueue cleanup of its stored objects
+         * @description Removes the photo row, aborts any in-progress multipart upload, and
+         *     enqueues an object cleanup job for the original and its derivatives.
+         *     Event counters are decremented exactly once.
+         */
+        delete: operations["deletePhoto"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated operator's devices */
+        get: operations["listDevices"];
+        put?: never;
+        /**
+         * Register a photobooth device and issue its API key
+         * @description The raw API key is returned exactly once, in this response. Only its
+         *     SHA-256 hash is stored; store the key on the device immediately.
+         */
+        post: operations["createDevice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/devices/{deviceID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceID: components["parameters"]["DeviceID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Revoke a device key (kept for audit) */
+        delete: operations["revokeDevice"];
+        options?: never;
+        head?: never;
+        /** Rename a device */
+        patch: operations["updateDevice"];
+        trace?: never;
+    };
+    "/devices/{deviceID}/rotate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceID: components["parameters"]["DeviceID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate a device key
+         * @description Invalidates the previous key immediately and returns the new key once.
+         */
+        post: operations["rotateDeviceKey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/events/{slug}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a public event by slug (no auth)
+         * @description Returns public metadata for a visible event. Private, soft-deleted, or
+         *     expired events return 404 (existence is not revealed). Password events
+         *     return metadata only after unlock; without a valid token the response
+         *     indicates that unlock is required.
+         */
+        get: operations["getPublicEvent"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/events/{slug}/unlock": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Unlock a password-protected gallery */
+        post: operations["unlockPublicEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/events/{slug}/photos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Cursor-paginated listing of READY photos
+         * @description Returns metadata only; image URLs are not embedded. Fetch a signed URL
+         *     per photo and variant from the `/url` endpoint. Only `READY` photos are
+         *     listed.
+         */
+        get: operations["listPublicPhotos"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/events/{slug}/photos/{photoID}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        /** Get one READY photo's metadata */
+        get: operations["getPublicPhoto"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/public/events/{slug}/photos/{photoID}/url": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        /**
+         * Get a short-lived signed URL for a photo variant
+         * @description Returns a presigned GET URL valid for `SIGNED_URL_TTL` (default 5
+         *     minutes). `original` requires `allow_original_download`; any download
+         *     requires `allow_download`. Responses are never cached.
+         */
+        get: operations["getPublicPhotoURL"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
-export type webhooks = Record<string, never>
+export type webhooks = Record<string, never>;
 export interface components {
-  schemas: {
-    SignupRequest: {
-      /** Format: email */
-      email: string
-      password: string
-      businessName?: string
-    }
-    LoginRequest: {
-      /** Format: email */
-      email: string
-      password: string
-    }
-    AuthResponse: {
-      accessToken: string
-      refreshToken: string
-      expiresIn: number
-      user: components["schemas"]["Profile"]
-    }
-    Profile: {
-      /** Format: uuid */
-      id: string
-      email: string
-      businessName?: string
-    }
-    AuthEnvelope: {
-      data?: components["schemas"]["AuthResponse"]
-      error?: null | components["schemas"]["Error"]
-    }
-    ProfileEnvelope: {
-      data?: components["schemas"]["Profile"]
-      error?: null | components["schemas"]["Error"]
-    }
-    Envelope: {
-      data?: unknown
-      error?: null | components["schemas"]["Error"]
-    }
-    Error: {
-      code: string
-      message: string
-    }
-    /** @enum {string} */
-    EventStatus: "upcoming" | "active" | "completed" | "archived"
-    /** @enum {string} */
-    EventVisibility: "public" | "password" | "private"
-    Event: {
-      /** Format: uuid */
-      id: string
-      name: string
-      slug: string
-      clientName?: string
-      clientEmail?: string
-      location?: string
-      description?: string
-      /** Format: date */
-      eventDate: string | null
-      status: components["schemas"]["EventStatus"]
-      /** Format: uuid */
-      coverPhotoId?: string | null
-      /** Format: int64 */
-      storageBytes: number
-      /** Format: int64 */
-      photoCount: number
-      /** Format: int64 */
-      guestCount: number
-      /** Format: date-time */
-      expiresAt: string | null
-      /** Format: date-time */
-      createdAt: string
-      /** Format: date-time */
-      updatedAt: string
-    }
-    EventSettings: {
-      /** Format: uuid */
-      eventId: string
-      visibility: components["schemas"]["EventVisibility"]
-      passwordProtected: boolean
-      allowDownload: boolean
-      allowOriginalDownload: boolean
-      watermarkEnabled: boolean
-      /** Format: date-time */
-      updatedAt: string
-    }
-    EventSettingsInput: {
-      visibility?: components["schemas"]["EventVisibility"]
-      /** @description Set a gallery password; empty string clears it */
-      password?: string
-      allowDownload?: boolean
-      allowOriginalDownload?: boolean
-      watermarkEnabled?: boolean
-    }
-    CreateEventRequest: {
-      name: string
-      /** Format: date */
-      eventDate?: string
-      clientName?: string
-      /** Format: email */
-      clientEmail?: string
-      location?: string
-      description?: string
-      status?: components["schemas"]["EventStatus"]
-      /** Format: date-time */
-      expiresAt?: string
-      settings?: components["schemas"]["EventSettingsInput"]
-    }
-    UpdateEventRequest: {
-      name?: string
-      /**
-       * Format: date
-       * @description Empty string clears the date
-       */
-      eventDate?: string
-      clientName?: string
-      /** Format: email */
-      clientEmail?: string
-      location?: string
-      description?: string
-      /**
-       * Format: date-time
-       * @description Empty string clears the expiry
-       */
-      expiresAt?: string
-    }
-    UpdateEventSettingsRequest: components["schemas"]["EventSettingsInput"]
-    EventDashboard: {
-      /** Format: int64 */
-      photoCount: number
-      /** Format: int64 */
-      storageBytes: number
-      /** Format: int64 */
-      guestCount: number
-    }
-    EventEnvelope: {
-      data?: components["schemas"]["Event"]
-      error?: null | components["schemas"]["Error"]
-    }
-    EventWithSettings: {
-      event: components["schemas"]["Event"]
-      settings: components["schemas"]["EventSettings"]
-    }
-    EventWithSettingsEnvelope: {
-      data?: components["schemas"]["EventWithSettings"]
-      error?: null | components["schemas"]["Error"]
-    }
-    EventList: {
-      items: components["schemas"]["Event"][]
-      nextCursor: string | null
-    }
-    EventListEnvelope: {
-      data?: components["schemas"]["EventList"]
-      error?: null | components["schemas"]["Error"]
-    }
-    EventSettingsEnvelope: {
-      data?: components["schemas"]["EventSettings"]
-      error?: null | components["schemas"]["Error"]
-    }
-    EventDashboardEnvelope: {
-      data?: components["schemas"]["EventDashboard"]
-      error?: null | components["schemas"]["Error"]
-    }
-    /** @enum {string} */
-    PhotoStatus: "UPLOADING" | "PROCESSING" | "READY" | "FAILED"
-    Photo: {
-      /** Format: uuid */
-      id: string
-      filename: string
-      mimeType: string
-      /** Format: int64 */
-      fileSize: number
-      width: number | null
-      height: number | null
-      status: components["schemas"]["PhotoStatus"]
-      /** @description Derivative variants that exist for this photo. */
-      variants: components["schemas"]["PhotoVariant"][]
-      errorMessage: string | null
-      /** Format: date-time */
-      createdAt: string
-    }
-    PhotoList: {
-      items: components["schemas"]["Photo"][]
-      nextCursor: string | null
-    }
-    PhotoListEnvelope: {
-      data?: components["schemas"]["PhotoList"]
-      error?: null | components["schemas"]["Error"]
-    }
-    /** @enum {string} */
-    UploadKind: "simple" | "multipart"
-    InitializeUploadRequest: {
-      filename: string
-      /** @enum {string} */
-      contentType: "image/jpeg" | "image/png" | "image/webp"
-      /** Format: int64 */
-      size: number
-    }
-    InitializeUpload: {
-      /** Format: uuid */
-      photoId: string
-      uploadKind: components["schemas"]["UploadKind"]
-      /** @description Presigned PUT URL (simple uploads). Null for multipart. */
-      uploadUrl: string
-      storageKey: string
-      /** Format: date-time */
-      expiresAt: string
-      /**
-       * Format: int64
-       * @description Required part size for multipart uploads.
-       */
-      partSize: number | null
-    }
-    InitializeUploadEnvelope: {
-      data?: components["schemas"]["InitializeUpload"]
-      error?: null | components["schemas"]["Error"]
-    }
-    PresignedUpload: {
-      /** @description Presigned PUT URL. */
-      uploadUrl: string
-      /** Format: date-time */
-      expiresAt: string
-    }
-    PresignedUploadEnvelope: {
-      data?: components["schemas"]["PresignedUpload"]
-      error?: null | components["schemas"]["Error"]
-    }
-    UploadPartURLsRequest: {
-      partNumbers: number[]
-    }
-    PartURL: {
-      partNumber: number
-      url: string
-    }
-    UploadPartURLs: {
-      /** Format: uuid */
-      photoId: string
-      /** Format: int64 */
-      partSize: number
-      parts: components["schemas"]["PartURL"][]
-    }
-    UploadPartURLsEnvelope: {
-      data?: components["schemas"]["UploadPartURLs"]
-      error?: null | components["schemas"]["Error"]
-    }
-    CompletedPart: {
-      partNumber: number
-      etag: string
-    }
-    CompleteMultipartRequest: {
-      parts: components["schemas"]["CompletedPart"][]
-    }
-    UploadStatus: {
-      /** Format: uuid */
-      photoId: string
-      /** Format: uuid */
-      eventId: string
-      status: components["schemas"]["PhotoStatus"]
-      uploadKind: components["schemas"]["UploadKind"]
-      filename: string
-      mimeType: string
-      /** Format: int64 */
-      fileSize: number
-      errorMessage: string | null
-      /** Format: date-time */
-      createdAt: string
-      /** Format: date-time */
-      updatedAt: string
-    }
-    UploadStatusEnvelope: {
-      data?: components["schemas"]["UploadStatus"]
-      error?: null | components["schemas"]["Error"]
-    }
-    Device: {
-      /** Format: uuid */
-      id: string
-      name: string
-      /** @description First half of the key, used for lookup. Not secret. */
-      keyPrefix: string
-      /**
-       * Format: uuid
-       * @description Event this device may upload to; null means no upload scope.
-       */
-      assignedEventId: string | null
-      /** Format: date-time */
-      revokedAt: string | null
-      /** Format: date-time */
-      lastUsedAt: string | null
-      /** Format: date-time */
-      createdAt: string
-    }
-    DeviceWithKey: {
-      device: components["schemas"]["Device"]
-      /** @description Raw API key. Returned only by create and rotate. */
-      key: string
-    }
-    CreateDeviceRequest: {
-      name: string
-      /**
-       * Format: uuid
-       * @description Optional event the device may upload to.
-       */
-      assignedEventId?: string
-    }
-    UpdateDeviceRequest: {
-      name: string
-    }
-    DeviceList: {
-      items: components["schemas"]["Device"][]
-    }
-    DeviceEnvelope: {
-      data?: components["schemas"]["Device"]
-      error?: null | components["schemas"]["Error"]
-    }
-    DeviceWithKeyEnvelope: {
-      data?: components["schemas"]["DeviceWithKey"]
-      error?: null | components["schemas"]["Error"]
-    }
-    DeviceListEnvelope: {
-      data?: components["schemas"]["DeviceList"]
-      error?: null | components["schemas"]["Error"]
-    }
-    /**
-     * @description `thumbnail`, `medium`, `large` are generated derivatives; `original` is
-     *     the uploaded file and is gated by `allow_original_download`.
-     * @enum {string}
-     */
-    PhotoVariant: "thumbnail" | "medium" | "large" | "original"
-    PublicEvent: {
-      name?: string
-      /** Format: date */
-      date?: string | null
-      location?: string
-      description?: string
-      visibility?: components["schemas"]["EventVisibility"]
-      allowDownload?: boolean
-      allowOriginalDownload?: boolean
-      /** Format: int64 */
-      photoCount?: number
-      /** Format: uuid */
-      coverPhotoId?: string | null
-      /** @description True when the event is password-protected and no valid unlock token was supplied. */
-      requiresUnlock?: boolean
-    }
-    PublicEventEnvelope: {
-      data?: components["schemas"]["PublicEvent"]
-      error?: null | components["schemas"]["Error"]
-    }
-    UnlockRequest: {
-      password: string
-    }
-    UnlockResult: {
-      /** @description Event-scoped unlock token; send via the `X-Gallery-Unlock` header. */
-      token?: string
-      /** @description Token lifetime in seconds. */
-      expiresIn?: number
-    }
-    UnlockResultEnvelope: {
-      data?: components["schemas"]["UnlockResult"]
-      error?: null | components["schemas"]["Error"]
-    }
-    /** @description Metadata only; image URLs are fetched per variant from the `/url` endpoint. */
-    PublicPhoto: {
-      /** Format: uuid */
-      id?: string
-      width?: number | null
-      height?: number | null
-      /** @description Derivative variants available for download. */
-      variants?: components["schemas"]["PhotoVariant"][]
-    }
-    PublicPhotoEnvelope: {
-      data?: components["schemas"]["PublicPhoto"]
-      error?: null | components["schemas"]["Error"]
-    }
-    PublicPhotoList: {
-      event?: components["schemas"]["PublicEvent"]
-      photos?: {
-        items?: components["schemas"]["PublicPhoto"][]
-        nextCursor?: string | null
-      }
-    }
-    PublicPhotoListEnvelope: {
-      data?: components["schemas"]["PublicPhotoList"]
-      error?: null | components["schemas"]["Error"]
-    }
-    SignedURL: {
-      /** @description Short-lived presigned GET URL. Never cached or logged. */
-      url: string
-      /** @description URL lifetime in seconds. */
-      expiresIn: number
-    }
-    SignedURLEnvelope: {
-      data?: components["schemas"]["SignedURL"]
-      error?: null | components["schemas"]["Error"]
-    }
-  }
-  responses: never
-  parameters: {
-    EventID: string
-    /** @description URL slug of the event, unique per operator. */
-    EventSlug: string
-    /**
-     * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
-     *     Required for `password` events; ignored for `public` events.
-     */
-    UnlockToken: string
-    PhotoID: string
-    DeviceID: string
-    /** @description Client-supplied key; repeating it with the same body returns the original result. */
-    IdempotencyKey: string
-  }
-  requestBodies: never
-  headers: never
-  pathItems: never
+    schemas: {
+        SignupRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+            businessName?: string;
+        };
+        LoginRequest: {
+            /** Format: email */
+            email: string;
+            password: string;
+        };
+        AuthResponse: {
+            accessToken: string;
+            refreshToken: string;
+            expiresIn: number;
+            user: components["schemas"]["Profile"];
+        };
+        Profile: {
+            /** Format: uuid */
+            id: string;
+            email: string;
+            businessName?: string;
+        };
+        AuthEnvelope: {
+            data?: components["schemas"]["AuthResponse"];
+            error?: null | components["schemas"]["Error"];
+        };
+        ProfileEnvelope: {
+            data?: components["schemas"]["Profile"];
+            error?: null | components["schemas"]["Error"];
+        };
+        Branding: {
+            businessName?: string | null;
+            /** @description Short-lived signed URL for the uploaded logo, if any. */
+            logoUrl?: string | null;
+            /** @description Short-lived signed URL for the uploaded profile image, if any. */
+            profileImageUrl?: string | null;
+            /** @description Lowercase `#rrggbb` hex color. */
+            primaryColor?: string | null;
+            /** @description Lowercase `#rrggbb` hex color. */
+            secondaryColor?: string | null;
+            contactEmail?: string | null;
+            contactPhone?: string | null;
+            websiteUrl?: string | null;
+            /** Format: date-time */
+            updatedAt?: string | null;
+        };
+        BrandingEnvelope: {
+            data?: components["schemas"]["Branding"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /**
+         * @description Partial update; omitted fields are unchanged, empty strings clear.
+         *     `logoKey`/`profileImageKey` must be keys returned by
+         *     `POST /account/branding/assets`.
+         */
+        BrandingUpdateRequest: {
+            businessName?: string;
+            logoKey?: string;
+            profileImageKey?: string;
+            /** @description Hex color like `#1a2b3c`; empty string clears. */
+            primaryColor?: string;
+            secondaryColor?: string;
+            contactEmail?: string;
+            contactPhone?: string;
+            websiteUrl?: string;
+        };
+        BrandingAssetRequest: {
+            /** @enum {string} */
+            kind: "logo" | "profileImage";
+            /** @enum {string} */
+            contentType: "image/png" | "image/jpeg" | "image/webp";
+        };
+        BrandingAsset: {
+            /** @description Presigned PUT URL. Upload bytes directly to storage. */
+            uploadUrl: string;
+            /** @description Object key to send back via `PATCH /account/branding`. */
+            storageKey: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        BrandingAssetEnvelope: {
+            data?: components["schemas"]["BrandingAsset"];
+            error?: null | components["schemas"]["Error"];
+        };
+        Envelope: {
+            data?: unknown;
+            error?: null | components["schemas"]["Error"];
+        };
+        Error: {
+            code: string;
+            message: string;
+        };
+        /** @enum {string} */
+        EventStatus: "upcoming" | "active" | "completed" | "archived";
+        /** @enum {string} */
+        EventVisibility: "public" | "password" | "private";
+        Event: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            clientName?: string;
+            clientEmail?: string;
+            location?: string;
+            description?: string;
+            /** Format: date */
+            eventDate: string | null;
+            status: components["schemas"]["EventStatus"];
+            /** Format: uuid */
+            coverPhotoId?: string | null;
+            /** Format: int64 */
+            storageBytes: number;
+            /** Format: int64 */
+            photoCount: number;
+            /** Format: int64 */
+            guestCount: number;
+            /** Format: date-time */
+            expiresAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        EventSettings: {
+            /** Format: uuid */
+            eventId: string;
+            visibility: components["schemas"]["EventVisibility"];
+            passwordProtected: boolean;
+            allowDownload: boolean;
+            allowOriginalDownload: boolean;
+            watermarkEnabled: boolean;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        EventSettingsInput: {
+            visibility?: components["schemas"]["EventVisibility"];
+            /** @description Set a gallery password; empty string clears it */
+            password?: string;
+            allowDownload?: boolean;
+            allowOriginalDownload?: boolean;
+            watermarkEnabled?: boolean;
+        };
+        CreateEventRequest: {
+            name: string;
+            /** Format: date */
+            eventDate?: string;
+            clientName?: string;
+            /** Format: email */
+            clientEmail?: string;
+            location?: string;
+            description?: string;
+            status?: components["schemas"]["EventStatus"];
+            /** Format: date-time */
+            expiresAt?: string;
+            settings?: components["schemas"]["EventSettingsInput"];
+        };
+        UpdateEventRequest: {
+            name?: string;
+            /**
+             * Format: date
+             * @description Empty string clears the date
+             */
+            eventDate?: string;
+            clientName?: string;
+            /** Format: email */
+            clientEmail?: string;
+            location?: string;
+            description?: string;
+            /**
+             * Format: date-time
+             * @description Empty string clears the expiry
+             */
+            expiresAt?: string;
+        };
+        UpdateEventSettingsRequest: components["schemas"]["EventSettingsInput"];
+        EventDashboard: {
+            /** Format: int64 */
+            photoCount: number;
+            /** Format: int64 */
+            storageBytes: number;
+            /** Format: int64 */
+            guestCount: number;
+        };
+        EventEnvelope: {
+            data?: components["schemas"]["Event"];
+            error?: null | components["schemas"]["Error"];
+        };
+        EventWithSettings: {
+            event: components["schemas"]["Event"];
+            settings: components["schemas"]["EventSettings"];
+        };
+        EventWithSettingsEnvelope: {
+            data?: components["schemas"]["EventWithSettings"];
+            error?: null | components["schemas"]["Error"];
+        };
+        EventList: {
+            items: components["schemas"]["Event"][];
+            nextCursor: string | null;
+        };
+        EventListEnvelope: {
+            data?: components["schemas"]["EventList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        EventSettingsEnvelope: {
+            data?: components["schemas"]["EventSettings"];
+            error?: null | components["schemas"]["Error"];
+        };
+        EventDashboardEnvelope: {
+            data?: components["schemas"]["EventDashboard"];
+            error?: null | components["schemas"]["Error"];
+        };
+        EventURL: {
+            /** @description Canonical public gallery URL (`<PUBLIC_BASE_URL>/e/{slug}`). */
+            url: string;
+        };
+        EventURLEnvelope: {
+            data?: components["schemas"]["EventURL"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /** @enum {string} */
+        PhotoStatus: "UPLOADING" | "PROCESSING" | "READY" | "FAILED";
+        Photo: {
+            /** Format: uuid */
+            id: string;
+            filename: string;
+            mimeType: string;
+            /** Format: int64 */
+            fileSize: number;
+            width: number | null;
+            height: number | null;
+            status: components["schemas"]["PhotoStatus"];
+            /** @description Derivative variants that exist for this photo. */
+            variants: components["schemas"]["PhotoVariant"][];
+            errorMessage: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        PhotoList: {
+            items: components["schemas"]["Photo"][];
+            nextCursor: string | null;
+        };
+        PhotoListEnvelope: {
+            data?: components["schemas"]["PhotoList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /** @enum {string} */
+        UploadKind: "simple" | "multipart";
+        InitializeUploadRequest: {
+            filename: string;
+            /** @enum {string} */
+            contentType: "image/jpeg" | "image/png" | "image/webp";
+            /** Format: int64 */
+            size: number;
+        };
+        InitializeUpload: {
+            /** Format: uuid */
+            photoId: string;
+            uploadKind: components["schemas"]["UploadKind"];
+            /** @description Presigned PUT URL (simple uploads). Null for multipart. */
+            uploadUrl: string;
+            storageKey: string;
+            /** Format: date-time */
+            expiresAt: string;
+            /**
+             * Format: int64
+             * @description Required part size for multipart uploads.
+             */
+            partSize: number | null;
+        };
+        InitializeUploadEnvelope: {
+            data?: components["schemas"]["InitializeUpload"];
+            error?: null | components["schemas"]["Error"];
+        };
+        PresignedUpload: {
+            /** @description Presigned PUT URL. */
+            uploadUrl: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        PresignedUploadEnvelope: {
+            data?: components["schemas"]["PresignedUpload"];
+            error?: null | components["schemas"]["Error"];
+        };
+        UploadPartURLsRequest: {
+            partNumbers: number[];
+        };
+        PartURL: {
+            partNumber: number;
+            url: string;
+        };
+        UploadPartURLs: {
+            /** Format: uuid */
+            photoId: string;
+            /** Format: int64 */
+            partSize: number;
+            parts: components["schemas"]["PartURL"][];
+        };
+        UploadPartURLsEnvelope: {
+            data?: components["schemas"]["UploadPartURLs"];
+            error?: null | components["schemas"]["Error"];
+        };
+        CompletedPart: {
+            partNumber: number;
+            etag: string;
+        };
+        CompleteMultipartRequest: {
+            parts: components["schemas"]["CompletedPart"][];
+        };
+        UploadStatus: {
+            /** Format: uuid */
+            photoId: string;
+            /** Format: uuid */
+            eventId: string;
+            status: components["schemas"]["PhotoStatus"];
+            uploadKind: components["schemas"]["UploadKind"];
+            filename: string;
+            mimeType: string;
+            /** Format: int64 */
+            fileSize: number;
+            errorMessage: string | null;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        UploadStatusEnvelope: {
+            data?: components["schemas"]["UploadStatus"];
+            error?: null | components["schemas"]["Error"];
+        };
+        Device: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            /** @description First half of the key, used for lookup. Not secret. */
+            keyPrefix: string;
+            /**
+             * Format: uuid
+             * @description Event this device may upload to; null means no upload scope.
+             */
+            assignedEventId: string | null;
+            /** Format: date-time */
+            revokedAt: string | null;
+            /** Format: date-time */
+            lastUsedAt: string | null;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        DeviceWithKey: {
+            device: components["schemas"]["Device"];
+            /** @description Raw API key. Returned only by create and rotate. */
+            key: string;
+        };
+        CreateDeviceRequest: {
+            name: string;
+            /**
+             * Format: uuid
+             * @description Optional event the device may upload to.
+             */
+            assignedEventId?: string;
+        };
+        UpdateDeviceRequest: {
+            name: string;
+        };
+        DeviceList: {
+            items: components["schemas"]["Device"][];
+        };
+        DeviceEnvelope: {
+            data?: components["schemas"]["Device"];
+            error?: null | components["schemas"]["Error"];
+        };
+        DeviceWithKeyEnvelope: {
+            data?: components["schemas"]["DeviceWithKey"];
+            error?: null | components["schemas"]["Error"];
+        };
+        DeviceListEnvelope: {
+            data?: components["schemas"]["DeviceList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /**
+         * @description `thumbnail`, `medium`, `large` are generated derivatives; `original` is
+         *     the uploaded file and is gated by `allow_original_download`.
+         * @enum {string}
+         */
+        PhotoVariant: "thumbnail" | "medium" | "large" | "original";
+        PublicEvent: {
+            name?: string;
+            /** Format: date */
+            date?: string | null;
+            location?: string;
+            description?: string;
+            visibility?: components["schemas"]["EventVisibility"];
+            allowDownload?: boolean;
+            allowOriginalDownload?: boolean;
+            /** Format: int64 */
+            photoCount?: number;
+            /** Format: uuid */
+            coverPhotoId?: string | null;
+            /** @description True when the event is password-protected and no valid unlock token was supplied. */
+            requiresUnlock?: boolean;
+            branding?: null | components["schemas"]["PublicBranding"];
+        };
+        /**
+         * @description Tenant branding for the public gallery. All fields are nullable; the
+         *     gallery falls back to event metadata and default theme tokens. `logoUrl`
+         *     is a short-lived signed URL that stays valid for longer than the 60 s
+         *     metadata cache.
+         */
+        PublicBranding: {
+            businessName?: string | null;
+            logoUrl?: string | null;
+            /** @description Lowercase `#rrggbb` hex color. */
+            primaryColor?: string | null;
+            /** @description Lowercase `#rrggbb` hex color. */
+            secondaryColor?: string | null;
+            contactEmail?: string | null;
+            contactPhone?: string | null;
+            websiteUrl?: string | null;
+        };
+        PublicEventEnvelope: {
+            data?: components["schemas"]["PublicEvent"];
+            error?: null | components["schemas"]["Error"];
+        };
+        UnlockRequest: {
+            password: string;
+        };
+        UnlockResult: {
+            /** @description Event-scoped unlock token; send via the `X-Gallery-Unlock` header. */
+            token?: string;
+            /** @description Token lifetime in seconds. */
+            expiresIn?: number;
+        };
+        UnlockResultEnvelope: {
+            data?: components["schemas"]["UnlockResult"];
+            error?: null | components["schemas"]["Error"];
+        };
+        /** @description Metadata only; image URLs are fetched per variant from the `/url` endpoint. */
+        PublicPhoto: {
+            /** Format: uuid */
+            id?: string;
+            width?: number | null;
+            height?: number | null;
+            /** @description Derivative variants available for download. */
+            variants?: components["schemas"]["PhotoVariant"][];
+        };
+        PublicPhotoEnvelope: {
+            data?: components["schemas"]["PublicPhoto"];
+            error?: null | components["schemas"]["Error"];
+        };
+        PublicPhotoList: {
+            event?: components["schemas"]["PublicEvent"];
+            photos?: {
+                items?: components["schemas"]["PublicPhoto"][];
+                nextCursor?: string | null;
+            };
+        };
+        PublicPhotoListEnvelope: {
+            data?: components["schemas"]["PublicPhotoList"];
+            error?: null | components["schemas"]["Error"];
+        };
+        SignedURL: {
+            /** @description Short-lived presigned GET URL. Never cached or logged. */
+            url: string;
+            /** @description URL lifetime in seconds. */
+            expiresIn: number;
+        };
+        SignedURLEnvelope: {
+            data?: components["schemas"]["SignedURL"];
+            error?: null | components["schemas"]["Error"];
+        };
+    };
+    responses: never;
+    parameters: {
+        EventID: string;
+        /** @description URL slug of the event, unique per operator. */
+        EventSlug: string;
+        /**
+         * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
+         *     Required for `password` events; ignored for `public` events.
+         */
+        UnlockToken: string;
+        PhotoID: string;
+        DeviceID: string;
+        /** @description Client-supplied key; repeating it with the same body returns the original result. */
+        IdempotencyKey: string;
+    };
+    requestBodies: never;
+    headers: never;
+    pathItems: never;
 }
-export type $defs = Record<string, never>
+export type $defs = Record<string, never>;
 export interface operations {
-  getHealth: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Service is alive */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getReady: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Service is ready */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Service is not ready */
-      503: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-    }
-  }
-  signup: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["SignupRequest"]
-      }
-    }
-    responses: {
-      /** @description Account created */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["AuthEnvelope"]
-        }
-      }
-      /** @description Email already registered */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  login: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["LoginRequest"]
-      }
-    }
-    responses: {
-      /** @description Authenticated */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["AuthEnvelope"]
-        }
-      }
-      /** @description Invalid credentials */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Account locked */
-      423: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  refresh: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          refreshToken: string
-        }
-      }
-    }
-    responses: {
-      /** @description New tokens issued */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["AuthEnvelope"]
-        }
-      }
-      /** @description Invalid, expired, or reused refresh token */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  logout: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: {
-      content: {
-        "application/json": {
-          refreshToken?: string
-        }
-      }
-    }
-    responses: {
-      /** @description Logged out */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  requestPasswordReset: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          /** Format: email */
-          email: string
-        }
-      }
-    }
-    responses: {
-      /** @description Request accepted */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  confirmPasswordReset: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          token: string
-          password: string
-        }
-      }
-    }
-    responses: {
-      /** @description Password reset */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Invalid or expired reset token */
-      400: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getMe: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Profile */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ProfileEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  updateMe: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": {
-          businessName?: string
-        }
-      }
-    }
-    responses: {
-      /** @description Updated profile */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["ProfileEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  listEvents: {
-    parameters: {
-      query?: {
-        status?: components["schemas"]["EventStatus"]
-        /** @description Case-insensitive search on the event name */
-        q?: string
-        /** @description Opaque keyset cursor returned as nextCursor */
-        cursor?: string
-        limit?: number
-      }
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description A page of events */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventListEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Invalid status or cursor */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  createEvent: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CreateEventRequest"]
-      }
-    }
-    responses: {
-      /** @description Event created */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventWithSettingsEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Active event limit reached */
-      402: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getEvent: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description The event */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Event not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  deleteEvent: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Deleted */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Event not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  updateEvent: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UpdateEventRequest"]
-      }
-    }
-    responses: {
-      /** @description Updated event */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventEnvelope"]
-        }
-      }
-      /** @description Event not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  archiveEvent: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Archived event */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventEnvelope"]
-        }
-      }
-      /** @description Event not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Invalid status transition */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getEventSettings: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Event settings */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventSettingsEnvelope"]
-        }
-      }
-      /** @description Event not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  updateEventSettings: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UpdateEventSettingsRequest"]
-      }
-    }
-    responses: {
-      /** @description Updated settings */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventSettingsEnvelope"]
-        }
-      }
-      /** @description Event not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getEventDashboard: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Dashboard aggregates */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["EventDashboardEnvelope"]
-        }
-      }
-      /** @description Event not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  listEventPhotos: {
-    parameters: {
-      query?: {
-        /** @description Opaque keyset cursor returned as nextCursor */
-        cursor?: string
-        limit?: number
-        /** @description Optional processing status filter */
-        status?: components["schemas"]["PhotoStatus"]
-      }
-      header?: never
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description A page of photos */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PhotoListEnvelope"]
-        }
-      }
-      /** @description Event not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Invalid cursor, limit, or status */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  initializeUpload: {
-    parameters: {
-      query?: never
-      header?: {
-        /** @description Client-supplied key; repeating it with the same body returns the original result. */
-        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"]
-      }
-      path: {
-        eventID: components["parameters"]["EventID"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["InitializeUploadRequest"]
-      }
-    }
-    responses: {
-      /** @description Upload initialized */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["InitializeUploadEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Event not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Idempotency key reused with a different request body */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error (unsupported type, too large) */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getUploadStatus: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Upload status */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["UploadStatusEnvelope"]
-        }
-      }
-      /** @description Photo not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  represignSimpleUpload: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description A fresh presigned PUT URL */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PresignedUploadEnvelope"]
-        }
-      }
-      /** @description Photo not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Not a simple upload, or the photo is no longer uploading */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getUploadPartURLs: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UploadPartURLsRequest"]
-      }
-    }
-    responses: {
-      /** @description Presigned part URLs */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["UploadPartURLsEnvelope"]
-        }
-      }
-      /** @description Photo not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Photo is not a multipart upload */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  completeMultipartUpload: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CompleteMultipartRequest"]
-      }
-    }
-    responses: {
-      /** @description Multipart upload completed */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Photo not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Photo is not a multipart upload */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  abortMultipartUpload: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Aborted */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Photo not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Photo is not a multipart upload */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  completeUpload: {
-    parameters: {
-      query?: never
-      header?: {
-        /** @description Client-supplied key; repeating it with the same body returns the original result. */
-        "Idempotency-Key"?: components["parameters"]["IdempotencyKey"]
-      }
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Upload completed */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["UploadStatusEnvelope"]
-        }
-      }
-      /** @description Photo or object not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Idempotency conflict or invalid upload state */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Object size mismatch */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getPhotoURL: {
-    parameters: {
-      query: {
-        variant: components["schemas"]["PhotoVariant"]
-      }
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Signed URL */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["SignedURLEnvelope"]
-        }
-      }
-      /** @description Photo not found, or the requested variant is unavailable */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Invalid variant */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  deletePhoto: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Deleted */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Photo not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  listDevices: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description All devices, including revoked ones */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["DeviceListEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  createDevice: {
-    parameters: {
-      query?: never
-      header?: never
-      path?: never
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["CreateDeviceRequest"]
-      }
-    }
-    responses: {
-      /** @description Device created; the key is shown only once */
-      201: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["DeviceWithKeyEnvelope"]
-        }
-      }
-      /** @description Unauthenticated */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Assigned event not found */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  revokeDevice: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        deviceID: components["parameters"]["DeviceID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Revoked */
-      204: {
-        headers: {
-          [name: string]: unknown
-        }
-        content?: never
-      }
-      /** @description Device not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  updateDevice: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        deviceID: components["parameters"]["DeviceID"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UpdateDeviceRequest"]
-      }
-    }
-    responses: {
-      /** @description Updated device */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["DeviceEnvelope"]
-        }
-      }
-      /** @description Device not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  rotateDeviceKey: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        deviceID: components["parameters"]["DeviceID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description New key issued */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["DeviceWithKeyEnvelope"]
-        }
-      }
-      /** @description Device not found (also for other tenants) */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Device has been revoked */
-      409: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getPublicEvent: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Public event metadata */
-      200: {
-        headers: {
-          /**
-           * @description `public, max-age=60` for public events; `private, no-store` for
-           *     password events.
-           */
-          "Cache-Control"?: string
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PublicEventEnvelope"]
-        }
-      }
-      /** @description Event not found, private, deleted, or expired */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  unlockPublicEvent: {
-    parameters: {
-      query?: never
-      header?: never
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-      }
-      cookie?: never
-    }
-    requestBody: {
-      content: {
-        "application/json": components["schemas"]["UnlockRequest"]
-      }
-    }
-    responses: {
-      /** @description Correct password; event-scoped unlock token issued */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["UnlockResultEnvelope"]
-        }
-      }
-      /** @description Incorrect password */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Event not found, private, deleted, or expired */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Validation error */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  listPublicPhotos: {
-    parameters: {
-      query?: {
-        /** @description Opaque keyset cursor returned as nextCursor */
-        cursor?: string
-        limit?: number
-      }
-      header?: {
-        /**
-         * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
-         *     Required for `password` events; ignored for `public` events.
-         */
-        "X-Gallery-Unlock"?: components["parameters"]["UnlockToken"]
-      }
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description A page of public photos */
-      200: {
-        headers: {
-          /**
-           * @description `public, max-age=60` for public events; `private, no-store` for
-           *     password events.
-           */
-          "Cache-Control"?: string
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PublicPhotoListEnvelope"]
-        }
-      }
-      /** @description Password event requires a valid unlock token */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Event not found, private, deleted, or expired */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Invalid cursor or limit */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getPublicPhoto: {
-    parameters: {
-      query?: never
-      header?: {
-        /**
-         * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
-         *     Required for `password` events; ignored for `public` events.
-         */
-        "X-Gallery-Unlock"?: components["parameters"]["UnlockToken"]
-      }
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Public photo metadata */
-      200: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["PublicPhotoEnvelope"]
-        }
-      }
-      /** @description Password event requires a valid unlock token */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Event or photo not found, or photo not READY */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
-  getPublicPhotoURL: {
-    parameters: {
-      query: {
-        variant: components["schemas"]["PhotoVariant"]
-      }
-      header?: {
-        /**
-         * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
-         *     Required for `password` events; ignored for `public` events.
-         */
-        "X-Gallery-Unlock"?: components["parameters"]["UnlockToken"]
-      }
-      path: {
-        /** @description URL slug of the event, unique per operator. */
-        slug: components["parameters"]["EventSlug"]
-        photoID: components["parameters"]["PhotoID"]
-      }
-      cookie?: never
-    }
-    requestBody?: never
-    responses: {
-      /** @description Signed URL */
-      200: {
-        headers: {
-          /** @description Always `private, no-store` (URL carries credentials). */
-          "Cache-Control"?: string
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["SignedURLEnvelope"]
-        }
-      }
-      /** @description Password event requires a valid unlock token */
-      401: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Downloads disabled or original download disabled */
-      403: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Event or photo not found, or photo not READY */
-      404: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-      /** @description Invalid variant */
-      422: {
-        headers: {
-          [name: string]: unknown
-        }
-        content: {
-          "application/json": components["schemas"]["Envelope"]
-        }
-      }
-    }
-  }
+    getHealth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service is alive */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getReady: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Service is ready */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Service is not ready */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    signup: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SignupRequest"];
+            };
+        };
+        responses: {
+            /** @description Account created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthEnvelope"];
+                };
+            };
+            /** @description Email already registered */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Authenticated */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthEnvelope"];
+                };
+            };
+            /** @description Invalid credentials */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Account locked */
+            423: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    refresh: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    refreshToken: string;
+                };
+            };
+        };
+        responses: {
+            /** @description New tokens issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthEnvelope"];
+                };
+            };
+            /** @description Invalid, expired, or reused refresh token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    refreshToken?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Logged out */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    requestPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** Format: email */
+                    email: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Request accepted */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    confirmPasswordReset: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    token: string;
+                    password: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Password reset */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid or expired reset token */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    businessName?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Updated profile */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ProfileEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getBranding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Branding */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateBranding: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandingUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated branding */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error (invalid color, email, URL, or asset key) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    createBrandingAssetUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BrandingAssetRequest"];
+            };
+        };
+        responses: {
+            /** @description Presigned upload */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrandingAssetEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Unsupported asset kind or content type */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listEvents: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["EventStatus"];
+                /** @description Case-insensitive search on the event name */
+                q?: string;
+                /** @description Opaque keyset cursor returned as nextCursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of events */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventListEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid status or cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    createEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Event created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventWithSettingsEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Active event limit reached */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    deleteEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventEnvelope"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    archiveEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Archived event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventEnvelope"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid status transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEventSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Event settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventSettingsEnvelope"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateEventSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEventSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated settings */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventSettingsEnvelope"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEventDashboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Dashboard aggregates */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventDashboardEnvelope"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEventPublicURL: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Canonical public URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventURLEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEventQRPNG: {
+        parameters: {
+            query?: {
+                size?: number;
+            };
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description PNG image */
+            200: {
+                headers: {
+                    /** @description Always `public, max-age=3600`. */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/png": string;
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getEventQRSVG: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SVG image */
+            200: {
+                headers: {
+                    /** @description Always `public, max-age=3600`. */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": string;
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listEventPhotos: {
+        parameters: {
+            query?: {
+                /** @description Opaque keyset cursor returned as nextCursor */
+                cursor?: string;
+                limit?: number;
+                /** @description Optional processing status filter */
+                status?: components["schemas"]["PhotoStatus"];
+            };
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of photos */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PhotoListEnvelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid cursor, limit, or status */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    initializeUpload: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-supplied key; repeating it with the same body returns the original result. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InitializeUploadRequest"];
+            };
+        };
+        responses: {
+            /** @description Upload initialized */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InitializeUploadEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Idempotency key reused with a different request body */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error (unsupported type, too large) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getUploadStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload status */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadStatusEnvelope"];
+                };
+            };
+            /** @description Photo not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    represignSimpleUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A fresh presigned PUT URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresignedUploadEnvelope"];
+                };
+            };
+            /** @description Photo not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Not a simple upload, or the photo is no longer uploading */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getUploadPartURLs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UploadPartURLsRequest"];
+            };
+        };
+        responses: {
+            /** @description Presigned part URLs */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadPartURLsEnvelope"];
+                };
+            };
+            /** @description Photo not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Photo is not a multipart upload */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    completeMultipartUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CompleteMultipartRequest"];
+            };
+        };
+        responses: {
+            /** @description Multipart upload completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Photo not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Photo is not a multipart upload */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    abortMultipartUpload: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aborted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Photo not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Photo is not a multipart upload */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    completeUpload: {
+        parameters: {
+            query?: never;
+            header?: {
+                /** @description Client-supplied key; repeating it with the same body returns the original result. */
+                "Idempotency-Key"?: components["parameters"]["IdempotencyKey"];
+            };
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Upload completed */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadStatusEnvelope"];
+                };
+            };
+            /** @description Photo or object not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Idempotency conflict or invalid upload state */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Object size mismatch */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getPhotoURL: {
+        parameters: {
+            query: {
+                variant: components["schemas"]["PhotoVariant"];
+            };
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed URL */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedURLEnvelope"];
+                };
+            };
+            /** @description Photo not found, or the requested variant is unavailable */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid variant */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    deletePhoto: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Photo not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listDevices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All devices, including revoked ones */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceListEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    createDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description Device created; the key is shown only once */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceWithKeyEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Assigned event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    revokeDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceID: components["parameters"]["DeviceID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revoked */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Device not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    updateDevice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceID: components["parameters"]["DeviceID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateDeviceRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated device */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceEnvelope"];
+                };
+            };
+            /** @description Device not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    rotateDeviceKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                deviceID: components["parameters"]["DeviceID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description New key issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeviceWithKeyEnvelope"];
+                };
+            };
+            /** @description Device not found (also for other tenants) */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Device has been revoked */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getPublicEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public event metadata */
+            200: {
+                headers: {
+                    /**
+                     * @description `public, max-age=60` for public events; `private, no-store` for
+                     *     password events.
+                     */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicEventEnvelope"];
+                };
+            };
+            /** @description Event not found, private, deleted, or expired */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    unlockPublicEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UnlockRequest"];
+            };
+        };
+        responses: {
+            /** @description Correct password; event-scoped unlock token issued */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnlockResultEnvelope"];
+                };
+            };
+            /** @description Incorrect password */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found, private, deleted, or expired */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    listPublicPhotos: {
+        parameters: {
+            query?: {
+                /** @description Opaque keyset cursor returned as nextCursor */
+                cursor?: string;
+                limit?: number;
+            };
+            header?: {
+                /**
+                 * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
+                 *     Required for `password` events; ignored for `public` events.
+                 */
+                "X-Gallery-Unlock"?: components["parameters"]["UnlockToken"];
+            };
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of public photos */
+            200: {
+                headers: {
+                    /**
+                     * @description `public, max-age=60` for public events; `private, no-store` for
+                     *     password events.
+                     */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPhotoListEnvelope"];
+                };
+            };
+            /** @description Password event requires a valid unlock token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found, private, deleted, or expired */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid cursor or limit */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getPublicPhoto: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
+                 *     Required for `password` events; ignored for `public` events.
+                 */
+                "X-Gallery-Unlock"?: components["parameters"]["UnlockToken"];
+            };
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public photo metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PublicPhotoEnvelope"];
+                };
+            };
+            /** @description Password event requires a valid unlock token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event or photo not found, or photo not READY */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    getPublicPhotoURL: {
+        parameters: {
+            query: {
+                variant: components["schemas"]["PhotoVariant"];
+            };
+            header?: {
+                /**
+                 * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
+                 *     Required for `password` events; ignored for `public` events.
+                 */
+                "X-Gallery-Unlock"?: components["parameters"]["UnlockToken"];
+            };
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+                photoID: components["parameters"]["PhotoID"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Signed URL */
+            200: {
+                headers: {
+                    /** @description Always `private, no-store` (URL carries credentials). */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SignedURLEnvelope"];
+                };
+            };
+            /** @description Password event requires a valid unlock token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Downloads disabled or original download disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event or photo not found, or photo not READY */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid variant */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
 }

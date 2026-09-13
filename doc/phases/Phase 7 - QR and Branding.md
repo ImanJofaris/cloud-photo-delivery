@@ -1,5 +1,7 @@
 # Phase 7 — QR Codes & Branding
 
+> **Status: COMPLETE.** See the [Phase 7 Report](Phase 7 - Report.md) for what was built and how it was verified.
+
 **Goal:** Every event gets a QR code (PNG + SVG) pointing to its gallery URL. Operators can brand their account and galleries.
 
 **Depends on:** Phase 2 (events), Phase 5 (public slug).

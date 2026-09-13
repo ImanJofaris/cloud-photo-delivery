@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
-  version: 0.6.0
+  version: 0.7.0
   description: API-first backend for the Cloud Photo Delivery SaaS.
 servers:
   - url: http://localhost:8080/api/v1
@@ -260,6 +260,103 @@ paths:
                 $ref: "#/components/schemas/ProfileEnvelope"
         "401":
           description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /account/branding:
+    get:
+      tags: [Account]
+      operationId: getBranding
+      summary: Get the authenticated operator's branding
+      description: |
+        Returns the tenant's branding. When no branding has been configured the
+        string fields are null. Asset keys are replaced by short-lived signed
+        URLs. Empty string inputs clear a field on update.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Branding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+    patch:
+      tags: [Account]
+      operationId: updateBranding
+      summary: Update the authenticated operator's branding
+      description: |
+        Partial update: omitted fields are left unchanged; sending an empty
+        string clears the field. `logoKey`/`profileImageKey` must come from
+        `POST /account/branding/assets`.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrandingUpdateRequest"
+      responses:
+        "200":
+          description: Updated branding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error (invalid color, email, URL, or asset key)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /account/branding/assets:
+    post:
+      tags: [Account]
+      operationId: createBrandingAssetUpload
+      summary: Presign an upload for a branding asset
+      description: |
+        Returns a presigned PUT URL and the object key for a logo or profile
+        image. Upload the bytes straight to storage, then set the key via
+        `PATCH /account/branding`. Allowed types are PNG, JPEG, and WebP.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BrandingAssetRequest"
+      responses:
+        "201":
+          description: Presigned upload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BrandingAssetEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Unsupported asset kind or content type
           content:
             application/json:
               schema:
@@ -527,6 +624,122 @@ paths:
                 $ref: "#/components/schemas/EventDashboardEnvelope"
         "404":
           description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/url:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    get:
+      tags: [Events]
+      operationId: getEventPublicURL
+      summary: Get the event's canonical public gallery URL
+      description: |
+        Returns the URL encoded into the event's QR codes:
+        `<PUBLIC_BASE_URL>/e/{slug}`. Never a signed URL.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Canonical public URL
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventURLEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/qr.png:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    get:
+      tags: [Events]
+      operationId: getEventQRPNG
+      summary: Download the event's QR code as a PNG
+      description: |
+        Encodes the canonical public gallery URL. `size` is the image width and
+        height in pixels; values are clamped to 64–2048 (default 512). Only the
+        owning operator can fetch an event's QR code.
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: size
+          in: query
+          schema:
+            type: integer
+            minimum: 64
+            maximum: 2048
+            default: 512
+      responses:
+        "200":
+          description: PNG image
+          headers:
+            Cache-Control:
+              description: Always `public, max-age=3600`.
+              schema:
+                type: string
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /events/{eventID}/qr.svg:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    get:
+      tags: [Events]
+      operationId: getEventQRSVG
+      summary: Download the event's QR code as an SVG
+      description: |
+        Encodes the canonical public gallery URL as vector graphics. Only the
+        owning operator can fetch an event's QR code.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: SVG image
+          headers:
+            Cache-Control:
+              description: Always `public, max-age=3600`.
+              schema:
+                type: string
+          content:
+            image/svg+xml:
+              schema:
+                type: string
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found (also for other tenants)
           content:
             application/json:
               schema:
@@ -1392,6 +1605,101 @@ components:
           oneOf:
             - type: "null"
             - $ref: "#/components/schemas/Error"
+    Branding:
+      type: object
+      properties:
+        businessName:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+          description: Short-lived signed URL for the uploaded logo, if any.
+        profileImageUrl:
+          type: ["string", "null"]
+          description: Short-lived signed URL for the uploaded profile image, if any.
+        primaryColor:
+          type: ["string", "null"]
+          description: Lowercase `#rrggbb` hex color.
+        secondaryColor:
+          type: ["string", "null"]
+          description: Lowercase `#rrggbb` hex color.
+        contactEmail:
+          type: ["string", "null"]
+        contactPhone:
+          type: ["string", "null"]
+        websiteUrl:
+          type: ["string", "null"]
+        updatedAt:
+          type: ["string", "null"]
+          format: date-time
+    BrandingEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Branding"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    BrandingUpdateRequest:
+      type: object
+      description: |
+        Partial update; omitted fields are unchanged, empty strings clear.
+        `logoKey`/`profileImageKey` must be keys returned by
+        `POST /account/branding/assets`.
+      properties:
+        businessName:
+          type: string
+          maxLength: 255
+        logoKey:
+          type: string
+        profileImageKey:
+          type: string
+        primaryColor:
+          type: string
+          description: Hex color like `#1a2b3c`; empty string clears.
+        secondaryColor:
+          type: string
+        contactEmail:
+          type: string
+          maxLength: 320
+        contactPhone:
+          type: string
+          maxLength: 40
+        websiteUrl:
+          type: string
+          maxLength: 320
+    BrandingAssetRequest:
+      type: object
+      required: [kind, contentType]
+      properties:
+        kind:
+          type: string
+          enum: [logo, profileImage]
+        contentType:
+          type: string
+          enum: [image/png, image/jpeg, image/webp]
+    BrandingAsset:
+      type: object
+      required: [uploadUrl, storageKey, expiresAt]
+      properties:
+        uploadUrl:
+          type: string
+          description: Presigned PUT URL. Upload bytes directly to storage.
+        storageKey:
+          type: string
+          description: Object key to send back via `PATCH /account/branding`.
+        expiresAt:
+          type: string
+          format: date-time
+    BrandingAssetEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/BrandingAsset"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
     Envelope:
       type: object
       properties:
@@ -1641,6 +1949,22 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/EventDashboard"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    EventURL:
+      type: object
+      required: [url]
+      properties:
+        url:
+          type: string
+          description: Canonical public gallery URL (`<PUBLIC_BASE_URL>/e/{slug}`).
+    EventURLEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/EventURL"
         error:
           oneOf:
             - type: "null"
@@ -2009,6 +2333,34 @@ components:
         requiresUnlock:
           type: boolean
           description: True when the event is password-protected and no valid unlock token was supplied.
+        branding:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/PublicBranding"
+    PublicBranding:
+      type: object
+      description: |
+        Tenant branding for the public gallery. All fields are nullable; the
+        gallery falls back to event metadata and default theme tokens. `logoUrl`
+        is a short-lived signed URL that stays valid for longer than the 60 s
+        metadata cache.
+      properties:
+        businessName:
+          type: ["string", "null"]
+        logoUrl:
+          type: ["string", "null"]
+        primaryColor:
+          type: ["string", "null"]
+          description: Lowercase `#rrggbb` hex color.
+        secondaryColor:
+          type: ["string", "null"]
+          description: Lowercase `#rrggbb` hex color.
+        contactEmail:
+          type: ["string", "null"]
+        contactPhone:
+          type: ["string", "null"]
+        websiteUrl:
+          type: ["string", "null"]
     PublicEventEnvelope:
       type: object
       properties:

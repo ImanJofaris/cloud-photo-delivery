@@ -2,6 +2,7 @@ package gallery
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -9,16 +10,23 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/stretchr/testify/require"
 )
 
 func newTestService() (*Service, *fakeRepo, *fakePresigner) {
+	svc, repo, presigner, _ := newTestServiceFull()
+	return svc, repo, presigner
+}
+
+func newTestServiceFull() (*Service, *fakeRepo, *fakePresigner, *fakeBrandingProvider) {
 	repo := newFakeRepo()
 	presigner := &fakePresigner{}
+	branding := &fakeBrandingProvider{}
 	urls := photos.NewSignedURLGenerator(presigner, 5*time.Minute)
 	tokens := NewUnlockTokens("secret", 30*time.Minute)
-	svc := NewService(repo, urls, tokens, func(hash, pw string) bool { return hash == "hash:"+pw })
-	return svc, repo, presigner
+	svc := NewService(repo, urls, tokens, func(hash, pw string) bool { return hash == "hash:"+pw }, branding)
+	return svc, repo, presigner, branding
 }
 
 func codeOf(t *testing.T, err error) string {
@@ -310,4 +318,44 @@ func TestService_VariantsFor(t *testing.T) {
 
 	p.ThumbnailKey = nil
 	require.Equal(t, []Variant{VariantMedium, VariantLarge}, VariantsFor(p))
+}
+
+func TestService_GetEvent_AttachesBranding(t *testing.T) {
+	svc, repo, _, branding := newTestServiceFull()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	branding.view = &users.BrandingView{
+		BusinessName: "Booth Co",
+		PrimaryColor: "#112233",
+		LogoURL:      "https://example.test/logo.png",
+	}
+
+	ve, _, err := svc.GetEvent(context.Background(), "wedding", "")
+	require.NoError(t, err)
+	require.NotNil(t, ve.Branding)
+	require.Equal(t, "Booth Co", ve.Branding.BusinessName)
+	require.Equal(t, e.UserID, branding.userID)
+}
+
+func TestService_GetEvent_BrandingErrorIsInternal(t *testing.T) {
+	svc, repo, _, branding := newTestServiceFull()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	branding.err = errors.New("db down")
+
+	_, _, err := svc.GetEvent(context.Background(), "wedding", "")
+	require.Equal(t, "INTERNAL_ERROR", codeOf(t, err))
+}
+
+func TestService_ListPhotos_AttachesBranding(t *testing.T) {
+	svc, repo, _, branding := newTestServiceFull()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	repo.photos[e.ID] = append(repo.photos[e.ID], readyPhoto(e.ID, time.Now()))
+	branding.view = &users.BrandingView{BusinessName: "Booth Co"}
+
+	ve, _, err := svc.ListPhotos(context.Background(), "wedding", "", "", 0)
+	require.NoError(t, err)
+	require.NotNil(t, ve.Branding)
+	require.Equal(t, "Booth Co", ve.Branding.BusinessName)
 }
