@@ -17,6 +17,7 @@ import (
 	awss3 "github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/devices"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
@@ -201,6 +202,18 @@ func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, str
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
+	mustExec(t, pool, `CREATE TABLE devices (
+		id UUID PRIMARY KEY,
+		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+		name VARCHAR(120) NOT NULL,
+		key_prefix VARCHAR(12) NOT NULL,
+		key_hash TEXT NOT NULL,
+		assigned_event_id UUID REFERENCES events(id) ON DELETE SET NULL,
+		revoked_at TIMESTAMPTZ,
+		last_used_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+	)`)
+	mustExec(t, pool, `CREATE UNIQUE INDEX idx_devices_prefix ON devices(key_prefix)`)
 
 	endpoint := startMinioE2E(t)
 	createBucketE2E(t, endpoint, "cpd-photos")
@@ -240,7 +253,24 @@ func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, str
 	photoRepo := photos.NewRepository(pool)
 	uploadRepo := uploads.NewRepository(pool)
 	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool))
-	uploadHandler := uploads.NewHandler(uploadSvc, func(r *http.Request) (string, bool) {
+	uploadHandler := uploads.NewHandler(uploadSvc, func(r *http.Request) (uploads.Actor, bool) {
+		if device, ok := devices.FromContext(r.Context()); ok {
+			return uploads.Actor{
+				UserID:        device.UserID,
+				DeviceID:      device.ID,
+				AssignedEvent: device.AssignedEventID,
+			}, true
+		}
+		id, ok := auth.UserID(r.Context())
+		if !ok {
+			return uploads.Actor{}, false
+		}
+		return uploads.Actor{UserID: id}, true
+	})
+
+	deviceRepo := devices.NewRepository(pool)
+	deviceSvc := devices.NewService(deviceRepo)
+	deviceHandler := devices.NewHandler(deviceSvc, func(r *http.Request) (string, bool) {
 		id, ok := auth.UserID(r.Context())
 		if !ok {
 			return "", false
@@ -255,10 +285,20 @@ func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, str
 			r.Use(authSvc.RequireAuth)
 			r.Route("/events", func(r chi.Router) {
 				r.Post("/", eventHandler.Create)
-				r.Route("/{eventID}", func(r chi.Router) {
-					r.Post("/uploads", uploadHandler.Initialize)
+			})
+			r.Route("/devices", func(r chi.Router) {
+				r.Post("/", deviceHandler.Create)
+				r.Get("/", deviceHandler.List)
+				r.Route("/{deviceID}", func(r chi.Router) {
+					r.Patch("/", deviceHandler.Update)
+					r.Delete("/", deviceHandler.Revoke)
+					r.Post("/rotate", deviceHandler.Rotate)
 				})
 			})
+		})
+		r.Group(func(r chi.Router) {
+			r.Use(deviceSvc.RequireDeviceOrOperator(authSvc.RequireAuth))
+			r.Post("/events/{eventID}/uploads", uploadHandler.Initialize)
 			r.Route("/uploads/{photoID}", func(r chi.Router) {
 				r.Get("/", uploadHandler.Status)
 				r.Post("/complete", uploadHandler.Complete)

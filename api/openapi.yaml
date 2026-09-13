@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
-  version: 0.5.0
+  version: 0.6.0
   description: API-first backend for the Cloud Photo Delivery SaaS.
 servers:
   - url: http://localhost:8080/api/v1
@@ -12,6 +12,7 @@ tags:
   - name: Account
   - name: Events
   - name: Uploads
+  - name: Devices
   - name: Public Gallery
 paths:
   /healthz:
@@ -538,8 +539,13 @@ paths:
       tags: [Uploads]
       operationId: initializeUpload
       summary: Initialize a photo upload and receive presigned URL(s)
+      description: |
+        Accepts an operator JWT (any owned event) or a device key assigned to
+        the target event. Devices may only initialize uploads for their
+        assigned event; other events return 404.
       security:
         - bearerAuth: []
+        - deviceKey: []
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       requestBody:
@@ -589,6 +595,7 @@ paths:
       summary: Poll the status of an upload (for resume/recovery)
       security:
         - bearerAuth: []
+        - deviceKey: []
       responses:
         "200":
           description: Upload status
@@ -612,6 +619,7 @@ paths:
       summary: Get presigned URLs for multipart part numbers
       security:
         - bearerAuth: []
+        - deviceKey: []
       requestBody:
         required: true
         content:
@@ -653,6 +661,7 @@ paths:
       summary: Complete a multipart upload with the uploaded part ETags
       security:
         - bearerAuth: []
+        - deviceKey: []
       requestBody:
         required: true
         content:
@@ -694,6 +703,7 @@ paths:
       summary: Abort a multipart upload
       security:
         - bearerAuth: []
+        - deviceKey: []
       responses:
         "204":
           description: Aborted
@@ -719,6 +729,7 @@ paths:
       summary: Verify the uploaded object and mark the photo ready for processing
       security:
         - bearerAuth: []
+        - deviceKey: []
       parameters:
         - $ref: "#/components/parameters/IdempotencyKey"
       responses:
@@ -742,6 +753,147 @@ paths:
                 $ref: "#/components/schemas/Envelope"
         "422":
           description: Object size mismatch
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /devices:
+    post:
+      tags: [Devices]
+      operationId: createDevice
+      summary: Register a photobooth device and issue its API key
+      description: |
+        The raw API key is returned exactly once, in this response. Only its
+        SHA-256 hash is stored; store the key on the device immediately.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateDeviceRequest"
+      responses:
+        "201":
+          description: Device created; the key is shown only once
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceWithKeyEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Assigned event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+    get:
+      tags: [Devices]
+      operationId: listDevices
+      summary: List the authenticated operator's devices
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: All devices, including revoked ones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceListEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /devices/{deviceID}:
+    parameters:
+      - $ref: "#/components/parameters/DeviceID"
+    patch:
+      tags: [Devices]
+      operationId: updateDevice
+      summary: Rename a device
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDeviceRequest"
+      responses:
+        "200":
+          description: Updated device
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceEnvelope"
+        "404":
+          description: Device not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+    delete:
+      tags: [Devices]
+      operationId: revokeDevice
+      summary: Revoke a device key (kept for audit)
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Revoked
+        "404":
+          description: Device not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
+  /devices/{deviceID}/rotate:
+    parameters:
+      - $ref: "#/components/parameters/DeviceID"
+    post:
+      tags: [Devices]
+      operationId: rotateDeviceKey
+      summary: Rotate a device key
+      description: Invalidates the previous key immediately and returns the new key once.
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: New key issued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeviceWithKeyEnvelope"
+        "404":
+          description: Device not found (also for other tenants)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Device has been revoked
           content:
             application/json:
               schema:
@@ -974,6 +1126,13 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    deviceKey:
+      type: apiKey
+      in: header
+      name: X-Api-Key
+      description: |
+        Device API key issued by `POST /devices` (format `cpd_live_<prefix>_<secret>`).
+        `Authorization: Device <key>` is also accepted.
   parameters:
     EventID:
       name: eventID
@@ -1001,6 +1160,13 @@ components:
         type: string
     PhotoID:
       name: photoID
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    DeviceID:
+      name: deviceID
       in: path
       required: true
       schema:
@@ -1473,6 +1639,93 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/UploadStatus"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    Device:
+      type: object
+      required: [id, name, keyPrefix, assignedEventId, revokedAt, lastUsedAt, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        keyPrefix:
+          type: string
+          description: First half of the key, used for lookup. Not secret.
+        assignedEventId:
+          type: ["string", "null"]
+          format: uuid
+          description: Event this device may upload to; null means no upload scope.
+        revokedAt:
+          type: ["string", "null"]
+          format: date-time
+        lastUsedAt:
+          type: ["string", "null"]
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    DeviceWithKey:
+      type: object
+      required: [device, key]
+      properties:
+        device:
+          $ref: "#/components/schemas/Device"
+        key:
+          type: string
+          description: Raw API key. Returned only by create and rotate.
+    CreateDeviceRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+        assignedEventId:
+          type: string
+          format: uuid
+          description: Optional event the device may upload to.
+    UpdateDeviceRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          maxLength: 120
+    DeviceList:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/Device"
+    DeviceEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/Device"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    DeviceWithKeyEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DeviceWithKey"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    DeviceListEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/DeviceList"
         error:
           oneOf:
             - type: "null"

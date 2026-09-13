@@ -25,7 +25,7 @@ func newTestHandler() (*Handler, uuid.UUID, uuid.UUID, *fakePhotoRepo) {
 	uploadRepo.owned[eventID] = true
 	uploadRepo.owners[eventID] = userID
 
-	h := NewHandler(svc, func(*http.Request) (string, bool) { return userID.String(), true })
+	h := NewHandler(svc, func(*http.Request) (Actor, bool) { return Actor{UserID: userID}, true })
 	return h, userID, eventID, photoRepo
 }
 
@@ -130,7 +130,7 @@ func TestHandler_Unauthenticated(t *testing.T) {
 	photoRepo := newFakePhotoRepo()
 	uploadRepo := newFakeUploadRepo()
 	svc := NewService(photoRepo, uploadRepo, &fakeStore{}, &fakeQueue{})
-	h := NewHandler(svc, func(*http.Request) (string, bool) { return "", false })
+	h := NewHandler(svc, func(*http.Request) (Actor, bool) { return Actor{}, false })
 
 	r := httptest.NewRequest(http.MethodGet, "/uploads/x", nil)
 	rec := httptest.NewRecorder()

@@ -13,6 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/devices"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/gallery"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
@@ -145,7 +146,24 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		store = s
 	}
 	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool.Pool))
-	uploadHandler := uploads.NewHandler(uploadSvc, func(req *http.Request) (string, bool) {
+	uploadHandler := uploads.NewHandler(uploadSvc, func(req *http.Request) (uploads.Actor, bool) {
+		if device, ok := devices.FromContext(req.Context()); ok {
+			return uploads.Actor{
+				UserID:        device.UserID,
+				DeviceID:      device.ID,
+				AssignedEvent: device.AssignedEventID,
+			}, true
+		}
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return uploads.Actor{}, false
+		}
+		return uploads.Actor{UserID: id}, true
+	})
+
+	deviceRepo := devices.NewRepository(pool.Pool)
+	deviceSvc := devices.NewService(deviceRepo)
+	deviceHandler := devices.NewHandler(deviceSvc, func(req *http.Request) (string, bool) {
 		id, ok := auth.UserID(req.Context())
 		if !ok {
 			return "", false
@@ -160,6 +178,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
+	deviceUploadLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
 
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Group(func(r chi.Router) {
@@ -199,11 +218,24 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 					r.Get("/settings", eventHandler.GetSettings)
 					r.Patch("/settings", eventHandler.UpdateSettings)
 					r.Get("/dashboard", eventHandler.Dashboard)
-
-					r.Post("/uploads", uploadHandler.Initialize)
 				})
 			})
 
+			r.Route("/devices", func(r chi.Router) {
+				r.Post("/", deviceHandler.Create)
+				r.Get("/", deviceHandler.List)
+				r.Route("/{deviceID}", func(r chi.Router) {
+					r.Patch("/", deviceHandler.Update)
+					r.Delete("/", deviceHandler.Revoke)
+					r.Post("/rotate", deviceHandler.Rotate)
+				})
+			})
+		})
+
+		// Uploads accept an operator JWT or a device key scoped to the event.
+		r.Group(func(r chi.Router) {
+			r.Use(deviceSvc.RequireDeviceOrOperator(authSvc.RequireAuth))
+			r.With(devices.RateLimit(deviceUploadLimiter)).Post("/events/{eventID}/uploads", uploadHandler.Initialize)
 			r.Route("/uploads/{photoID}", func(r chi.Router) {
 				r.Get("/", uploadHandler.Status)
 				r.Post("/parts", uploadHandler.Parts)

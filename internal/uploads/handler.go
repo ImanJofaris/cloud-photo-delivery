@@ -47,24 +47,20 @@ func toUploadStatusDTO(p *photos.Photo) uploadStatusDTO {
 }
 
 type Handler struct {
-	svc   *Service
-	getID func(*http.Request) (string, bool)
+	svc     *Service
+	resolve func(*http.Request) (Actor, bool)
 }
 
-func NewHandler(svc *Service, resolveUserID func(*http.Request) (string, bool)) *Handler {
-	return &Handler{svc: svc, getID: resolveUserID}
+func NewHandler(svc *Service, resolveActor func(*http.Request) (Actor, bool)) *Handler {
+	return &Handler{svc: svc, resolve: resolveActor}
 }
 
-func (h *Handler) userID(r *http.Request) (uuid.UUID, error) {
-	raw, ok := h.getID(r)
-	if !ok {
-		return uuid.Nil, apperr.Unauthorized()
+func (h *Handler) actor(r *http.Request) (Actor, error) {
+	a, ok := h.resolve(r)
+	if !ok || a.UserID == uuid.Nil {
+		return Actor{}, apperr.Unauthorized()
 	}
-	id, err := uuid.Parse(raw)
-	if err != nil {
-		return uuid.Nil, apperr.Unauthorized().WithCause(err)
-	}
-	return id, nil
+	return a, nil
 }
 
 func (h *Handler) eventID(r *http.Request) (uuid.UUID, error) {
@@ -99,7 +95,7 @@ type initializeRequest struct {
 }
 
 func (h *Handler) Initialize(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.userID(r)
+	actor, err := h.actor(r)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -115,7 +111,7 @@ func (h *Handler) Initialize(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.svc.Initialize(r.Context(), userID, InitParams{
+	result, err := h.svc.Initialize(r.Context(), actor, InitParams{
 		EventID:        eventID,
 		Filename:       req.Filename,
 		ContentType:    req.ContentType,
@@ -148,7 +144,7 @@ type partsRequest struct {
 }
 
 func (h *Handler) Parts(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.userID(r)
+	actor, err := h.actor(r)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -164,7 +160,7 @@ func (h *Handler) Parts(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	result, err := h.svc.Parts(r.Context(), userID, photoID, req.PartNumbers)
+	result, err := h.svc.Parts(r.Context(), actor, photoID, req.PartNumbers)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -188,7 +184,7 @@ type completeMultipartRequest struct {
 }
 
 func (h *Handler) CompleteMultipart(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.userID(r)
+	actor, err := h.actor(r)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -208,7 +204,7 @@ func (h *Handler) CompleteMultipart(w http.ResponseWriter, r *http.Request) {
 		parts = append(parts, CompletedPart{PartNumber: p.PartNumber, ETag: p.ETag})
 	}
 
-	if err := h.svc.CompleteMultipart(r.Context(), userID, photoID, parts); err != nil {
+	if err := h.svc.CompleteMultipart(r.Context(), actor, photoID, parts); err != nil {
 		httpx.Error(w, r, err)
 		return
 	}
@@ -216,7 +212,7 @@ func (h *Handler) CompleteMultipart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AbortMultipart(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.userID(r)
+	actor, err := h.actor(r)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -226,7 +222,7 @@ func (h *Handler) AbortMultipart(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	if err := h.svc.AbortMultipart(r.Context(), userID, photoID); err != nil {
+	if err := h.svc.AbortMultipart(r.Context(), actor, photoID); err != nil {
 		httpx.Error(w, r, err)
 		return
 	}
@@ -234,7 +230,7 @@ func (h *Handler) AbortMultipart(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.userID(r)
+	actor, err := h.actor(r)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -244,7 +240,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	photo, err := h.svc.Complete(r.Context(), userID, photoID, r.Header.Get("Idempotency-Key"))
+	photo, err := h.svc.Complete(r.Context(), actor, photoID, r.Header.Get("Idempotency-Key"))
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -253,7 +249,7 @@ func (h *Handler) Complete(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
-	userID, err := h.userID(r)
+	actor, err := h.actor(r)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
@@ -263,7 +259,7 @@ func (h *Handler) Status(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
-	photo, err := h.svc.Status(r.Context(), userID, photoID)
+	photo, err := h.svc.Status(r.Context(), actor, photoID)
 	if err != nil {
 		httpx.Error(w, r, err)
 		return

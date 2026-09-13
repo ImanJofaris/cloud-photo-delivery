@@ -35,6 +35,7 @@ Frontend conventions: [`doc/frontend/Conventions.md`](frontend/Conventions.md).
 - [Phase 4 — Report](phases/Phase 4 - Report.md) — COMPLETE
 - [Phase 4.1 — Report](phases/Phase 4.1 - Report.md) — COMPLETE (lossy WebP + bilinear resize)
 - [Phase 5 — Report](phases/Phase 5 - Report.md) — COMPLETE (public gallery API; UI deferred)
+- [Phase 6 — Report](phases/Phase 6 - Report.md) — COMPLETE (devices & API keys)
 - [Phase F0 — Report](phases/Phase F0 - Report.md) — COMPLETE (web foundation)
 - [Phase F1 — Report](phases/Phase F1 - Report.md) — COMPLETE (BFF-lite auth + shell)
 - [Phase F2 — Report](phases/Phase F2 - Report.md) — COMPLETE (events dashboard)

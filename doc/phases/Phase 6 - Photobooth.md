@@ -1,5 +1,7 @@
 # Phase 6 — Photobooth Devices & API Keys
 
+> **Status: COMPLETE.** See the [Phase 6 Report](Phase 6 - Report.md) for what was built and how it was verified.
+
 **Goal:** Photobooth software authenticates with API keys, is scoped to an assigned event, and uploads automatically through the Phase 3 upload API. This is the core differentiator.
 
 **Depends on:** Phase 3 (uploads). Reuses Phase 1 auth concepts.
@@ -20,7 +22,7 @@
 
 ---
 
-## 2. Database (migration `0006_devices.sql`)
+## 2. Database (migration `0007_devices.sql` — `0006` was taken by gallery)
 
 ```sql
 CREATE TABLE devices (

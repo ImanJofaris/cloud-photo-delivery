@@ -36,6 +36,15 @@ type JobQueue interface {
 	EnqueueProcessPhoto(ctx context.Context, photoID, eventID uuid.UUID) error
 }
 
+// Actor is the authenticated caller: an operator (JWT) or a device key.
+type Actor struct {
+	UserID        uuid.UUID
+	DeviceID      uuid.UUID
+	AssignedEvent *uuid.UUID
+}
+
+func (a Actor) IsDevice() bool { return a.DeviceID != uuid.Nil }
+
 type InitParams struct {
 	EventID        uuid.UUID
 	Filename       string
@@ -97,8 +106,8 @@ func conflictError(code, msg string) *apperr.Error {
 	return apperr.New(code, msg, 409)
 }
 
-func (s *Service) Initialize(ctx context.Context, userID uuid.UUID, p InitParams) (*InitResult, error) {
-	owned, err := s.repo.EventOwnedBy(ctx, userID, p.EventID)
+func (s *Service) Initialize(ctx context.Context, actor Actor, p InitParams) (*InitResult, error) {
+	owned, err := s.actorOwnsEvent(ctx, actor, p.EventID)
 	if err != nil {
 		return nil, apperr.Internal().WithCause(err)
 	}
@@ -112,7 +121,7 @@ func (s *Service) Initialize(ctx context.Context, userID uuid.UUID, p InitParams
 	}
 
 	photoID := uuid.New()
-	storageKey := r2.OriginalKey(userID, p.EventID, photoID, filename)
+	storageKey := r2.OriginalKey(actor.UserID, p.EventID, photoID, filename)
 	kind := photos.KindSimple
 	if p.Size >= MultipartFloor {
 		kind = photos.KindMultipart
@@ -124,7 +133,7 @@ func (s *Service) Initialize(ctx context.Context, userID uuid.UUID, p InitParams
 			if existing.RequestHash != hash {
 				return nil, conflictError("IDEMPOTENCY_CONFLICT", "Idempotency-Key was reused with a different request")
 			}
-			return s.rebuildInit(ctx, userID, existing.PhotoID, kind)
+			return s.rebuildInit(ctx, actor.UserID, existing.PhotoID, kind)
 		} else if !errors.Is(err, ErrNotFound) {
 			return nil, apperr.Internal().WithCause(err)
 		}
@@ -155,7 +164,7 @@ func (s *Service) Initialize(ctx context.Context, userID uuid.UUID, p InitParams
 
 	if p.IdempotencyKey != "" {
 		err := s.repo.SaveIdempotency(ctx, p.IdempotencyKey, IdempotencyRecord{
-			UserID:      userID,
+			UserID:      actor.UserID,
 			PhotoID:     photo.ID,
 			RequestHash: requestHash(p.EventID, filename, p.ContentType, p.Size),
 		})
@@ -207,8 +216,8 @@ func (s *Service) rebuildInit(ctx context.Context, userID, photoID uuid.UUID, ki
 	return s.buildInitResult(ctx, photo, kind)
 }
 
-func (s *Service) Parts(ctx context.Context, userID, photoID uuid.UUID, partNumbers []int) (*PartsResult, error) {
-	photo, err := s.photoForUser(ctx, userID, photoID)
+func (s *Service) Parts(ctx context.Context, actor Actor, photoID uuid.UUID, partNumbers []int) (*PartsResult, error) {
+	photo, err := s.photoForActor(ctx, actor, photoID)
 	if err != nil {
 		return nil, err
 	}
@@ -242,8 +251,8 @@ type CompletedPart struct {
 	ETag       string
 }
 
-func (s *Service) CompleteMultipart(ctx context.Context, userID, photoID uuid.UUID, parts []CompletedPart) error {
-	photo, err := s.photoForUser(ctx, userID, photoID)
+func (s *Service) CompleteMultipart(ctx context.Context, actor Actor, photoID uuid.UUID, parts []CompletedPart) error {
+	photo, err := s.photoForActor(ctx, actor, photoID)
 	if err != nil {
 		return err
 	}
@@ -279,8 +288,8 @@ func (s *Service) CompleteMultipart(ctx context.Context, userID, photoID uuid.UU
 	return nil
 }
 
-func (s *Service) AbortMultipart(ctx context.Context, userID, photoID uuid.UUID) error {
-	photo, err := s.photoForUser(ctx, userID, photoID)
+func (s *Service) AbortMultipart(ctx context.Context, actor Actor, photoID uuid.UUID) error {
+	photo, err := s.photoForActor(ctx, actor, photoID)
 	if err != nil {
 		return err
 	}
@@ -300,8 +309,8 @@ func (s *Service) AbortMultipart(ctx context.Context, userID, photoID uuid.UUID)
 	return nil
 }
 
-func (s *Service) Complete(ctx context.Context, userID, photoID uuid.UUID, idempotencyKey string) (*photos.Photo, error) {
-	photo, err := s.photoForUser(ctx, userID, photoID)
+func (s *Service) Complete(ctx context.Context, actor Actor, photoID uuid.UUID, idempotencyKey string) (*photos.Photo, error) {
+	photo, err := s.photoForActor(ctx, actor, photoID)
 	if err != nil {
 		return nil, err
 	}
@@ -314,7 +323,7 @@ func (s *Service) Complete(ctx context.Context, userID, photoID uuid.UUID, idemp
 			}
 		} else if errors.Is(err, ErrNotFound) {
 			if err := s.repo.SaveIdempotency(ctx, idempotencyKey, IdempotencyRecord{
-				UserID: userID, PhotoID: photoID, RequestHash: hash,
+				UserID: actor.UserID, PhotoID: photoID, RequestHash: hash,
 			}); err != nil {
 				return nil, apperr.Internal().WithCause(err)
 			}
@@ -354,11 +363,11 @@ func (s *Service) Complete(ctx context.Context, userID, photoID uuid.UUID, idemp
 	return updated, nil
 }
 
-func (s *Service) Status(ctx context.Context, userID, photoID uuid.UUID) (*photos.Photo, error) {
-	return s.photoForUser(ctx, userID, photoID)
+func (s *Service) Status(ctx context.Context, actor Actor, photoID uuid.UUID) (*photos.Photo, error) {
+	return s.photoForActor(ctx, actor, photoID)
 }
 
-func (s *Service) photoForUser(ctx context.Context, userID, photoID uuid.UUID) (*photos.Photo, error) {
+func (s *Service) photoForActor(ctx context.Context, actor Actor, photoID uuid.UUID) (*photos.Photo, error) {
 	photo, err := s.photos.GetByID(ctx, photoID)
 	if err != nil {
 		if errors.Is(err, photos.ErrNotFound) {
@@ -366,7 +375,7 @@ func (s *Service) photoForUser(ctx context.Context, userID, photoID uuid.UUID) (
 		}
 		return nil, apperr.Internal().WithCause(err)
 	}
-	owned, err := s.repo.EventOwnedBy(ctx, userID, photo.EventID)
+	owned, err := s.actorOwnsEvent(ctx, actor, photo.EventID)
 	if err != nil {
 		return nil, apperr.Internal().WithCause(err)
 	}
@@ -374,6 +383,15 @@ func (s *Service) photoForUser(ctx context.Context, userID, photoID uuid.UUID) (
 		return nil, notFound()
 	}
 	return photo, nil
+}
+
+// actorOwnsEvent is true when an operator owns the event or a device is
+// assigned to it. Devices without an assignment cannot access any event.
+func (s *Service) actorOwnsEvent(ctx context.Context, actor Actor, eventID uuid.UUID) (bool, error) {
+	if actor.IsDevice() {
+		return actor.AssignedEvent != nil && *actor.AssignedEvent == eventID, nil
+	}
+	return s.repo.EventOwnedBy(ctx, actor.UserID, eventID)
 }
 
 func validateUpload(filename, contentType string, size int64) *apperr.Error {

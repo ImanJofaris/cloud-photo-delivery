@@ -266,7 +266,12 @@ export interface paths {
     }
     get?: never
     put?: never
-    /** Initialize a photo upload and receive presigned URL(s) */
+    /**
+     * Initialize a photo upload and receive presigned URL(s)
+     * @description Accepts an operator JWT (any owned event) or a device key assigned to
+     *     the target event. Devices may only initialize uploads for their
+     *     assigned event; other events return 404.
+     */
     post: operations["initializeUpload"]
     delete?: never
     options?: never
@@ -363,6 +368,70 @@ export interface paths {
     put?: never
     /** Verify the uploaded object and mark the photo ready for processing */
     post: operations["completeUpload"]
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/devices": {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /** List the authenticated operator's devices */
+    get: operations["listDevices"]
+    put?: never
+    /**
+     * Register a photobooth device and issue its API key
+     * @description The raw API key is returned exactly once, in this response. Only its
+     *     SHA-256 hash is stored; store the key on the device immediately.
+     */
+    post: operations["createDevice"]
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/devices/{deviceID}": {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        deviceID: components["parameters"]["DeviceID"]
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /** Revoke a device key (kept for audit) */
+    delete: operations["revokeDevice"]
+    options?: never
+    head?: never
+    /** Rename a device */
+    patch: operations["updateDevice"]
+    trace?: never
+  }
+  "/devices/{deviceID}/rotate": {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        deviceID: components["parameters"]["DeviceID"]
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Rotate a device key
+     * @description Invalidates the previous key immediately and returns the new key once.
+     */
+    post: operations["rotateDeviceKey"]
     delete?: never
     options?: never
     head?: never
@@ -725,6 +794,55 @@ export interface components {
       data?: components["schemas"]["UploadStatus"]
       error?: null | components["schemas"]["Error"]
     }
+    Device: {
+      /** Format: uuid */
+      id: string
+      name: string
+      /** @description First half of the key, used for lookup. Not secret. */
+      keyPrefix: string
+      /**
+       * Format: uuid
+       * @description Event this device may upload to; null means no upload scope.
+       */
+      assignedEventId: string | null
+      /** Format: date-time */
+      revokedAt: string | null
+      /** Format: date-time */
+      lastUsedAt: string | null
+      /** Format: date-time */
+      createdAt: string
+    }
+    DeviceWithKey: {
+      device: components["schemas"]["Device"]
+      /** @description Raw API key. Returned only by create and rotate. */
+      key: string
+    }
+    CreateDeviceRequest: {
+      name: string
+      /**
+       * Format: uuid
+       * @description Optional event the device may upload to.
+       */
+      assignedEventId?: string
+    }
+    UpdateDeviceRequest: {
+      name: string
+    }
+    DeviceList: {
+      items: components["schemas"]["Device"][]
+    }
+    DeviceEnvelope: {
+      data?: components["schemas"]["Device"]
+      error?: null | components["schemas"]["Error"]
+    }
+    DeviceWithKeyEnvelope: {
+      data?: components["schemas"]["DeviceWithKey"]
+      error?: null | components["schemas"]["Error"]
+    }
+    DeviceListEnvelope: {
+      data?: components["schemas"]["DeviceList"]
+      error?: null | components["schemas"]["Error"]
+    }
     /**
      * @description `thumbnail`, `medium`, `large` are generated derivatives; `original` is
      *     the uploaded file and is gated by `allow_original_download`.
@@ -810,6 +928,7 @@ export interface components {
      */
     UnlockToken: string
     PhotoID: string
+    DeviceID: string
     /** @description Client-supplied key; repeating it with the same body returns the original result. */
     IdempotencyKey: string
   }
@@ -1774,6 +1893,199 @@ export interface operations {
       }
       /** @description Object size mismatch */
       422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  listDevices: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description All devices, including revoked ones */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["DeviceListEnvelope"]
+        }
+      }
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  createDevice: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["CreateDeviceRequest"]
+      }
+    }
+    responses: {
+      /** @description Device created; the key is shown only once */
+      201: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["DeviceWithKeyEnvelope"]
+        }
+      }
+      /** @description Unauthenticated */
+      401: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+      /** @description Assigned event not found */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  revokeDevice: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        deviceID: components["parameters"]["DeviceID"]
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Revoked */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Device not found (also for other tenants) */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  updateDevice: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        deviceID: components["parameters"]["DeviceID"]
+      }
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        "application/json": components["schemas"]["UpdateDeviceRequest"]
+      }
+    }
+    responses: {
+      /** @description Updated device */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["DeviceEnvelope"]
+        }
+      }
+      /** @description Device not found (also for other tenants) */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+      /** @description Validation error */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  rotateDeviceKey: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        deviceID: components["parameters"]["DeviceID"]
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description New key issued */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["DeviceWithKeyEnvelope"]
+        }
+      }
+      /** @description Device not found (also for other tenants) */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+      /** @description Device has been revoked */
+      409: {
         headers: {
           [name: string]: unknown
         }
