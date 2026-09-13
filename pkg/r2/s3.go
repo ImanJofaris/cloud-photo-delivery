@@ -180,6 +180,30 @@ func isNotFound(err error) bool {
 	return errors.As(err, &nsf)
 }
 
+// ListObjects returns every object under prefix, following pagination so large
+// buckets are never truncated silently.
+func (s *S3Store) ListObjects(ctx context.Context, prefix string) ([]ObjectInfo, error) {
+	var out []ObjectInfo
+	var token *string
+	for {
+		page, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(s.bucket),
+			Prefix:            aws.String(prefix),
+			ContinuationToken: token,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("list objects: %w", err)
+		}
+		for _, obj := range page.Contents {
+			out = append(out, ObjectInfo{Key: aws.ToString(obj.Key), Size: aws.ToInt64(obj.Size)})
+		}
+		if !aws.ToBool(page.IsTruncated) {
+			return out, nil
+		}
+		token = page.NextContinuationToken
+	}
+}
+
 func (s *S3Store) CreateMultipartUpload(ctx context.Context, key, contentType string) (string, error) {
 	out, err := s.client.CreateMultipartUpload(ctx, &s3.CreateMultipartUploadInput{
 		Bucket:      aws.String(s.bucket),

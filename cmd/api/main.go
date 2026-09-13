@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/admin"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/analytics"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/billing"
@@ -212,6 +213,9 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		return id.String(), true
 	})
 
+	adminSvc := admin.NewService(admin.NewRepository(pool.Pool))
+	adminHandler := admin.NewHandler(adminSvc)
+
 	galleryRepo := gallery.NewRepository(pool.Pool)
 	galleryURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	galleryTokens := gallery.NewUnlockTokens(cfg.JWTSecret, cfg.GalleryUnlockTTL)
@@ -324,6 +328,16 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 					r.Post("/rotate", deviceHandler.Rotate)
 				})
 			})
+		})
+
+		// Platform administration. RequireAdmin runs after RequireAuth and
+		// rejects authenticated non-admin accounts.
+		r.Group(func(r chi.Router) {
+			r.Use(authSvc.RequireAuth, adminSvc.RequireAdmin)
+			r.Get("/admin/stats", adminHandler.Stats)
+			r.Get("/admin/users", adminHandler.Users)
+			r.Get("/admin/subscriptions", adminHandler.Subscriptions)
+			r.Get("/admin/health", adminHandler.Health)
 		})
 
 		// Uploads accept an operator JWT or a device key scoped to the event.

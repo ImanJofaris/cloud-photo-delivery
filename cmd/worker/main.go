@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/admin"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/exports"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/jobs"
@@ -30,6 +31,9 @@ const (
 // lifecycleInterval is how often the scheduler enqueues expiry and purge
 // scans. EnqueueUnique keeps at most one instance in flight.
 const lifecycleInterval = 15 * time.Minute
+
+// reconcileInterval is how often storage counters are compared with R2.
+const reconcileInterval = 24 * time.Hour
 
 func main() {
 	cfg, err := config.Load()
@@ -95,6 +99,11 @@ func main() {
 		exportRepo, photoRepo.EventOwner, photoRepo, store, cfg.ExportTTL, log))
 	registry.Register(exports.JobExportCleanup, exports.CleanupHandler(exportRepo, store, log))
 
+	// Storage reconciliation compares the tenant storage counters with the
+	// original objects in R2 and reports drift; it never deletes objects.
+	registry.Register(admin.JobStorageReconcile, admin.ReconcileHandler(
+		admin.NewRepository(pool.Pool), store, time.Now, admin.LogReconcileReporter{Log: log}))
+
 	queue := jobs.NewPostgresQueue(pool.Pool)
 	workerID := workerName(cfg.Env)
 
@@ -102,6 +111,7 @@ func main() {
 		jobs.Schedule{Type: events.JobEventExpire, Every: lifecycleInterval},
 		jobs.Schedule{Type: events.JobEventPurge, Every: lifecycleInterval},
 		jobs.Schedule{Type: exports.JobExportCleanup, Every: time.Hour},
+		jobs.Schedule{Type: admin.JobStorageReconcile, Every: reconcileInterval},
 	)
 	go scheduler.Run(ctx)
 

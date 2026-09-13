@@ -11,6 +11,12 @@ type CompletePart struct {
 	ETag       string
 }
 
+// ObjectInfo is a stored object's key and size in bytes.
+type ObjectInfo struct {
+	Key  string
+	Size int64
+}
+
 type ObjectStore interface {
 	PresignPut(ctx context.Context, key, contentType string, ttl time.Duration) (string, error)
 	PresignGet(ctx context.Context, key string, ttl time.Duration) (string, error)

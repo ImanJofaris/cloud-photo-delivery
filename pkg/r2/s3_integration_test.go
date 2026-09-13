@@ -145,6 +145,43 @@ func TestS3Store_ReaderRoundTrip(t *testing.T) {
 	require.ErrorIs(t, err, r2.ErrNotFound)
 }
 
+func TestS3Store_ListObjects(t *testing.T) {
+	ctx := context.Background()
+	endpoint := startMinio(t)
+	createBucket(t, endpoint, "cpd-list")
+
+	store, err := r2.New(ctx, r2.Options{
+		Endpoint:  endpoint,
+		AccessKey: "minioadmin",
+		SecretKey: "minioadmin",
+		Bucket:    "cpd-list",
+		Region:    "us-east-1",
+		UseSSL:    false,
+	})
+	require.NoError(t, err)
+
+	require.NoError(t, store.Put(ctx, "tenant/a/events/e/originals/p1/x.jpg", "image/jpeg", []byte("aaa")))
+	require.NoError(t, store.Put(ctx, "tenant/a/events/e/originals/p2/y.jpg", "image/jpeg", []byte("bbbbb")))
+	require.NoError(t, store.Put(ctx, "tenant/a/events/e/thumbnails/p1.webp", "image/webp", []byte("cc")))
+	require.NoError(t, store.Put(ctx, "other/ignored.txt", "text/plain", []byte("d")))
+
+	objects, err := store.ListObjects(ctx, "tenant/")
+	require.NoError(t, err)
+	require.Len(t, objects, 3)
+
+	sizes := map[string]int64{}
+	for _, o := range objects {
+		sizes[o.Key] = o.Size
+	}
+	require.EqualValues(t, 3, sizes["tenant/a/events/e/originals/p1/x.jpg"])
+	require.EqualValues(t, 5, sizes["tenant/a/events/e/originals/p2/y.jpg"])
+	require.EqualValues(t, 2, sizes["tenant/a/events/e/thumbnails/p1.webp"])
+
+	none, err := store.ListObjects(ctx, "missing/")
+	require.NoError(t, err)
+	require.Empty(t, none)
+}
+
 func TestS3Store_MultipartUpload(t *testing.T) {
 	ctx := context.Background()
 	endpoint := startMinio(t)
