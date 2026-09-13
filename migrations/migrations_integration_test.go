@@ -602,6 +602,90 @@ func TestMigrations_LifecycleUpDownRoundTrip(t *testing.T) {
 	require.Error(t, err, "expired status must be rejected after down")
 }
 
+func TestMigrations_ExportsUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	for _, file := range []string{
+		"0001_init.sql", "0002_auth.sql", "0003_events.sql",
+		"0004_photos.sql", "0005_jobs.sql", "0006_gallery.sql", "0007_devices.sql",
+		"0008_branding.sql", "0009_billing.sql", "0010_lifecycle.sql",
+	} {
+		sql, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, extractSection(string(sql), "-- +goose Up", "-- +goose Down"))
+		require.NoError(t, err)
+	}
+
+	var userID uuid.UUID
+	err = pool.QueryRow(ctx,
+		`INSERT INTO users (email, password_hash) VALUES ('export@example.com', 'hash') RETURNING id`).Scan(&userID)
+	require.NoError(t, err)
+	var eventID uuid.UUID
+	err = pool.QueryRow(ctx,
+		`INSERT INTO events (user_id, name, slug) VALUES ($1, 'export', 'export') RETURNING id`, userID).Scan(&eventID)
+	require.NoError(t, err)
+
+	exportsSQL, err := os.ReadFile("0011_exports.sql")
+	require.NoError(t, err)
+	up := extractSection(string(exportsSQL), "-- +goose Up", "-- +goose Down")
+	require.NotEmpty(t, up)
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+
+	var exists bool
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'exports')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.True(t, exists, "exports table should exist after up")
+
+	for _, index := range []string{"idx_exports_event_created", "idx_exports_status_expires", "idx_exports_active_event"} {
+		err = pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = $1)`, index).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "%s should exist after up", index)
+	}
+
+	_, err = pool.Exec(ctx,
+		`INSERT INTO exports (id, event_id, status) VALUES (gen_random_uuid(), $1, 'pending')`, eventID)
+	require.NoError(t, err, "pending status must be accepted after up")
+
+	_, err = pool.Exec(ctx,
+		`INSERT INTO exports (id, event_id, status) VALUES (gen_random_uuid(), $1, 'bogus')`, eventID)
+	require.Error(t, err, "unknown status must be rejected after up")
+
+	down := extractSection(string(exportsSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, down)
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'exports')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.False(t, exists, "exports table should be dropped by down")
+}
+
 func extractSection(s, start, end string) string {
 	i := indexOf(s, start)
 	if i < 0 {

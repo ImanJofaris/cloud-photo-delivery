@@ -17,6 +17,7 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/internal/billing/provider"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/devices"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/exports"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/gallery"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
@@ -223,6 +224,17 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		return photos.Actor{UserID: id}, true
 	})
 
+	exportSvc := exports.NewService(
+		exports.NewRepository(pool.Pool), photoRepo, photoRepo,
+		exports.NewPostgresQueue(pool.Pool), store, cfg.ExportTTL)
+	exportHandler := exports.NewHandler(exportSvc, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
+
 	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
 	deviceUploadLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
 
@@ -281,6 +293,8 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 
 					r.Get("/settings", eventHandler.GetSettings)
 					r.Patch("/settings", eventHandler.UpdateSettings)
+					r.Post("/exports", exportHandler.Create)
+					r.Get("/exports/{exportID}", exportHandler.Get)
 					r.Get("/dashboard", eventHandler.Dashboard)
 					r.Get("/url", qrHandler.URL)
 					r.Get("/qr.png", qrHandler.PNG)

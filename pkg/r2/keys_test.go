@@ -54,6 +54,21 @@ func TestOriginalKey_RejectsTraversal(t *testing.T) {
 	}
 }
 
+func TestExportKey_IsScopedAndZipped(t *testing.T) {
+	userID := uuid.MustParse("11111111-1111-1111-1111-111111111111")
+	eventID := uuid.MustParse("22222222-2222-2222-2222-222222222222")
+	exportID := uuid.MustParse("44444444-4444-4444-4444-444444444444")
+
+	got := ExportKey(userID, eventID, exportID)
+	want := "tenant/11111111-1111-1111-1111-111111111111/events/22222222-2222-2222-2222-222222222222/exports/44444444-4444-4444-4444-444444444444.zip"
+	if got != want {
+		t.Fatalf("ExportKey = %q, want %q", got, want)
+	}
+	if again := ExportKey(userID, eventID, exportID); again != got {
+		t.Fatal("ExportKey is not deterministic")
+	}
+}
+
 func TestDerivedKeys_PointAtWebpDerivatives(t *testing.T) {
 	userID := uuid.New()
 	eventID := uuid.New()

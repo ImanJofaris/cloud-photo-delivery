@@ -2,6 +2,7 @@ package r2
 
 import (
 	"context"
+	"io"
 	"time"
 )
 
@@ -17,6 +18,8 @@ type ObjectStore interface {
 	Delete(ctx context.Context, key string) error
 	Put(ctx context.Context, key, contentType string, body []byte) error
 	Get(ctx context.Context, key string) ([]byte, error)
+	GetReader(ctx context.Context, key string) (io.ReadCloser, error)
+	PutReader(ctx context.Context, key, contentType string, r io.Reader, size int64) error
 	Bucket() string
 
 	CreateMultipartUpload(ctx context.Context, key, contentType string) (string, error)

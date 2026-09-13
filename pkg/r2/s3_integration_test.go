@@ -5,6 +5,7 @@ package r2_test
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"testing"
 	"time"
@@ -108,6 +109,39 @@ func TestS3Store_RoundTrip(t *testing.T) {
 	require.NoError(t, store.Delete(ctx, "test/hello.txt"))
 
 	_, err = store.Head(ctx, "test/hello.txt")
+	require.ErrorIs(t, err, r2.ErrNotFound)
+}
+
+func TestS3Store_ReaderRoundTrip(t *testing.T) {
+	ctx := context.Background()
+	endpoint := startMinio(t)
+	createBucket(t, endpoint, "cpd-exports")
+
+	store, err := r2.New(ctx, r2.Options{
+		Endpoint:  endpoint,
+		AccessKey: "minioadmin",
+		SecretKey: "minioadmin",
+		Bucket:    "cpd-exports",
+		Region:    "us-east-1",
+		UseSSL:    false,
+	})
+	require.NoError(t, err)
+
+	body := bytes.Repeat([]byte("zip-bytes"), 1024)
+	require.NoError(t, store.PutReader(ctx, "exports/a.zip", "application/zip", bytes.NewReader(body), int64(len(body))))
+
+	size, err := store.Head(ctx, "exports/a.zip")
+	require.NoError(t, err)
+	require.EqualValues(t, len(body), size)
+
+	reader, err := store.GetReader(ctx, "exports/a.zip")
+	require.NoError(t, err)
+	defer reader.Close()
+	got, err := io.ReadAll(reader)
+	require.NoError(t, err)
+	require.Equal(t, body, got)
+
+	_, err = store.GetReader(ctx, "exports/missing.zip")
 	require.ErrorIs(t, err, r2.ErrNotFound)
 }
 

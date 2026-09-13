@@ -3,6 +3,7 @@ package r2
 import (
 	"context"
 	"errors"
+	"io"
 	"time"
 )
 
@@ -30,6 +31,14 @@ func (UnavailableStore) Delete(context.Context, string) error { return ErrUnavai
 func (UnavailableStore) Put(context.Context, string, string, []byte) error { return ErrUnavailable }
 
 func (UnavailableStore) Get(context.Context, string) ([]byte, error) { return nil, ErrUnavailable }
+
+func (UnavailableStore) GetReader(context.Context, string) (io.ReadCloser, error) {
+	return nil, ErrUnavailable
+}
+
+func (UnavailableStore) PutReader(context.Context, string, string, io.Reader, int64) error {
+	return ErrUnavailable
+}
 
 func (UnavailableStore) Bucket() string { return "" }
 

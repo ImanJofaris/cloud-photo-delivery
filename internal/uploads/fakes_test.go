@@ -2,6 +2,7 @@ package uploads
 
 import (
 	"context"
+	"io"
 	"sync"
 	"time"
 
@@ -241,6 +242,10 @@ func (f *fakeStore) Delete(_ context.Context, key string) error {
 func (f *fakeStore) Put(context.Context, string, string, []byte) error { return nil }
 
 func (f *fakeStore) Get(context.Context, string) ([]byte, error) { return nil, nil }
+
+func (f *fakeStore) GetReader(context.Context, string) (io.ReadCloser, error) { return nil, nil }
+
+func (f *fakeStore) PutReader(context.Context, string, string, io.Reader, int64) error { return nil }
 
 func (f *fakeStore) Bucket() string { return "test" }
 

@@ -9,6 +9,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/exports"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/jobs"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
@@ -68,6 +69,7 @@ func main() {
 
 	photoRepo := photos.NewRepository(pool.Pool)
 	eventRepo := events.NewRepository(pool.Pool)
+	exportRepo := exports.NewRepository(pool.Pool)
 	std := imaging.New()
 	processor := photos.NewProcessor(photoRepo, store, std, std, std, log, photoRepo.EventOwner)
 
@@ -87,12 +89,19 @@ func main() {
 	registry.Register(events.JobEventPurge, events.PurgeHandler(
 		eventRepo, store, time.Duration(cfg.EventPurgeGraceDays)*24*time.Hour, time.Now, log))
 
+	// Bulk ZIP exports: generation streams originals from storage into a
+	// temp-file archive; cleanup expires archives and fails stuck exports.
+	registry.Register(exports.JobZipGenerate, exports.GenerateHandler(
+		exportRepo, photoRepo.EventOwner, photoRepo, store, cfg.ExportTTL, log))
+	registry.Register(exports.JobExportCleanup, exports.CleanupHandler(exportRepo, store, log))
+
 	queue := jobs.NewPostgresQueue(pool.Pool)
 	workerID := workerName(cfg.Env)
 
 	scheduler := jobs.NewScheduler(queue, log,
 		jobs.Schedule{Type: events.JobEventExpire, Every: lifecycleInterval},
 		jobs.Schedule{Type: events.JobEventPurge, Every: lifecycleInterval},
+		jobs.Schedule{Type: exports.JobExportCleanup, Every: time.Hour},
 	)
 	go scheduler.Run(ctx)
 

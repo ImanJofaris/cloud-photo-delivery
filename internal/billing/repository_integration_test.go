@@ -5,6 +5,7 @@ package billing_test
 import (
 	"context"
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -232,7 +233,11 @@ func (stubStore) Head(context.Context, string) (int64, error)       { return 0, 
 func (stubStore) Delete(context.Context, string) error              { return nil }
 func (stubStore) Put(context.Context, string, string, []byte) error { return nil }
 func (stubStore) Get(context.Context, string) ([]byte, error)       { return nil, nil }
-func (stubStore) Bucket() string                                    { return "test" }
+func (stubStore) GetReader(context.Context, string) (io.ReadCloser, error) {
+	return nil, nil
+}
+func (stubStore) PutReader(context.Context, string, string, io.Reader, int64) error { return nil }
+func (stubStore) Bucket() string                                                    { return "test" }
 func (stubStore) CreateMultipartUpload(context.Context, string, string) (string, error) {
 	return "multipart-id", nil
 }
