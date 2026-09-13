@@ -139,6 +139,28 @@ func (h *Handler) Initialize(w http.ResponseWriter, r *http.Request) {
 	httpx.Success(w, http.StatusCreated, data)
 }
 
+func (h *Handler) RePresign(w http.ResponseWriter, r *http.Request) {
+	actor, err := h.actor(r)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	photoID, err := h.photoID(r)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	result, err := h.svc.RePresign(r.Context(), actor, photoID)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	httpx.Success(w, http.StatusOK, map[string]any{
+		"uploadUrl": result.UploadURL,
+		"expiresAt": formatTime(result.ExpiresAt),
+	})
+}
+
 type partsRequest struct {
 	PartNumbers []int `json:"partNumbers"`
 }

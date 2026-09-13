@@ -50,3 +50,28 @@ type Photo struct {
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
+
+// Actor is the authenticated caller for owner-facing photo operations: an
+// operator (JWT) or a device key limited to one assigned event.
+type Actor struct {
+	UserID        uuid.UUID
+	DeviceID      uuid.UUID
+	AssignedEvent *uuid.UUID
+}
+
+func (a Actor) IsDevice() bool { return a.DeviceID != uuid.Nil }
+
+// VariantNames lists the derivative variants that exist for a photo.
+func VariantNames(p *Photo) []string {
+	out := make([]string, 0, 3)
+	if p.ThumbnailKey != nil && *p.ThumbnailKey != "" {
+		out = append(out, "thumbnail")
+	}
+	if p.MediumKey != nil && *p.MediumKey != "" {
+		out = append(out, "medium")
+	}
+	if p.OptimizedKey != nil && *p.OptimizedKey != "" {
+		out = append(out, "large")
+	}
+	return out
+}

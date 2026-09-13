@@ -177,6 +177,23 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
+	photoURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
+	photoSvc := photos.NewService(photoRepo, photoURLs, store, photos.NewPostgresQueue(pool.Pool))
+	photoHandler := photos.NewHandler(photoSvc, func(req *http.Request) (photos.Actor, bool) {
+		if device, ok := devices.FromContext(req.Context()); ok {
+			return photos.Actor{
+				UserID:        device.UserID,
+				DeviceID:      device.ID,
+				AssignedEvent: device.AssignedEventID,
+			}, true
+		}
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return photos.Actor{}, false
+		}
+		return photos.Actor{UserID: id}, true
+	})
+
 	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
 	deviceUploadLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
 
@@ -236,12 +253,18 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		r.Group(func(r chi.Router) {
 			r.Use(deviceSvc.RequireDeviceOrOperator(authSvc.RequireAuth))
 			r.With(devices.RateLimit(deviceUploadLimiter)).Post("/events/{eventID}/uploads", uploadHandler.Initialize)
+			r.Get("/events/{eventID}/photos", photoHandler.List)
 			r.Route("/uploads/{photoID}", func(r chi.Router) {
 				r.Get("/", uploadHandler.Status)
+				r.Post("/url", uploadHandler.RePresign)
 				r.Post("/parts", uploadHandler.Parts)
 				r.Post("/multipart/complete", uploadHandler.CompleteMultipart)
 				r.Post("/multipart/abort", uploadHandler.AbortMultipart)
 				r.Post("/complete", uploadHandler.Complete)
+			})
+			r.Route("/photos/{photoID}", func(r chi.Router) {
+				r.Get("/url", photoHandler.URL)
+				r.Delete("/", photoHandler.Delete)
 			})
 		})
 	})

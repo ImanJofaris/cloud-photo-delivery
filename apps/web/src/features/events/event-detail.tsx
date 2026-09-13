@@ -12,6 +12,15 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 import { Skeleton } from "@workspace/ui/components/skeleton"
+import {
+  Tabs,
+  TabsContent,
+  TabsList,
+  TabsTrigger,
+} from "@workspace/ui/components/tabs"
+
+import { PhotosPanel } from "@/features/photos/photos-panel"
+import { UploadProvider } from "@/features/photos/upload-provider"
 
 import {
   isNotFound,
@@ -110,78 +119,99 @@ export function EventDetail({ eventId }: { eventId: string }) {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-3">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Photos</CardDescription>
-            <CardTitle className="text-2xl">
-              {dashboard ? dashboard.photoCount : "—"}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Storage</CardDescription>
-            <CardTitle className="text-2xl">
-              {dashboard ? formatBytes(dashboard.storageBytes) : "—"}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Guests</CardDescription>
-            <CardTitle className="text-2xl">
-              {dashboard ? dashboard.guestCount : "—"}
-            </CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
+      <UploadProvider eventId={event.id}>
+        <Tabs defaultValue="overview" className="gap-6">
+          <TabsList variant="line">
+            <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="photos">Photos</TabsTrigger>
+            <TabsTrigger value="settings">Settings</TabsTrigger>
+            <TabsTrigger value="danger">Danger zone</TabsTrigger>
+          </TabsList>
 
-      <div className="grid gap-6 lg:grid-cols-2">
-        <div className="space-y-6">
-          <SharePanel slug={event.slug} />
-          <Card>
-            <CardHeader>
-              <CardTitle>Details</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <dl className="grid gap-2 text-sm">
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Event date</dt>
-                  <dd>{formatDate(event.eventDate)}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Expires</dt>
-                  <dd>{formatDateTime(event.expiresAt)}</dd>
-                </div>
-                <div className="flex justify-between gap-4">
-                  <dt className="text-muted-foreground">Last updated</dt>
-                  <dd>{formatDateTime(event.updatedAt)}</dd>
-                </div>
-                {event.location && (
-                  <div className="flex justify-between gap-4">
-                    <dt className="text-muted-foreground">Location</dt>
-                    <dd>{event.location}</dd>
-                  </div>
-                )}
-              </dl>
-            </CardContent>
-          </Card>
-          <DangerZone
-            eventId={event.id}
-            eventName={event.name}
-            status={event.status}
-          />
-        </div>
+          <TabsContent value="overview" className="space-y-6">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Photos</CardDescription>
+                  <CardTitle className="text-2xl">
+                    {dashboard ? dashboard.photoCount : "—"}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Storage</CardDescription>
+                  <CardTitle className="text-2xl">
+                    {dashboard ? formatBytes(dashboard.storageBytes) : "—"}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+              <Card>
+                <CardHeader className="pb-2">
+                  <CardDescription>Guests</CardDescription>
+                  <CardTitle className="text-2xl">
+                    {dashboard ? dashboard.guestCount : "—"}
+                  </CardTitle>
+                </CardHeader>
+              </Card>
+            </div>
 
-        <div className="space-y-6">
-          {settingsDefaults ? (
-            <EventSettingsForm eventId={event.id} defaults={settingsDefaults} />
-          ) : (
-            <Skeleton className="h-72 w-full" />
-          )}
-        </div>
-      </div>
+            <div className="grid gap-6 lg:grid-cols-2">
+              <SharePanel slug={event.slug} />
+              <Card>
+                <CardHeader>
+                  <CardTitle>Details</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <dl className="grid gap-2 text-sm">
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Event date</dt>
+                      <dd>{formatDate(event.eventDate)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Expires</dt>
+                      <dd>{formatDateTime(event.expiresAt)}</dd>
+                    </div>
+                    <div className="flex justify-between gap-4">
+                      <dt className="text-muted-foreground">Last updated</dt>
+                      <dd>{formatDateTime(event.updatedAt)}</dd>
+                    </div>
+                    {event.location && (
+                      <div className="flex justify-between gap-4">
+                        <dt className="text-muted-foreground">Location</dt>
+                        <dd>{event.location}</dd>
+                      </div>
+                    )}
+                  </dl>
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="photos">
+            <PhotosPanel eventId={event.id} />
+          </TabsContent>
+
+          <TabsContent value="settings">
+            {settingsDefaults ? (
+              <EventSettingsForm
+                eventId={event.id}
+                defaults={settingsDefaults}
+              />
+            ) : (
+              <Skeleton className="h-72 w-full" />
+            )}
+          </TabsContent>
+
+          <TabsContent value="danger">
+            <DangerZone
+              eventId={event.id}
+              eventName={event.name}
+              status={event.status}
+            />
+          </TabsContent>
+        </Tabs>
+      </UploadProvider>
     </div>
   )
 }

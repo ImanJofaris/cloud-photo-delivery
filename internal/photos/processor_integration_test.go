@@ -175,13 +175,18 @@ func TestProcessor_FailurePathMarksPhotoFailed(t *testing.T) {
 		return err == nil && p.Status == photos.StatusFailed
 	}, 10*time.Second, 50*time.Millisecond)
 
+	// The handler marks the photo FAILED before the poller records the
+	// failure, so wait for the retry transition instead of reading once.
 	var status string
 	var attempts int
-	require.NoError(t, pool.QueryRow(ctx, `SELECT status, attempts FROM jobs LIMIT 1`).Scan(&status, &attempts))
+	require.Eventually(t, func() bool {
+		if err := pool.QueryRow(ctx, `SELECT status, attempts FROM jobs LIMIT 1`).Scan(&status, &attempts); err != nil {
+			return false
+		}
+		// After the first failure the job is retried, not yet exhausted.
+		return status == "pending" && attempts == 1
+	}, 5*time.Second, 50*time.Millisecond)
 	require.Len(t, registry.Types(), 1)
-	// After the first failure the job is retried, not yet exhausted.
-	require.Equal(t, "pending", status)
-	require.Equal(t, 1, attempts)
 	cancel()
 	<-done
 }

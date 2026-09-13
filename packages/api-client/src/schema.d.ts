@@ -255,6 +255,30 @@ export interface paths {
     patch?: never
     trace?: never
   }
+  "/events/{eventID}/photos": {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        eventID: components["parameters"]["EventID"]
+      }
+      cookie?: never
+    }
+    /**
+     * List an event's photos for its owner
+     * @description Cursor-paginated, newest first, includes photos in every processing
+     *     state (unlike the public gallery, which lists READY photos only).
+     *     Accepts an operator JWT or a device key assigned to the event.
+     */
+    get: operations["listEventPhotos"]
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
   "/events/{eventID}/uploads": {
     parameters: {
       query?: never
@@ -292,6 +316,29 @@ export interface paths {
     get: operations["getUploadStatus"]
     put?: never
     post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/uploads/{photoID}/url": {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        photoID: components["parameters"]["PhotoID"]
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Re-issue a presigned PUT for an interrupted simple upload
+     * @description Only for simple uploads still in the UPLOADING state. Multipart
+     *     uploads re-request part URLs from `/uploads/{photoID}/parts` instead.
+     */
+    post: operations["represignSimpleUpload"]
     delete?: never
     options?: never
     head?: never
@@ -369,6 +416,54 @@ export interface paths {
     /** Verify the uploaded object and mark the photo ready for processing */
     post: operations["completeUpload"]
     delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/photos/{photoID}/url": {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        photoID: components["parameters"]["PhotoID"]
+      }
+      cookie?: never
+    }
+    /**
+     * Get a short-lived signed URL for an owned photo variant
+     * @description Owner/device access to a photo, including photos still processing
+     *     (for variants that exist) and originals regardless of the event's
+     *     guest-facing download settings. Responses are never cached.
+     */
+    get: operations["getPhotoURL"]
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  "/photos/{photoID}": {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        photoID: components["parameters"]["PhotoID"]
+      }
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    post?: never
+    /**
+     * Delete a photo and enqueue cleanup of its stored objects
+     * @description Removes the photo row, aborts any in-progress multipart upload, and
+     *     enqueues an object cleanup job for the original and its derivatives.
+     *     Event counters are decremented exactly once.
+     */
+    delete: operations["deletePhoto"]
     options?: never
     head?: never
     patch?: never
@@ -720,6 +815,30 @@ export interface components {
     }
     /** @enum {string} */
     PhotoStatus: "UPLOADING" | "PROCESSING" | "READY" | "FAILED"
+    Photo: {
+      /** Format: uuid */
+      id: string
+      filename: string
+      mimeType: string
+      /** Format: int64 */
+      fileSize: number
+      width: number | null
+      height: number | null
+      status: components["schemas"]["PhotoStatus"]
+      /** @description Derivative variants that exist for this photo. */
+      variants: components["schemas"]["PhotoVariant"][]
+      errorMessage: string | null
+      /** Format: date-time */
+      createdAt: string
+    }
+    PhotoList: {
+      items: components["schemas"]["Photo"][]
+      nextCursor: string | null
+    }
+    PhotoListEnvelope: {
+      data?: components["schemas"]["PhotoList"]
+      error?: null | components["schemas"]["Error"]
+    }
     /** @enum {string} */
     UploadKind: "simple" | "multipart"
     InitializeUploadRequest: {
@@ -731,36 +850,46 @@ export interface components {
     }
     InitializeUpload: {
       /** Format: uuid */
-      photoId?: string
-      uploadKind?: components["schemas"]["UploadKind"]
+      photoId: string
+      uploadKind: components["schemas"]["UploadKind"]
       /** @description Presigned PUT URL (simple uploads). Null for multipart. */
-      uploadUrl?: string
-      storageKey?: string
+      uploadUrl: string
+      storageKey: string
       /** Format: date-time */
-      expiresAt?: string
+      expiresAt: string
       /**
        * Format: int64
        * @description Required part size for multipart uploads.
        */
-      partSize?: number | null
+      partSize: number | null
     }
     InitializeUploadEnvelope: {
       data?: components["schemas"]["InitializeUpload"]
+      error?: null | components["schemas"]["Error"]
+    }
+    PresignedUpload: {
+      /** @description Presigned PUT URL. */
+      uploadUrl: string
+      /** Format: date-time */
+      expiresAt: string
+    }
+    PresignedUploadEnvelope: {
+      data?: components["schemas"]["PresignedUpload"]
       error?: null | components["schemas"]["Error"]
     }
     UploadPartURLsRequest: {
       partNumbers: number[]
     }
     PartURL: {
-      partNumber?: number
-      url?: string
+      partNumber: number
+      url: string
     }
     UploadPartURLs: {
       /** Format: uuid */
-      photoId?: string
+      photoId: string
       /** Format: int64 */
-      partSize?: number
-      parts?: components["schemas"]["PartURL"][]
+      partSize: number
+      parts: components["schemas"]["PartURL"][]
     }
     UploadPartURLsEnvelope: {
       data?: components["schemas"]["UploadPartURLs"]
@@ -775,20 +904,20 @@ export interface components {
     }
     UploadStatus: {
       /** Format: uuid */
-      photoId?: string
+      photoId: string
       /** Format: uuid */
-      eventId?: string
-      status?: components["schemas"]["PhotoStatus"]
-      uploadKind?: components["schemas"]["UploadKind"]
-      filename?: string
-      mimeType?: string
+      eventId: string
+      status: components["schemas"]["PhotoStatus"]
+      uploadKind: components["schemas"]["UploadKind"]
+      filename: string
+      mimeType: string
       /** Format: int64 */
-      fileSize?: number
-      errorMessage?: string | null
+      fileSize: number
+      errorMessage: string | null
       /** Format: date-time */
-      createdAt?: string
+      createdAt: string
       /** Format: date-time */
-      updatedAt?: string
+      updatedAt: string
     }
     UploadStatusEnvelope: {
       data?: components["schemas"]["UploadStatus"]
@@ -908,9 +1037,9 @@ export interface components {
     }
     SignedURL: {
       /** @description Short-lived presigned GET URL. Never cached or logged. */
-      url?: string
+      url: string
       /** @description URL lifetime in seconds. */
-      expiresIn?: number
+      expiresIn: number
     }
     SignedURLEnvelope: {
       data?: components["schemas"]["SignedURL"]
@@ -1610,6 +1739,52 @@ export interface operations {
       }
     }
   }
+  listEventPhotos: {
+    parameters: {
+      query?: {
+        /** @description Opaque keyset cursor returned as nextCursor */
+        cursor?: string
+        limit?: number
+        /** @description Optional processing status filter */
+        status?: components["schemas"]["PhotoStatus"]
+      }
+      header?: never
+      path: {
+        eventID: components["parameters"]["EventID"]
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description A page of photos */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["PhotoListEnvelope"]
+        }
+      }
+      /** @description Event not found (also for other tenants) */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+      /** @description Invalid cursor, limit, or status */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
   initializeUpload: {
     parameters: {
       query?: never
@@ -1697,6 +1872,46 @@ export interface operations {
       }
       /** @description Photo not found (also for other tenants) */
       404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  represignSimpleUpload: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        photoID: components["parameters"]["PhotoID"]
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description A fresh presigned PUT URL */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["PresignedUploadEnvelope"]
+        }
+      }
+      /** @description Photo not found (also for other tenants) */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+      /** @description Not a simple upload, or the photo is no longer uploading */
+      409: {
         headers: {
           [name: string]: unknown
         }
@@ -1893,6 +2108,77 @@ export interface operations {
       }
       /** @description Object size mismatch */
       422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  getPhotoURL: {
+    parameters: {
+      query: {
+        variant: components["schemas"]["PhotoVariant"]
+      }
+      header?: never
+      path: {
+        photoID: components["parameters"]["PhotoID"]
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Signed URL */
+      200: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["SignedURLEnvelope"]
+        }
+      }
+      /** @description Photo not found, or the requested variant is unavailable */
+      404: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+      /** @description Invalid variant */
+      422: {
+        headers: {
+          [name: string]: unknown
+        }
+        content: {
+          "application/json": components["schemas"]["Envelope"]
+        }
+      }
+    }
+  }
+  deletePhoto: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        photoID: components["parameters"]["PhotoID"]
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Deleted */
+      204: {
+        headers: {
+          [name: string]: unknown
+        }
+        content?: never
+      }
+      /** @description Photo not found (also for other tenants) */
+      404: {
         headers: {
           [name: string]: unknown
         }

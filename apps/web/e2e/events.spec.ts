@@ -41,11 +41,14 @@ test("event lifecycle: create, find, settings, archive, delete", async ({
 
   await page.getByText(eventName).click()
   await expect(page).toHaveURL(/\/events\/[0-9a-f-]+/)
+
+  await page.getByRole("tab", { name: "Settings" }).click()
   await page.getByRole("button", { name: "Save settings" }).click()
   await expect(page.getByText("Settings saved")).toBeVisible({
     timeout: 15_000,
   })
 
+  await page.getByRole("tab", { name: "Danger zone" }).click()
   await page.getByRole("button", { name: "Archive", exact: true }).click()
   await expect(page.getByText("Event archived")).toBeVisible({
     timeout: 15_000,

@@ -110,6 +110,13 @@ func (f *fakeRepo) MarkReady(_ context.Context, id uuid.UUID, width, height int,
 }
 func (f *fakeRepo) MarkFailed(context.Context, uuid.UUID, string) error        { return nil }
 func (f *fakeRepo) SavePartETag(context.Context, uuid.UUID, int, string) error { return nil }
+func (f *fakeRepo) EventOwnedBy(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
+	return true, nil
+}
+func (f *fakeRepo) ListByEvent(context.Context, ListInput) ([]*Photo, error) { return nil, nil }
+func (f *fakeRepo) DeleteOwned(context.Context, uuid.UUID, uuid.UUID) (*DeletedPhoto, error) {
+	return nil, ErrNotFound
+}
 func (f *fakeRepo) EventOwner(_ context.Context, eventID uuid.UUID) (uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -260,6 +267,23 @@ func TestCleanupHandler_DeletesOriginal(t *testing.T) {
 	payload, _ := json.Marshal(CleanupPayload{PhotoID: photoID})
 	require.NoError(t, h(context.Background(), payload))
 	require.Empty(t, store.objects)
+}
+
+func TestCleanupHandler_DeletesProvidedKeys(t *testing.T) {
+	store := newFakeStore()
+	store.objects["orig/a.jpg"] = []byte("x")
+	store.objects["thumb/a.webp"] = []byte("y")
+	h := CleanupHandler(newFakeRepo(), store, slog.Default())
+
+	payload, _ := json.Marshal(CleanupPayload{
+		PhotoID: uuid.New(),
+		Keys:    []string{"orig/a.jpg", "thumb/a.webp", "already-gone.webp"},
+	})
+	require.NoError(t, h(context.Background(), payload))
+	_, ok := store.objects["orig/a.jpg"]
+	require.False(t, ok)
+	_, ok = store.objects["thumb/a.webp"]
+	require.False(t, ok)
 }
 
 func TestCleanupHandler_MissingPhotoIsNoOp(t *testing.T) {

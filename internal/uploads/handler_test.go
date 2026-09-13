@@ -106,6 +106,59 @@ func TestHandler_Status_InvalidUUIDIsNotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func initSimple(t *testing.T, h *Handler, eventID uuid.UUID) string {
+	t.Helper()
+	body := `{"filename":"a.jpg","contentType":"image/jpeg","size":1024}`
+	r := withURLParams(httptest.NewRequest(http.MethodPost, "/events/x/uploads", strings.NewReader(body)), map[string]string{"eventID": eventID.String()})
+	rec := httptest.NewRecorder()
+	h.Initialize(rec, r)
+	require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())
+	return decodeEnvelope(t, rec)["data"].(map[string]any)["photoId"].(string)
+}
+
+func TestHandler_RePresign_ReturnsFreshURL(t *testing.T) {
+	h, _, eventID, _ := newTestHandler()
+	photoID := initSimple(t, h, eventID)
+
+	r := withURLParams(httptest.NewRequest(http.MethodPost, "/uploads/x/url", nil), map[string]string{"photoID": photoID})
+	rec := httptest.NewRecorder()
+	h.RePresign(rec, r)
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	data := decodeEnvelope(t, rec)["data"].(map[string]any)
+	require.NotEmpty(t, data["uploadUrl"])
+	require.NotEmpty(t, data["expiresAt"])
+}
+
+func TestHandler_RePresign_MultipartConflict(t *testing.T) {
+	h, _, eventID, _ := newTestHandler()
+	photoID := initMultipart(t, h, eventID)
+
+	r := withURLParams(httptest.NewRequest(http.MethodPost, "/uploads/x/url", nil), map[string]string{"photoID": photoID})
+	rec := httptest.NewRecorder()
+	h.RePresign(rec, r)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Equal(t, "NOT_SIMPLE", decodeEnvelope(t, rec)["error"].(map[string]any)["code"])
+}
+
+func TestHandler_RePresign_CompletedConflict(t *testing.T) {
+	h, _, eventID, _ := newTestHandler()
+	photoID := initSimple(t, h, eventID)
+
+	complete := withURLParams(httptest.NewRequest(http.MethodPost, "/uploads/x/complete", nil), map[string]string{"photoID": photoID})
+	completeRec := httptest.NewRecorder()
+	h.Complete(completeRec, complete)
+	require.Equal(t, http.StatusOK, completeRec.Code)
+
+	r := withURLParams(httptest.NewRequest(http.MethodPost, "/uploads/x/url", nil), map[string]string{"photoID": photoID})
+	rec := httptest.NewRecorder()
+	h.RePresign(rec, r)
+
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Equal(t, "INVALID_UPLOAD_STATE", decodeEnvelope(t, rec)["error"].(map[string]any)["code"])
+}
+
 func TestHandler_Complete_Envelope(t *testing.T) {
 	h, _, eventID, _ := newTestHandler()
 

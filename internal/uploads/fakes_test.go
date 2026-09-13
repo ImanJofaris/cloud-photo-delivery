@@ -132,6 +132,18 @@ func (f *fakePhotoRepo) EventOwner(_ context.Context, eventID uuid.UUID) (uuid.U
 	return uuid.Nil, photos.ErrNotFound
 }
 
+func (f *fakePhotoRepo) EventOwnedBy(context.Context, uuid.UUID, uuid.UUID) (bool, error) {
+	return true, nil
+}
+
+func (f *fakePhotoRepo) ListByEvent(context.Context, photos.ListInput) ([]*photos.Photo, error) {
+	return nil, nil
+}
+
+func (f *fakePhotoRepo) DeleteOwned(context.Context, uuid.UUID, uuid.UUID) (*photos.DeletedPhoto, error) {
+	return nil, photos.ErrNotFound
+}
+
 type fakeUploadRepo struct {
 	owned       map[uuid.UUID]bool
 	owners      map[uuid.UUID]uuid.UUID

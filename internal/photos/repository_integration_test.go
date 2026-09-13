@@ -4,6 +4,7 @@ package photos_test
 
 import (
 	"context"
+	"encoding/json"
 	"testing"
 	"time"
 
@@ -274,4 +275,186 @@ func TestPostgresQueue_EnqueuesProcessPhoto(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "PROCESS_PHOTO", jobType)
 	require.Equal(t, "pending", status)
+}
+
+func setCreatedAt(t *testing.T, pool *pgxpool.Pool, photoID uuid.UUID, at time.Time) {
+	t.Helper()
+	_, err := pool.Exec(context.Background(), `UPDATE photos SET created_at = $2 WHERE id = $1`, photoID, at)
+	require.NoError(t, err)
+}
+
+func eventCounters(t *testing.T, pool *pgxpool.Pool, eventID uuid.UUID) (int64, int64) {
+	t.Helper()
+	var photoCount, storageBytes int64
+	err := pool.QueryRow(context.Background(),
+		`SELECT photo_count, storage_bytes FROM events WHERE id = $1`, eventID).Scan(&photoCount, &storageBytes)
+	require.NoError(t, err)
+	return photoCount, storageBytes
+}
+
+func TestPhotosRepository_ListByEventPaginationAndFilter(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	p1 := createUploadingPhoto(t, pool, eventID, 100)
+	p2 := createUploadingPhoto(t, pool, eventID, 100)
+	p3 := createUploadingPhoto(t, pool, eventID, 100)
+	base := time.Now().UTC()
+	setCreatedAt(t, pool, p1.ID, base.Add(-2*time.Minute))
+	setCreatedAt(t, pool, p2.ID, base.Add(-1*time.Minute))
+	setCreatedAt(t, pool, p3.ID, base)
+
+	page1, err := repo.ListByEvent(ctx, photos.ListInput{EventID: eventID, UserID: userA, Limit: 2})
+	require.NoError(t, err)
+	require.Len(t, page1, 2)
+	require.Equal(t, p3.ID, page1[0].ID)
+	require.Equal(t, p2.ID, page1[1].ID)
+
+	last := page1[len(page1)-1]
+	page2, err := repo.ListByEvent(ctx, photos.ListInput{
+		EventID: eventID,
+		UserID:  userA,
+		Cursor:  &photos.Cursor{CreatedAt: last.CreatedAt, ID: last.ID},
+		Limit:   2,
+	})
+	require.NoError(t, err)
+	require.Len(t, page2, 1)
+	require.Equal(t, p1.ID, page2[0].ID)
+
+	filtered, err := repo.ListByEvent(ctx, photos.ListInput{
+		EventID: eventID,
+		UserID:  userA,
+		Status:  photos.StatusReady,
+		Limit:   10,
+	})
+	require.NoError(t, err)
+	require.Empty(t, filtered)
+}
+
+func TestPhotosRepository_ListByEventTenantIsolation(t *testing.T) {
+	pool, userA, userB := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	createUploadingPhoto(t, pool, eventID, 100)
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	mine, err := repo.ListByEvent(ctx, photos.ListInput{EventID: eventID, UserID: userA, Limit: 10})
+	require.NoError(t, err)
+	require.Len(t, mine, 1)
+
+	theirs, err := repo.ListByEvent(ctx, photos.ListInput{EventID: eventID, UserID: userB, Limit: 10})
+	require.NoError(t, err)
+	require.Empty(t, theirs, "user B must not list user A's photos")
+
+	_, err = pool.Exec(ctx, `UPDATE events SET deleted_at = NOW() WHERE id = $1`, eventID)
+	require.NoError(t, err)
+	afterDelete, err := repo.ListByEvent(ctx, photos.ListInput{EventID: eventID, UserID: userA, Limit: 10})
+	require.NoError(t, err)
+	require.Empty(t, afterDelete, "soft-deleted events are not listable")
+}
+
+func TestPhotosRepository_DeleteOwnedAdjustsCountersOnce(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	p := createUploadingPhoto(t, pool, eventID, 4096)
+	require.NoError(t, repo.SavePartETag(ctx, p.ID, 1, "etag-1"))
+	_, transitioned, err := repo.MarkProcessing(ctx, p.ID, 4096)
+	require.NoError(t, err)
+	require.True(t, transitioned)
+	require.NoError(t, repo.MarkReady(ctx, p.ID, 100, 50, photos.Derivatives{
+		Thumbnail: photos.Derivative{Key: "thumb.webp"},
+		Medium:    photos.Derivative{Key: "medium.webp"},
+		Optimized: photos.Derivative{Key: "large.webp"},
+	}))
+
+	deleted, err := repo.DeleteOwned(ctx, p.ID, userA)
+	require.NoError(t, err)
+	require.True(t, deleted.Counted)
+	require.Equal(t, eventID, deleted.EventID)
+	require.ElementsMatch(t, []string{p.StorageKey, "thumb.webp", "medium.webp", "large.webp"}, deleted.Keys)
+
+	photoCount, storageBytes := eventCounters(t, pool, eventID)
+	require.Zero(t, photoCount)
+	require.Zero(t, storageBytes)
+
+	_, err = repo.GetByID(ctx, p.ID)
+	require.ErrorIs(t, err, photos.ErrNotFound)
+
+	var parts int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*) FROM upload_parts WHERE photo_id = $1`, p.ID).Scan(&parts))
+	require.Zero(t, parts)
+
+	_, err = repo.DeleteOwned(ctx, p.ID, userA)
+	require.ErrorIs(t, err, photos.ErrNotFound)
+}
+
+func TestPhotosRepository_DeleteOwnedUploadingNotCounted(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	p := createUploadingPhoto(t, pool, eventID, 2048)
+	deleted, err := repo.DeleteOwned(ctx, p.ID, userA)
+	require.NoError(t, err)
+	require.False(t, deleted.Counted, "uploading photos never incremented counters")
+
+	photoCount, storageBytes := eventCounters(t, pool, eventID)
+	require.Zero(t, photoCount)
+	require.Zero(t, storageBytes)
+}
+
+func TestPhotosRepository_DeleteOwnedTenantIsolation(t *testing.T) {
+	pool, userA, userB := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	p := createUploadingPhoto(t, pool, eventID, 2048)
+	_, err := repo.DeleteOwned(ctx, p.ID, userB)
+	require.ErrorIs(t, err, photos.ErrNotFound)
+
+	_, err = repo.GetByID(ctx, p.ID)
+	require.NoError(t, err, "user B must not delete user A's photo")
+}
+
+func TestPhotosRepository_EventOwnedBy(t *testing.T) {
+	pool, userA, userB := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	owned, err := repo.EventOwnedBy(ctx, userA, eventID)
+	require.NoError(t, err)
+	require.True(t, owned)
+
+	owned, err = repo.EventOwnedBy(ctx, userB, eventID)
+	require.NoError(t, err)
+	require.False(t, owned)
+}
+
+func TestPhotosQueue_EnqueuesObjectCleanup(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	p := createUploadingPhoto(t, pool, eventID, 100)
+
+	q := photos.NewPostgresQueue(pool)
+	payload := photos.CleanupPayload{PhotoID: p.ID, EventID: eventID, Keys: []string{"orig/a.jpg", "thumb/a.webp"}}
+	require.NoError(t, q.EnqueueObjectCleanup(context.Background(), payload))
+
+	var jobType string
+	var raw []byte
+	err := pool.QueryRow(context.Background(), `SELECT type, payload FROM jobs LIMIT 1`).Scan(&jobType, &raw)
+	require.NoError(t, err)
+	require.Equal(t, "object.cleanup", jobType)
+
+	var got photos.CleanupPayload
+	require.NoError(t, json.Unmarshal(raw, &got))
+	require.Equal(t, payload.PhotoID, got.PhotoID)
+	require.ElementsMatch(t, payload.Keys, got.Keys)
 }

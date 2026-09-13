@@ -3,6 +3,7 @@ package photos
 import (
 	"context"
 	"errors"
+	"strconv"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -22,6 +23,23 @@ type CreateInput struct {
 	MultipartUploadID *string
 }
 
+// ListInput filters an owner-scoped photo listing.
+type ListInput struct {
+	EventID uuid.UUID
+	UserID  uuid.UUID
+	Cursor  *Cursor
+	Status  Status
+	Limit   int
+}
+
+// DeletedPhoto is the result of an owner-scoped delete: the storage keys that
+// must be cleaned up and whether the event counters were decremented.
+type DeletedPhoto struct {
+	EventID uuid.UUID
+	Keys    []string
+	Counted bool
+}
+
 type Repository interface {
 	Create(ctx context.Context, in CreateInput) (*Photo, error)
 	GetByID(ctx context.Context, id uuid.UUID) (*Photo, error)
@@ -38,6 +56,13 @@ type Repository interface {
 	// EventOwner returns the owning user for an event, used by the worker to
 	// rebuild deterministic storage keys.
 	EventOwner(ctx context.Context, eventID uuid.UUID) (uuid.UUID, error)
+	// EventOwnedBy reports whether the user owns a non-deleted event.
+	EventOwnedBy(ctx context.Context, userID, eventID uuid.UUID) (bool, error)
+	// ListByEvent returns the owner's photos, newest first.
+	ListByEvent(ctx context.Context, in ListInput) ([]*Photo, error)
+	// DeleteOwned removes a photo owned by the user and adjusts event
+	// counters exactly once for photos that were counted at completion.
+	DeleteOwned(ctx context.Context, photoID, userID uuid.UUID) (*DeletedPhoto, error)
 }
 
 type PostgresRepository struct {
@@ -196,4 +221,123 @@ func (r *PostgresRepository) EventOwner(ctx context.Context, eventID uuid.UUID) 
 		return uuid.Nil, err
 	}
 	return userID, nil
+}
+
+func (r *PostgresRepository) EventOwnedBy(ctx context.Context, userID, eventID uuid.UUID) (bool, error) {
+	var exists bool
+	err := r.pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM events WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL)`,
+		eventID, userID).Scan(&exists)
+	return exists, err
+}
+
+const ownerPhotoColumns = `p.id, p.event_id, p.storage_key, p.thumbnail_key, p.optimized_key, p.medium_key,
+	p.original_filename, p.mime_type, p.file_size, p.width, p.height, p.status, p.upload_kind,
+	p.multipart_upload_id, p.error_message, p.created_at, p.updated_at`
+
+func (r *PostgresRepository) ListByEvent(ctx context.Context, in ListInput) ([]*Photo, error) {
+	args := []any{in.EventID, in.UserID}
+	q := `SELECT ` + ownerPhotoColumns + ` FROM photos p
+	      JOIN events e ON e.id = p.event_id
+	      WHERE p.event_id = $1 AND e.user_id = $2 AND e.deleted_at IS NULL`
+	if in.Status != "" {
+		args = append(args, in.Status)
+		q += ` AND p.status = $` + strconv.Itoa(len(args))
+	}
+	if in.Cursor != nil {
+		args = append(args, in.Cursor.CreatedAt, in.Cursor.ID)
+		q += ` AND (p.created_at, p.id) < ($` + strconv.Itoa(len(args)-1) + `, $` + strconv.Itoa(len(args)) + `)`
+	}
+	args = append(args, in.Limit)
+	q += ` ORDER BY p.created_at DESC, p.id DESC LIMIT $` + strconv.Itoa(len(args))
+
+	rows, err := r.pool.Query(ctx, q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make([]*Photo, 0, in.Limit)
+	for rows.Next() {
+		p, err := scanPhoto(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, p)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresRepository) DeleteOwned(ctx context.Context, photoID, userID uuid.UUID) (*DeletedPhoto, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var out DeletedPhoto
+	var status Status
+	var fileSize int64
+	var storageKey string
+	var thumbnailKey, mediumKey, optimizedKey *string
+	err = tx.QueryRow(ctx,
+		`SELECT p.event_id, p.status, p.file_size, p.storage_key,
+		        p.thumbnail_key, p.medium_key, p.optimized_key
+		 FROM photos p
+		 JOIN events e ON e.id = p.event_id
+		 WHERE p.id = $1 AND e.user_id = $2 AND e.deleted_at IS NULL
+		 FOR UPDATE OF p`,
+		photoID, userID).Scan(&out.EventID, &status, &fileSize, &storageKey,
+		&thumbnailKey, &mediumKey, &optimizedKey)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+
+	out.Keys = appendKey(out.Keys, storageKey)
+	out.Keys = appendKey(out.Keys, derefKey(thumbnailKey))
+	out.Keys = appendKey(out.Keys, derefKey(mediumKey))
+	out.Keys = appendKey(out.Keys, derefKey(optimizedKey))
+
+	tag, err := tx.Exec(ctx, `DELETE FROM photos WHERE id = $1`, photoID)
+	if err != nil {
+		return nil, err
+	}
+	if tag.RowsAffected() == 0 {
+		return nil, ErrNotFound
+	}
+
+	// Counters increment when the photo leaves UPLOADING (MarkProcessing), so
+	// only photos that reached PROCESSING, READY, or FAILED decrement them.
+	if status != StatusUploading {
+		_, err = tx.Exec(ctx,
+			`UPDATE events SET photo_count = GREATEST(photo_count - 1, 0),
+			        storage_bytes = GREATEST(storage_bytes - $2, 0), updated_at = NOW()
+			 WHERE id = $1`, out.EventID, fileSize)
+		if err != nil {
+			return nil, err
+		}
+		out.Counted = true
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return nil, err
+	}
+	return &out, nil
+}
+
+func appendKey(keys []string, key string) []string {
+	if key == "" {
+		return keys
+	}
+	return append(keys, key)
+}
+
+func derefKey(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

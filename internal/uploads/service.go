@@ -73,6 +73,12 @@ type PartsResult struct {
 	Parts    []PartURL
 }
 
+// PresignResult is a fresh presigned PUT URL for an interrupted upload.
+type PresignResult struct {
+	UploadURL string
+	ExpiresAt time.Time
+}
+
 type Service struct {
 	photos photos.Repository
 	repo   Repository
@@ -214,6 +220,26 @@ func (s *Service) rebuildInit(ctx context.Context, userID, photoID uuid.UUID, ki
 		return nil, apperr.Internal().WithCause(err)
 	}
 	return s.buildInitResult(ctx, photo, kind)
+}
+
+// RePresign issues a new presigned PUT for a simple upload that has not been
+// completed, so a client can resume after the original URL expired.
+func (s *Service) RePresign(ctx context.Context, actor Actor, photoID uuid.UUID) (*PresignResult, error) {
+	photo, err := s.photoForActor(ctx, actor, photoID)
+	if err != nil {
+		return nil, err
+	}
+	if photo.UploadKind != photos.KindSimple {
+		return nil, conflictError("NOT_SIMPLE", "Photo is not a simple upload")
+	}
+	if photo.Status != photos.StatusUploading {
+		return nil, conflictError("INVALID_UPLOAD_STATE", "Photo is no longer awaiting upload")
+	}
+	url, err := s.store.PresignPut(ctx, photo.StorageKey, photo.MimeType, presignTTL)
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	return &PresignResult{UploadURL: url, ExpiresAt: s.now().Add(presignTTL)}, nil
 }
 
 func (s *Service) Parts(ctx context.Context, actor Actor, photoID uuid.UUID, partNumbers []int) (*PartsResult, error) {

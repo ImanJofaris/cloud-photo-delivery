@@ -11,11 +11,14 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
 )
 
-// CleanupPayload identifies an object to delete (used when a photo fails
-// permanently and its original should be removed).
+// CleanupPayload identifies objects to delete. With Keys set it deletes the
+// listed objects without needing the photo row (used by photo deletion); with
+// no Keys it removes the original of a still-present photo (used when
+// processing fails permanently).
 type CleanupPayload struct {
 	PhotoID uuid.UUID `json:"photoId"`
 	EventID uuid.UUID `json:"eventId"`
+	Keys    []string  `json:"keys,omitempty"`
 }
 
 // Deleter is the subset of object storage the cleanup handler needs.
@@ -33,6 +36,18 @@ func CleanupHandler(repo Repository, store Deleter, log *slog.Logger) func(conte
 		}
 		if in.PhotoID == uuid.Nil {
 			return errors.New("cleanup payload missing photoId")
+		}
+		if len(in.Keys) > 0 {
+			for _, key := range in.Keys {
+				if key == "" {
+					continue
+				}
+				if err := store.Delete(ctx, key); err != nil && !errors.Is(err, r2.ErrNotFound) {
+					return fmt.Errorf("delete object: %w", err)
+				}
+			}
+			log.Info("cleaned up photo objects", "photo_id", in.PhotoID, "objects", len(in.Keys))
+			return nil
 		}
 		photo, err := repo.GetByID(ctx, in.PhotoID)
 		if err != nil {
