@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/analytics"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/auth"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/billing"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/billing/provider"
@@ -201,10 +202,20 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		return id.String(), true
 	})
 
+	analyticsSvc := analytics.NewService(
+		analytics.NewRepository(pool.Pool), photoRepo, cfg.AnalyticsSalt, log)
+	analyticsHandler := analytics.NewHandler(analyticsSvc, func(req *http.Request) (string, bool) {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
+
 	galleryRepo := gallery.NewRepository(pool.Pool)
 	galleryURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	galleryTokens := gallery.NewUnlockTokens(cfg.JWTSecret, cfg.GalleryUnlockTTL)
-	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword, brandingSvc)
+	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword, brandingSvc, analyticsSvc)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	photoURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
@@ -268,6 +279,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			r.Get("/account/branding", brandingHandler.Get)
 			r.Patch("/account/branding", brandingHandler.Update)
 			r.Post("/account/branding/assets", brandingHandler.CreateAssetUpload)
+			r.Get("/account/analytics", analyticsHandler.Account)
 
 			r.Route("/billing", func(r chi.Router) {
 				r.Get("/plans", billingHandler.Plans)
@@ -295,6 +307,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 					r.Patch("/settings", eventHandler.UpdateSettings)
 					r.Post("/exports", exportHandler.Create)
 					r.Get("/exports/{exportID}", exportHandler.Get)
+					r.Get("/analytics", analyticsHandler.Event)
 					r.Get("/dashboard", eventHandler.Dashboard)
 					r.Get("/url", qrHandler.URL)
 					r.Get("/qr.png", qrHandler.PNG)

@@ -72,6 +72,7 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID) {
 		photo_count BIGINT NOT NULL DEFAULT 0,
 		guest_count BIGINT NOT NULL DEFAULT 0,
 		expires_at TIMESTAMPTZ,
+		expiry_warned_at TIMESTAMPTZ,
 		deleted_at TIMESTAMPTZ,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -335,6 +336,7 @@ func TestGalleryService_ViewVsDownloadIntegration(t *testing.T) {
 		photos.NewSignedURLGenerator(store, time.Minute),
 		gallery.NewUnlockTokens("secret", time.Minute),
 		func(hash, password string) bool { return hash == "hash:"+password },
+		nil,
 		nil,
 	)
 

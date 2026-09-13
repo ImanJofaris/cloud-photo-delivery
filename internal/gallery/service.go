@@ -14,15 +14,32 @@ import (
 
 type PasswordVerifier func(hash, password string) bool
 type Service struct {
-	repo     Repository
-	urls     *photos.SignedURLGenerator
-	tokens   *UnlockTokens
-	verify   PasswordVerifier
-	branding BrandingProvider
+	repo      Repository
+	urls      *photos.SignedURLGenerator
+	tokens    *UnlockTokens
+	verify    PasswordVerifier
+	branding  BrandingProvider
+	analytics AnalyticsRecorder
 }
 
-func NewService(repo Repository, urls *photos.SignedURLGenerator, tokens *UnlockTokens, verify PasswordVerifier, branding BrandingProvider) *Service {
-	return &Service{repo: repo, urls: urls, tokens: tokens, verify: verify, branding: branding}
+func NewService(repo Repository, urls *photos.SignedURLGenerator, tokens *UnlockTokens, verify PasswordVerifier, branding BrandingProvider, analytics AnalyticsRecorder) *Service {
+	return &Service{repo: repo, urls: urls, tokens: tokens, verify: verify, branding: branding, analytics: analytics}
+}
+
+// recordView reports a successful gallery view. Failures are dropped so
+// analytics can never turn a readable gallery into an error.
+func (s *Service) recordView(ctx context.Context, eventID uuid.UUID, v Visitor) {
+	if s.analytics == nil {
+		return
+	}
+	_ = s.analytics.RecordView(ctx, eventID, v.IP, v.UserAgent, v.QRScan)
+}
+
+func (s *Service) recordDownload(ctx context.Context, eventID uuid.UUID) {
+	if s.analytics == nil {
+		return
+	}
+	_ = s.analytics.RecordDownload(ctx, eventID)
 }
 
 func notFound() *apperr.Error {
@@ -70,7 +87,7 @@ func (s *Service) visibleEvent(ctx context.Context, slug, unlockToken string) (*
 	return &VisibleEvent{Event: event, Settings: settings}, nil
 }
 
-func (s *Service) GetEvent(ctx context.Context, slug, unlockToken string) (*VisibleEvent, bool, error) {
+func (s *Service) GetEvent(ctx context.Context, slug, unlockToken string, v Visitor) (*VisibleEvent, bool, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {
 		return nil, false, notFound()
@@ -94,6 +111,9 @@ func (s *Service) GetEvent(ctx context.Context, slug, unlockToken string) (*Visi
 	branding, err := s.loadBranding(ctx, event.UserID)
 	if err != nil {
 		return nil, false, err
+	}
+	if !requiresUnlock {
+		s.recordView(ctx, event.ID, v)
 	}
 	return &VisibleEvent{Event: event, Settings: settings, Branding: branding}, requiresUnlock, nil
 }
@@ -222,6 +242,9 @@ func (s *Service) PhotoURL(ctx context.Context, slug, unlockToken, photoID, vari
 			return nil, apperr.New("VARIANT_UNAVAILABLE", "Requested variant is not available", 404)
 		}
 		return nil, apperr.Internal().WithCause(err)
+	}
+	if v.IsOriginal() {
+		s.recordDownload(ctx, ve.Event.ID)
 	}
 	return result, nil
 }

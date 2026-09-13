@@ -686,6 +686,88 @@ func TestMigrations_ExportsUpDownRoundTrip(t *testing.T) {
 	require.False(t, exists, "exports table should be dropped by down")
 }
 
+func TestMigrations_AnalyticsUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	for _, file := range []string{
+		"0001_init.sql", "0002_auth.sql", "0003_events.sql",
+		"0004_photos.sql", "0005_jobs.sql", "0006_gallery.sql", "0007_devices.sql",
+		"0008_branding.sql", "0009_billing.sql", "0010_lifecycle.sql", "0011_exports.sql",
+	} {
+		sql, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, extractSection(string(sql), "-- +goose Up", "-- +goose Down"))
+		require.NoError(t, err)
+	}
+
+	var userID uuid.UUID
+	err = pool.QueryRow(ctx,
+		`INSERT INTO users (email, password_hash) VALUES ('analytics@example.com', 'hash') RETURNING id`).Scan(&userID)
+	require.NoError(t, err)
+	var eventID uuid.UUID
+	err = pool.QueryRow(ctx,
+		`INSERT INTO events (user_id, name, slug) VALUES ($1, 'analytics', 'analytics') RETURNING id`, userID).Scan(&eventID)
+	require.NoError(t, err)
+
+	analyticsSQL, err := os.ReadFile("0012_analytics.sql")
+	require.NoError(t, err)
+	up := extractSection(string(analyticsSQL), "-- +goose Up", "-- +goose Down")
+	require.NotEmpty(t, up)
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+
+	for _, table := range []string{"event_analytics", "event_visitors"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)`, table).Scan(&exists)
+		require.NoError(t, err)
+		require.True(t, exists, "table %s should exist after up", table)
+	}
+
+	_, err = pool.Exec(ctx,
+		`INSERT INTO event_analytics (event_id, day, gallery_views) VALUES ($1, '2026-09-13', 1)`, eventID)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx,
+		`INSERT INTO event_visitors (event_id, day, visitor_hash) VALUES ($1, '2026-09-13', 'hash')`, eventID)
+	require.NoError(t, err)
+	_, err = pool.Exec(ctx,
+		`INSERT INTO event_visitors (event_id, day, visitor_hash) VALUES ($1, '2026-09-13', 'hash')`, eventID)
+	require.Error(t, err, "a visitor is unique per event and day")
+
+	down := extractSection(string(analyticsSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, down)
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+
+	for _, table := range []string{"event_analytics", "event_visitors"} {
+		var exists bool
+		err = pool.QueryRow(ctx,
+			`SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = $1)`, table).Scan(&exists)
+		require.NoError(t, err)
+		require.False(t, exists, "table %s should be dropped by down", table)
+	}
+}
+
 func extractSection(s, start, end string) string {
 	i := indexOf(s, start)
 	if i < 0 {

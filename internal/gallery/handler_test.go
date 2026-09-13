@@ -246,3 +246,23 @@ func TestHandler_ListPhotos_IncludesBranding(t *testing.T) {
 	event := data["event"].(map[string]any)
 	require.Equal(t, "Booth Co", event["branding"].(map[string]any)["businessName"])
 }
+
+func TestHandler_GetEvent_RecordsVisitorFromRequest(t *testing.T) {
+	svc, repo, _, _ := newTestServiceFull()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	h := NewHandler(svc)
+
+	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding?src=qr", nil), map[string]string{"slug": "wedding"})
+	r.Header.Set("X-Forwarded-For", "203.0.113.7")
+	r.Header.Set("User-Agent", "qr-scanner/1.0")
+	rec := httptest.NewRecorder()
+	h.GetEvent(rec, r)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	views := recorderOf(svc).views
+	require.Len(t, views, 1)
+	require.Equal(t, "203.0.113.7", views[0].ip)
+	require.Equal(t, "qr-scanner/1.0", views[0].userAgent)
+	require.True(t, views[0].qrScan)
+}

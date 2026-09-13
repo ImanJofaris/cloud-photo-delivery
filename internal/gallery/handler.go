@@ -3,6 +3,7 @@ package gallery
 import (
 	"encoding/json"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
@@ -133,6 +134,14 @@ func slugParam(r *http.Request) string { return chi.URLParam(r, "slug") }
 
 func unlockHeader(r *http.Request) string { return r.Header.Get("X-Gallery-Unlock") }
 
+func visitorFrom(r *http.Request) Visitor {
+	return Visitor{
+		IP:        httpx.ClientIP(r),
+		UserAgent: r.UserAgent(),
+		QRScan:    strings.EqualFold(r.URL.Query().Get("src"), "qr"),
+	}
+}
+
 func decodeBody(r *http.Request, dst any) error {
 	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
 	dec.DisallowUnknownFields()
@@ -160,7 +169,7 @@ func parseLimit(raw string) int {
 }
 
 func (h *Handler) GetEvent(w http.ResponseWriter, r *http.Request) {
-	ve, requiresUnlock, err := h.svc.GetEvent(r.Context(), slugParam(r), unlockHeader(r))
+	ve, requiresUnlock, err := h.svc.GetEvent(r.Context(), slugParam(r), unlockHeader(r), visitorFrom(r))
 	if err != nil {
 		httpx.Error(w, r, err)
 		return

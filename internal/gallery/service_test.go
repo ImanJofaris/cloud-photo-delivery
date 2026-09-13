@@ -25,9 +25,11 @@ func newTestServiceFull() (*Service, *fakeRepo, *fakePresigner, *fakeBrandingPro
 	branding := &fakeBrandingProvider{}
 	urls := photos.NewSignedURLGenerator(presigner, 5*time.Minute)
 	tokens := NewUnlockTokens("secret", 30*time.Minute)
-	svc := NewService(repo, urls, tokens, func(hash, pw string) bool { return hash == "hash:"+pw }, branding)
+	svc := NewService(repo, urls, tokens, func(hash, pw string) bool { return hash == "hash:"+pw }, branding, &fakeRecorder{})
 	return svc, repo, presigner, branding
 }
+
+func recorderOf(svc *Service) *fakeRecorder { return svc.analytics.(*fakeRecorder) }
 
 func codeOf(t *testing.T, err error) string {
 	t.Helper()
@@ -41,7 +43,7 @@ func TestService_GetEvent_Public(t *testing.T) {
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
 
-	ve, requiresUnlock, err := svc.GetEvent(context.Background(), "wedding", "")
+	ve, requiresUnlock, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{})
 	require.NoError(t, err)
 	require.False(t, requiresUnlock)
 	require.Equal(t, e.ID, ve.Event.ID)
@@ -53,13 +55,13 @@ func TestService_GetEvent_PrivateHidden(t *testing.T) {
 	s.Visibility = events.VisibilityPrivate
 	repo.addEvent(e, s)
 
-	_, _, err := svc.GetEvent(context.Background(), "secret", "")
+	_, _, err := svc.GetEvent(context.Background(), "secret", "", Visitor{})
 	require.Equal(t, "EVENT_NOT_FOUND", codeOf(t, err))
 }
 
 func TestService_GetEvent_UnknownSlug(t *testing.T) {
 	svc, _, _ := newTestService()
-	_, _, err := svc.GetEvent(context.Background(), "nope", "")
+	_, _, err := svc.GetEvent(context.Background(), "nope", "", Visitor{})
 	require.Equal(t, "EVENT_NOT_FOUND", codeOf(t, err))
 }
 
@@ -70,13 +72,13 @@ func TestService_GetEvent_PasswordRequiresUnlock(t *testing.T) {
 	s.PasswordHash = "hash:open"
 	repo.addEvent(e, s)
 
-	_, requiresUnlock, err := svc.GetEvent(context.Background(), "pw", "")
+	_, requiresUnlock, err := svc.GetEvent(context.Background(), "pw", "", Visitor{})
 	require.NoError(t, err)
 	require.True(t, requiresUnlock)
 
 	token, err := svc.tokens.Issue(e.ID)
 	require.NoError(t, err)
-	_, requiresUnlock, err = svc.GetEvent(context.Background(), "pw", token)
+	_, requiresUnlock, err = svc.GetEvent(context.Background(), "pw", token, Visitor{})
 	require.NoError(t, err)
 	require.False(t, requiresUnlock)
 }
@@ -354,7 +356,7 @@ func TestService_GetEvent_AttachesBranding(t *testing.T) {
 		LogoURL:      "https://example.test/logo.png",
 	}
 
-	ve, _, err := svc.GetEvent(context.Background(), "wedding", "")
+	ve, _, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{})
 	require.NoError(t, err)
 	require.NotNil(t, ve.Branding)
 	require.Equal(t, "Booth Co", ve.Branding.BusinessName)
@@ -367,7 +369,7 @@ func TestService_GetEvent_BrandingErrorIsInternal(t *testing.T) {
 	repo.addEvent(e, s)
 	branding.err = errors.New("db down")
 
-	_, _, err := svc.GetEvent(context.Background(), "wedding", "")
+	_, _, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{})
 	require.Equal(t, "INTERNAL_ERROR", codeOf(t, err))
 }
 
@@ -382,4 +384,71 @@ func TestService_ListPhotos_AttachesBranding(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ve.Branding)
 	require.Equal(t, "Booth Co", ve.Branding.BusinessName)
+}
+
+func TestService_GetEvent_RecordsView(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+
+	_, _, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{IP: "1.2.3.4", UserAgent: "test-agent", QRScan: true})
+	require.NoError(t, err)
+
+	rec := recorderOf(svc)
+	require.Equal(t, 1, rec.viewCount())
+	require.Equal(t, e.ID, rec.views[0].eventID)
+	require.Equal(t, "1.2.3.4", rec.views[0].ip)
+	require.Equal(t, "test-agent", rec.views[0].userAgent)
+	require.True(t, rec.views[0].qrScan)
+}
+
+func TestService_GetEvent_LockedEventRecordsNothing(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("pw")
+	s.Visibility = events.VisibilityPassword
+	s.PasswordHash = "hash:right"
+	repo.addEvent(e, s)
+
+	_, requiresUnlock, err := svc.GetEvent(context.Background(), "pw", "", Visitor{IP: "1.2.3.4"})
+	require.NoError(t, err)
+	require.True(t, requiresUnlock)
+	require.Equal(t, 0, recorderOf(svc).viewCount())
+}
+
+func TestService_GetEvent_RecorderFailureIsIgnored(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	recorderOf(svc).err = errors.New("db down")
+
+	_, _, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{})
+	require.NoError(t, err)
+}
+
+func TestService_GetEvent_NilRecorder(t *testing.T) {
+	repo := newFakeRepo()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	svc := NewService(repo, photos.NewSignedURLGenerator(&fakePresigner{}, time.Minute),
+		NewUnlockTokens("secret", time.Minute), func(hash, pw string) bool { return true }, nil, nil)
+
+	_, _, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{})
+	require.NoError(t, err)
+}
+
+func TestService_PhotoURL_RecordsOnlyOriginalDownloads(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("wedding")
+	s.AllowOriginalDownload = true
+	repo.addEvent(e, s)
+	p := readyPhoto(e.ID, time.Now())
+	repo.photos[e.ID] = append(repo.photos[e.ID], p)
+
+	_, err := svc.PhotoURL(context.Background(), "wedding", "", p.ID.String(), "original")
+	require.NoError(t, err)
+	require.Equal(t, 1, recorderOf(svc).downloadCount())
+
+	_, err = svc.PhotoURL(context.Background(), "wedding", "", p.ID.String(), "large")
+	require.NoError(t, err)
+	require.Equal(t, 1, recorderOf(svc).downloadCount(), "view variants are not downloads")
 }

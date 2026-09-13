@@ -168,3 +168,43 @@ func (f *fakeBrandingProvider) Get(_ context.Context, userID uuid.UUID) (*users.
 	}
 	return f.view, nil
 }
+
+type fakeRecorder struct {
+	mu        sync.Mutex
+	views     []recordedView
+	downloads []uuid.UUID
+	err       error
+}
+
+type recordedView struct {
+	eventID   uuid.UUID
+	ip        string
+	userAgent string
+	qrScan    bool
+}
+
+func (f *fakeRecorder) RecordView(_ context.Context, eventID uuid.UUID, ip, userAgent string, qrScan bool) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.views = append(f.views, recordedView{eventID: eventID, ip: ip, userAgent: userAgent, qrScan: qrScan})
+	return f.err
+}
+
+func (f *fakeRecorder) RecordDownload(_ context.Context, eventID uuid.UUID) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.downloads = append(f.downloads, eventID)
+	return f.err
+}
+
+func (f *fakeRecorder) viewCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.views)
+}
+
+func (f *fakeRecorder) downloadCount() int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return len(f.downloads)
+}

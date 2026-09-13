@@ -193,7 +193,8 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 		photos.NewSignedURLGenerator(store, 5*time.Minute),
 		gallery.NewUnlockTokens("e2e-secret", 30*time.Minute),
 		auth.VerifyPassword,
-		brandingSvc)
+		brandingSvc,
+		nil)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	r := chi.NewRouter()

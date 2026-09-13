@@ -61,6 +61,21 @@ type UnlockResult struct {
 	ExpiresIn int
 }
 
+// Visitor carries the request attributes used for anonymous analytics. No raw
+// IP or user agent is persisted; the recorder hashes them.
+type Visitor struct {
+	IP        string
+	UserAgent string
+	QRScan    bool
+}
+
+// AnalyticsRecorder records public gallery activity. The gallery treats
+// failures as non-fatal so analytics can never break a gallery read.
+type AnalyticsRecorder interface {
+	RecordView(ctx context.Context, eventID uuid.UUID, ip, userAgent string, qrScan bool) error
+	RecordDownload(ctx context.Context, eventID uuid.UUID) error
+}
+
 // Repository is the read-only gallery data access layer.
 type Repository interface {
 	EventBySlug(ctx context.Context, slug string) (*events.Event, *events.Settings, error)
