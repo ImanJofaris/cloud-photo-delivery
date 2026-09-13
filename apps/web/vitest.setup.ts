@@ -31,4 +31,19 @@ class ImmediateIntersectionObserver implements IntersectionObserver {
 globalThis.IntersectionObserver =
   ImmediateIntersectionObserver as unknown as typeof IntersectionObserver
 
+class ResizeObserverStub {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+}
+
+if (!("ResizeObserver" in globalThis)) {
+  globalThis.ResizeObserver =
+    ResizeObserverStub as unknown as typeof ResizeObserver
+}
+
+if (!Element.prototype.scrollIntoView) {
+  Element.prototype.scrollIntoView = () => {}
+}
+
 afterEach(cleanup)

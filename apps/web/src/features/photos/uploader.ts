@@ -32,6 +32,7 @@ export type UploadItem = {
   progress: number
   attempts: number
   error: string | null
+  errorCode: string | null
   photoId: string | null
   uploadKind: UploadKind | null
   fromRegistry: boolean
@@ -167,6 +168,7 @@ export class UploadQueue {
         progress: 0,
         attempts: 0,
         error: null,
+        errorCode: null,
         photoId: null,
         uploadKind: uploadKindFor(file.size),
         fromRegistry: false,
@@ -186,6 +188,7 @@ export class UploadQueue {
     if (!item || !item.file) return
     item.status = "queued"
     item.error = null
+    item.errorCode = null
     item.attempts = 0
     this.notify()
     this.pump()
@@ -292,6 +295,7 @@ export class UploadQueue {
           progress: 0,
           attempts: 0,
           error: "Upload was interrupted. Select the file again to retry.",
+          errorCode: null,
           photoId: entry.photoId,
           uploadKind: status.uploadKind ?? entry.uploadKind,
           fromRegistry: true,
@@ -381,6 +385,7 @@ export class UploadQueue {
         }
         item.status = "failed"
         item.error = photoErrorMessage(error)
+        item.errorCode = error instanceof ApiError ? error.code : null
         this.persist(item)
         this.notify()
         this.deps.onChanged?.(item)

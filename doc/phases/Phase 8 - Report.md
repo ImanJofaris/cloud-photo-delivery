@@ -218,6 +218,7 @@ pnpm install / gen:api / lint / typecheck / test              -> all pass (79 we
 - Renewal is not simulated: only `checkout.completed`/`invoice.paid`/`subscription.canceled` are handled, and `invoice.paid` does not extend `current_period_end`. A real gateway adapter should extend the period on renewal webhooks.
 - Lazy expiry only runs on `GET /billing/subscription`; a Phase 9 scheduler should expire canceled subscriptions proactively.
 - Only the `manual` provider is implemented; Billplz/Stripe adapters slot into `PaymentProvider` later.
+- The operator billing UI (plans, subscription lifecycle, invoices, usage meters) ships in Phase F5 (`doc/phases/Phase F5 - Devices, Branding and Billing.md`).
 
 ---
 

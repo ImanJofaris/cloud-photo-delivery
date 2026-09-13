@@ -1,6 +1,7 @@
 "use client"
 
 import { RotateCcw, X } from "lucide-react"
+import Link from "next/link"
 
 import { Button } from "@workspace/ui/components/button"
 import { Progress } from "@workspace/ui/components/progress"
@@ -47,9 +48,17 @@ function UploadQueueRow({
         </div>
         {showProgress && <Progress value={item.progress} className="gap-0" />}
         {item.error && (
-          <p className="text-xs text-destructive" role="alert">
-            {item.error}
-          </p>
+          <div className="text-xs text-destructive" role="alert">
+            <span>{item.error}</span>
+            {item.errorCode === "PLAN_LIMIT_REACHED" && (
+              <Link
+                href="/billing"
+                className="ml-1 font-medium underline underline-offset-4"
+              >
+                View plans
+              </Link>
+            )}
+          </div>
         )}
       </div>
       <div className="flex shrink-0 items-center gap-1">

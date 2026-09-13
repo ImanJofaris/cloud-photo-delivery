@@ -37,3 +37,15 @@ export function formatBytes(bytes: number | null | undefined): string {
   const digits = unit === 0 || value >= 10 ? 0 : 1
   return `${value.toFixed(digits)} ${units[unit]}`
 }
+
+export function qrDownloadFilename(
+  eventName: string,
+  extension: "png" | "svg"
+): string {
+  const base = eventName
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+  return `${base || "event"}-qr.${extension}`
+}

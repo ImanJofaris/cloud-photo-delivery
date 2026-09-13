@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest"
 
-import { formatBytes, formatDate } from "./format"
+import { formatBytes, formatDate, qrDownloadFilename } from "./format"
 
 describe("formatBytes", () => {
   it("formats zero and small values", () => {
@@ -23,5 +23,18 @@ describe("formatDate", () => {
   it("returns a placeholder for empty values", () => {
     expect(formatDate(null)).toBe("—")
     expect(formatDate("not-a-date")).toBe("—")
+  })
+})
+
+describe("qrDownloadFilename", () => {
+  it("slugifies the event name", () => {
+    expect(qrDownloadFilename("Sarah & John's Wedding", "png")).toBe(
+      "sarah-john-s-wedding-qr.png"
+    )
+    expect(qrDownloadFilename("  Wedding  ", "svg")).toBe("wedding-qr.svg")
+  })
+
+  it("falls back when the name has no usable characters", () => {
+    expect(qrDownloadFilename("***", "png")).toBe("event-qr.png")
   })
 })

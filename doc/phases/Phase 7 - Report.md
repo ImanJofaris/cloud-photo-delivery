@@ -217,7 +217,7 @@ pnpm build                      -> ok
 - `primaryColor`/`secondaryColor` accept only `#rrggbb` (alpha not supported) even though the column allows 9 chars.
 - No cleanup job for orphaned previous logo objects when a tenant replaces their logo; Phase 9 lifecycle work is the natural home.
 - `allowDownload=false` still blocks all photo variants in the public gallery — fixed by the Phase F4 §2.1 backend prerequisite, not this phase.
-- No operator UI yet; QR/branding surfaces are API-only until the frontend phase for branding.
+- No operator UI yet; QR/branding surfaces are API-only until the frontend phase for branding. **Shipped in Phase F5** (`doc/phases/Phase F5 - Devices, Branding and Billing.md`).
 - QR images are bearer-authenticated, so an `<img src>` on a photobooth screen cannot embed the URL directly; the operator app must fetch the image with the access token and use a blob object URL.
 
 ---

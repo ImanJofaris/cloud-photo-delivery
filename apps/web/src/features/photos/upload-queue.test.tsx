@@ -15,6 +15,7 @@ function item(overrides: Partial<UploadItem> = {}): UploadItem {
     progress: 40,
     attempts: 0,
     error: null,
+    errorCode: null,
     photoId: "photo-1",
     uploadKind: "simple",
     fromRegistry: false,
@@ -73,6 +74,22 @@ describe("UploadQueueList", () => {
 
     await userEvent.click(screen.getByRole("button", { name: "Remove" }))
     expect(handlers.onDiscard).toHaveBeenCalledWith("k1")
+  })
+
+  it("links plan-limit failures to billing", () => {
+    setup([
+      item({
+        status: "failed",
+        error: "You have reached your plan's limit.",
+        errorCode: "PLAN_LIMIT_REACHED",
+        file: new File([new Uint8Array(1)], "a.jpg", { type: "image/jpeg" }),
+      }),
+    ])
+
+    expect(screen.getByRole("link", { name: "View plans" })).toHaveAttribute(
+      "href",
+      "/billing"
+    )
   })
 
   it("offers only remove for an interrupted registry entry", () => {

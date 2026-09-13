@@ -1,6 +1,8 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
+import Link from "next/link"
+import * as React from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { toast } from "sonner"
@@ -18,6 +20,8 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Textarea } from "@workspace/ui/components/textarea"
 
+import { isPlanLimitReached } from "@/lib/api-errors"
+
 import { toCreateEventRequest, useCreateEvent } from "./api"
 import { eventErrorMessage } from "./errors"
 import { createEventSchema, type CreateEventValues } from "./schema"
@@ -25,6 +29,7 @@ import { createEventSchema, type CreateEventValues } from "./schema"
 export function EventForm() {
   const createEvent = useCreateEvent()
   const router = useRouter()
+  const [planLimitReached, setPlanLimitReached] = React.useState(false)
   const form = useForm<CreateEventValues>({
     resolver: zodResolver(createEventSchema),
     defaultValues: {
@@ -43,6 +48,7 @@ export function EventForm() {
       toast.success("Event created")
       router.push(`/events/${result.event.id}`)
     } catch (error) {
+      setPlanLimitReached(isPlanLimitReached(error))
       form.setError("root", { message: eventErrorMessage(error) })
     }
   }
@@ -135,7 +141,20 @@ export function EventForm() {
 
           {errors.root && (
             <Alert variant="destructive">
-              <AlertDescription>{errors.root.message}</AlertDescription>
+              <AlertDescription>
+                <p>{errors.root.message}</p>
+                {planLimitReached && (
+                  <Button
+                    render={<Link href="/billing" />}
+                    nativeButton={false}
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                  >
+                    View plans
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 

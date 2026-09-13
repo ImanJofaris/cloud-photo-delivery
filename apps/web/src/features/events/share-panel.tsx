@@ -13,8 +13,19 @@ import {
   CardTitle,
 } from "@workspace/ui/components/card"
 
-export function SharePanel({ slug }: { slug: string }) {
+import { QrDialog, QrTriggerButton } from "./qr-dialog"
+
+export function SharePanel({
+  eventId,
+  eventName,
+  slug,
+}: {
+  eventId: string
+  eventName: string
+  slug: string
+}) {
   const [copied, setCopied] = React.useState(false)
+  const [qrOpen, setQrOpen] = React.useState(false)
 
   async function copyLink() {
     const url = `${window.location.origin}/e/${slug}`
@@ -32,22 +43,32 @@ export function SharePanel({ slug }: { slug: string }) {
       <CardHeader>
         <CardTitle>Share</CardTitle>
         <CardDescription>
-          Send this link to your client and their guests.
+          Send this link or QR code to your client and their guests.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         <div className="flex items-center justify-between gap-3 rounded-md bg-muted px-3 py-2">
           <code className="truncate text-sm">/e/{slug}</code>
-          <Button size="sm" variant="ghost" onClick={() => void copyLink()}>
-            <Copy />
-            {copied ? "Copied" : "Copy link"}
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button size="sm" variant="ghost" onClick={() => void copyLink()}>
+              <Copy />
+              {copied ? "Copied" : "Copy link"}
+            </Button>
+            <QrTriggerButton onClick={() => setQrOpen(true)} />
+          </div>
         </div>
         <p className="text-xs text-muted-foreground">
           Guests open this link without an account. Password and private
-          visibility are controlled in Settings; QR codes point here too.
+          visibility are controlled in Settings.
         </p>
       </CardContent>
+
+      <QrDialog
+        eventId={eventId}
+        eventName={eventName}
+        open={qrOpen}
+        onOpenChange={setQrOpen}
+      />
     </Card>
   )
 }

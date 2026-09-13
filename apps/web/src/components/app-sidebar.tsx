@@ -2,9 +2,12 @@
 
 import {
   CalendarDays,
+  Camera,
+  CreditCard,
   LayoutDashboard,
   LogOut,
   Moon,
+  Palette,
   Sun,
   User,
 } from "lucide-react"
@@ -41,8 +44,15 @@ import { useSession } from "@/lib/auth/session-provider"
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Events", href: "/events", icon: CalendarDays },
+  { title: "Devices", href: "/devices", icon: Camera },
+  { title: "Branding", href: "/branding", icon: Palette },
+  { title: "Billing", href: "/billing", icon: CreditCard },
   { title: "Account", href: "/account", icon: User },
 ]
+
+export function isNavActive(pathname: string, href: string): boolean {
+  return pathname === href || pathname.startsWith(`${href}/`)
+}
 
 function initials(value: string) {
   return value
@@ -97,7 +107,7 @@ export function AppSidebar() {
               {navItems.map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
-                    isActive={pathname === item.href}
+                    isActive={isNavActive(pathname, item.href)}
                     tooltip={item.title}
                     render={<Link href={item.href} />}
                   >

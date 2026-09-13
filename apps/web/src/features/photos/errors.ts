@@ -12,6 +12,8 @@ const messages: Record<string, string> = {
   NOT_SIMPLE: "This upload must be resumed as a multipart upload.",
   INVALID_UPLOAD_STATE: "This upload has already finished.",
   VALIDATION_ERROR: "The server rejected this file.",
+  PLAN_LIMIT_REACHED:
+    "You have reached your plan's limit. Upgrade to continue uploading.",
 }
 
 const FALLBACK = "Something went wrong. Please try again."

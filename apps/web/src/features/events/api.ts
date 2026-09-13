@@ -18,6 +18,7 @@ type Event = components["schemas"]["Event"]
 type EventList = components["schemas"]["EventList"]
 type EventSettings = components["schemas"]["EventSettings"]
 type EventDashboard = components["schemas"]["EventDashboard"]
+type EventURL = components["schemas"]["EventURL"]
 type EventWithSettings = components["schemas"]["EventWithSettings"]
 type EventStatus = components["schemas"]["EventStatus"]
 type CreateEventRequest = components["schemas"]["CreateEventRequest"]
@@ -74,6 +75,38 @@ export function useEventSettings(eventId: string) {
           params: { path: { eventID: eventId } },
         })
       ),
+  })
+}
+
+export function useEventPublicUrl(eventId: string, enabled = true) {
+  return useQuery({
+    queryKey: eventKeys.url(eventId),
+    queryFn: () =>
+      apiCall<EventURL>((client) =>
+        client.GET("/events/{eventID}/url", {
+          params: { path: { eventID: eventId } },
+        })
+      ),
+    enabled,
+  })
+}
+
+export function useEventOptions() {
+  return useQuery({
+    queryKey: eventKeys.options(),
+    queryFn: async () => {
+      const items: Event[] = []
+      let cursor: string | undefined
+      for (let page = 0; page < 10; page += 1) {
+        const result = await apiCall<EventList>((client) =>
+          client.GET("/events", { params: { query: { limit: 100, cursor } } })
+        )
+        items.push(...result.items)
+        if (!result.nextCursor) break
+        cursor = result.nextCursor
+      }
+      return items
+    },
   })
 }
 

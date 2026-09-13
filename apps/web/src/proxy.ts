@@ -2,14 +2,28 @@ import { NextResponse, type NextRequest } from "next/server"
 
 import { REFRESH_COOKIE } from "@/lib/auth/cookies"
 
-const PROTECTED_PREFIX = "/dashboard"
+export const PROTECTED_PREFIXES = [
+  "/dashboard",
+  "/events",
+  "/account",
+  "/devices",
+  "/branding",
+  "/billing",
+]
+
 const AUTH_PAGES = ["/login", "/signup"]
+
+export function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  )
+}
 
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl
   const hasSession = request.cookies.has(REFRESH_COOKIE)
 
-  if (!hasSession && pathname.startsWith(PROTECTED_PREFIX)) {
+  if (!hasSession && isProtectedPath(pathname)) {
     const url = request.nextUrl.clone()
     url.pathname = "/login"
     url.search = ""
@@ -28,5 +42,14 @@ export function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/login", "/signup"],
+  matcher: [
+    "/dashboard/:path*",
+    "/events/:path*",
+    "/account/:path*",
+    "/devices/:path*",
+    "/branding/:path*",
+    "/billing/:path*",
+    "/login",
+    "/signup",
+  ],
 }

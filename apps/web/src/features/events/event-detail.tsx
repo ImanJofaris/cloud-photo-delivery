@@ -157,7 +157,11 @@ export function EventDetail({ eventId }: { eventId: string }) {
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <SharePanel slug={event.slug} />
+              <SharePanel
+                eventId={event.id}
+                eventName={event.name}
+                slug={event.slug}
+              />
               <Card>
                 <CardHeader>
                   <CardTitle>Details</CardTitle>

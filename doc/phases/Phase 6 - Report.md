@@ -197,7 +197,7 @@ pnpm lint / typecheck / test / build                    -> clean (api-client 6, 
 - `GET /devices` returns all devices unpaginated (device counts per operator are small; no offset pagination was introduced).
 - The 100/min limiter applies to upload initialization; other device calls share the same key but are not throttled.
 - Revoked devices remain listed with `revokedAt` for audit; there is no hard delete.
-- No frontend device-management UI yet; Phase F-track can consume these endpoints.
+- No frontend device-management UI yet; Phase F-track can consume these endpoints. **Shipped in Phase F5** (`doc/phases/Phase F5 - Devices, Branding and Billing.md`).
 - `last_used_at` is written synchronously per authenticated request; a queue/batch write is a Phase 10 candidate.
 
 ---

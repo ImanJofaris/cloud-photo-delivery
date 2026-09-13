@@ -6,6 +6,9 @@ nextEnv.loadEnvConfig(process.cwd())
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  // The Go API rate-limits auth endpoints per IP (30/min, burst 10). Parallel
+  // workers share localhost and exhaust the bucket, so run one at a time.
+  workers: 1,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "html",
