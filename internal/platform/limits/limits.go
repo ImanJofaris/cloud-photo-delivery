@@ -9,6 +9,7 @@ type PlanLimits interface {
 	MaxActiveEvents(ctx context.Context, userID string) (int, error)
 	MaxPhotosPerEvent(ctx context.Context, userID string) (int, error)
 	MaxStorageBytes(ctx context.Context, userID string) (int64, error)
+	RetentionDays(ctx context.Context, userID string) (int, error)
 }
 
 // Default grants unlimited usage.
@@ -25,5 +26,9 @@ func (Default) MaxPhotosPerEvent(ctx context.Context, userID string) (int, error
 }
 
 func (Default) MaxStorageBytes(ctx context.Context, userID string) (int64, error) {
+	return 0, nil
+}
+
+func (Default) RetentionDays(ctx context.Context, userID string) (int, error) {
 	return 0, nil
 }

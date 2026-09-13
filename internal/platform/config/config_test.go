@@ -125,6 +125,96 @@ func TestLoad_Defaults(t *testing.T) {
 	if cfg.GalleryUnlockTTL != 30*time.Minute {
 		t.Errorf("expected default gallery unlock TTL 30m, got %v", cfg.GalleryUnlockTTL)
 	}
+	if cfg.EventPurgeGraceDays != 30 {
+		t.Errorf("expected default purge grace 30d, got %d", cfg.EventPurgeGraceDays)
+	}
+	if cfg.ExpiryWarnDays != 7 {
+		t.Errorf("expected default expiry warning 7d, got %d", cfg.ExpiryWarnDays)
+	}
+	if cfg.ExportTTL != 24*time.Hour {
+		t.Errorf("expected default export TTL 24h, got %v", cfg.ExportTTL)
+	}
+}
+
+func TestLoad_ExportTTLOverrides(t *testing.T) {
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
+	t.Setenv("EXPORT_TTL", "2h30m")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.ExportTTL != 2*time.Hour+30*time.Minute {
+		t.Fatalf("unexpected export TTL: %v", cfg.ExportTTL)
+	}
+}
+
+func TestLoad_NonPositiveExportTTLRejected(t *testing.T) {
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
+	t.Setenv("EXPORT_TTL", "0s")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for non-positive EXPORT_TTL")
+	}
+}
+
+func TestLoad_LifecycleOverrides(t *testing.T) {
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
+	t.Setenv("EVENT_PURGE_GRACE_DAYS", "14")
+	t.Setenv("EXPIRY_WARN_DAYS", "3")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.EventPurgeGraceDays != 14 || cfg.ExpiryWarnDays != 3 {
+		t.Fatalf("unexpected lifecycle config: %+v", cfg)
+	}
+}
+
+func TestLoad_NegativeLifecycleValuesRejected(t *testing.T) {
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
+	t.Setenv("EVENT_PURGE_GRACE_DAYS", "-1")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for negative EVENT_PURGE_GRACE_DAYS")
+	}
+}
+
+func TestLoad_AnalyticsSalt(t *testing.T) {
+	t.Setenv("APP_ENV", "dev")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AnalyticsSalt != "test-secret" {
+		t.Fatalf("expected analytics salt to fall back to JWT secret, got %q", cfg.AnalyticsSalt)
+	}
+
+	t.Setenv("ANALYTICS_HASH_SALT", "analytics-secret")
+	cfg, err = Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AnalyticsSalt != "analytics-secret" {
+		t.Fatalf("expected overridden analytics salt, got %q", cfg.AnalyticsSalt)
+	}
 }
 
 func TestValidateStorage(t *testing.T) {

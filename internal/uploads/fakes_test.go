@@ -299,3 +299,7 @@ func (f fakeLimits) MaxPhotosPerEvent(context.Context, string) (int, error) {
 func (f fakeLimits) MaxStorageBytes(context.Context, string) (int64, error) {
 	return f.maxBytes, f.err
 }
+
+func (f fakeLimits) RetentionDays(context.Context, string) (int, error) {
+	return 0, f.err
+}

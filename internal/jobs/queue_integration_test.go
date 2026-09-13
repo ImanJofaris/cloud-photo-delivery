@@ -235,3 +235,35 @@ func TestQueue_ReleaseReturnsToPending(t *testing.T) {
 	require.Equal(t, "pending", status)
 	require.Zero(t, attempts, "release must not count an attempt")
 }
+
+func TestQueue_EnqueueUniqueDedupesInFlight(t *testing.T) {
+	_, q := setupQueue(t)
+	ctx := context.Background()
+
+	first, enqueued, err := q.EnqueueUnique(ctx, "event.expire", map[string]any{})
+	require.NoError(t, err)
+	require.True(t, enqueued)
+	require.NotEqual(t, uuid.Nil, first)
+
+	_, enqueued, err = q.EnqueueUnique(ctx, "event.expire", map[string]any{})
+	require.NoError(t, err)
+	require.False(t, enqueued, "pending instance must block a duplicate")
+
+	// A different type is unaffected.
+	_, enqueued, err = q.EnqueueUnique(ctx, "event.purge", map[string]any{})
+	require.NoError(t, err)
+	require.True(t, enqueued)
+
+	// Running instances also block duplicates.
+	_, err = q.Claim(ctx, "w")
+	require.NoError(t, err)
+	_, enqueued, err = q.EnqueueUnique(ctx, "event.expire", map[string]any{})
+	require.NoError(t, err)
+	require.False(t, enqueued)
+
+	// Once done the type can be scheduled again.
+	require.NoError(t, q.Complete(ctx, first))
+	_, enqueued, err = q.EnqueueUnique(ctx, "event.expire", map[string]any{})
+	require.NoError(t, err)
+	require.True(t, enqueued)
+}

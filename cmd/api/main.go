@@ -276,6 +276,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 					r.Get("/", eventHandler.Get)
 					r.Patch("/", eventHandler.Update)
 					r.Post("/archive", eventHandler.Archive)
+					r.Post("/extend", eventHandler.Extend)
 					r.Delete("/", eventHandler.Delete)
 
 					r.Get("/settings", eventHandler.GetSettings)

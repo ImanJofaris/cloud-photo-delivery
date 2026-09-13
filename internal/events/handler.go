@@ -379,6 +379,34 @@ func (h *Handler) Archive(w http.ResponseWriter, r *http.Request) {
 	httpx.Success(w, http.StatusOK, toEventDTO(event))
 }
 
+type extendRequest struct {
+	Days int `json:"days"`
+}
+
+func (h *Handler) Extend(w http.ResponseWriter, r *http.Request) {
+	userID, err := h.userID(r)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	id, err := h.eventID(r)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	var req extendRequest
+	if err := decodeBody(r, &req); err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	event, err := h.svc.Extend(r.Context(), userID, id, req.Days)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	httpx.Success(w, http.StatusOK, toEventDTO(event))
+}
+
 func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 	userID, err := h.userID(r)
 	if err != nil {

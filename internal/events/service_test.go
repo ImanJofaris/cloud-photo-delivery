@@ -3,6 +3,7 @@ package events
 import (
 	"context"
 	"errors"
+	"sort"
 	"testing"
 	"time"
 
@@ -11,18 +12,27 @@ import (
 )
 
 type fakeRepo struct {
-	events   map[uuid.UUID]*Event
-	settings map[uuid.UUID]*Settings
-	slugs    map[string]uuid.UUID
-	now      time.Time
+	events      map[uuid.UUID]*Event
+	settings    map[uuid.UUID]*Settings
+	slugs       map[string]uuid.UUID
+	warned      map[uuid.UUID]time.Time
+	ownerEmail  string
+	now         time.Time
+	purgeCalls  int
+	purgeKeys   map[uuid.UUID][]string
+	purgeDelete map[uuid.UUID]bool
 }
 
 func newFakeRepo() *fakeRepo {
 	return &fakeRepo{
-		events:   map[uuid.UUID]*Event{},
-		settings: map[uuid.UUID]*Settings{},
-		slugs:    map[string]uuid.UUID{},
-		now:      time.Now(),
+		events:      map[uuid.UUID]*Event{},
+		settings:    map[uuid.UUID]*Settings{},
+		slugs:       map[string]uuid.UUID{},
+		warned:      map[uuid.UUID]time.Time{},
+		ownerEmail:  "owner@example.com",
+		now:         time.Now(),
+		purgeKeys:   map[uuid.UUID][]string{},
+		purgeDelete: map[uuid.UUID]bool{},
 	}
 }
 
@@ -145,9 +155,118 @@ func (f *fakeRepo) UpdateSettings(ctx context.Context, userID, eventID uuid.UUID
 	return &s, nil
 }
 
+func (f *fakeRepo) Extend(ctx context.Context, userID, id uuid.UUID, expiresAt time.Time, reactivate bool) (*Event, error) {
+	e, err := f.GetByID(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	e.ExpiresAt = &expiresAt
+	if reactivate {
+		e.Status = StatusActive
+	}
+	delete(f.warned, id)
+	return e, nil
+}
+
+func (f *fakeRepo) ListDueExpiry(ctx context.Context, now time.Time, limit int) ([]*Event, error) {
+	var out []*Event
+	for _, e := range f.events {
+		if e.DeletedAt != nil || e.ExpiresAt == nil || e.ExpiresAt.After(now) {
+			continue
+		}
+		if e.Status != StatusUpcoming && e.Status != StatusActive && e.Status != StatusCompleted {
+			continue
+		}
+		out = append(out, e)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ExpiresAt.Before(*out[j].ExpiresAt) })
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *fakeRepo) ListExpiryWarnings(ctx context.Context, now, horizon time.Time, limit int) ([]ExpiryWarning, error) {
+	var out []ExpiryWarning
+	for _, e := range f.events {
+		if e.DeletedAt != nil || e.ExpiresAt == nil {
+			continue
+		}
+		if !e.ExpiresAt.After(now) || e.ExpiresAt.After(horizon) {
+			continue
+		}
+		if e.Status != StatusUpcoming && e.Status != StatusActive && e.Status != StatusCompleted {
+			continue
+		}
+		if _, ok := f.warned[e.ID]; ok {
+			continue
+		}
+		out = append(out, ExpiryWarning{
+			EventID: e.ID, UserID: e.UserID, Name: e.Name,
+			OwnerEmail: f.ownerEmail, ExpiresAt: *e.ExpiresAt,
+		})
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *fakeRepo) MarkExpired(ctx context.Context, id uuid.UUID) error {
+	e, ok := f.events[id]
+	if !ok || e.DeletedAt != nil {
+		return nil
+	}
+	switch e.Status {
+	case StatusUpcoming, StatusActive, StatusCompleted:
+		e.Status = StatusExpired
+	}
+	return nil
+}
+
+func (f *fakeRepo) MarkExpiryWarned(ctx context.Context, id uuid.UUID, warnedAt time.Time) error {
+	f.warned[id] = warnedAt
+	return nil
+}
+
+func (f *fakeRepo) ListPurgeable(ctx context.Context, cutoff time.Time, limit int) ([]PurgeCandidate, error) {
+	var out []PurgeCandidate
+	for _, e := range f.events {
+		softDue := e.DeletedAt != nil && !e.DeletedAt.After(cutoff)
+		expiredDue := e.Status == StatusExpired && e.ExpiresAt != nil && !e.ExpiresAt.After(cutoff)
+		if !softDue && !expiredDue {
+			continue
+		}
+		out = append(out, PurgeCandidate{
+			EventID: e.ID, UserID: e.UserID, Name: e.Name, StorageBytes: e.StorageBytes,
+		})
+	}
+	if limit > 0 && len(out) > limit {
+		out = out[:limit]
+	}
+	return out, nil
+}
+
+func (f *fakeRepo) PurgeKeys(ctx context.Context, eventID uuid.UUID) ([]string, error) {
+	return append([]string(nil), f.purgeKeys[eventID]...), nil
+}
+
+func (f *fakeRepo) PurgeEvent(ctx context.Context, eventID uuid.UUID) (bool, error) {
+	if _, ok := f.events[eventID]; !ok {
+		return false, nil
+	}
+	delete(f.events, eventID)
+	delete(f.settings, eventID)
+	delete(f.purgeKeys, eventID)
+	f.purgeCalls++
+	f.purgeDelete[eventID] = true
+	return true, nil
+}
+
 type fixedLimits struct {
-	max int
-	err error
+	max       int
+	retention int
+	err       error
 }
 
 func (l fixedLimits) MaxActiveEvents(ctx context.Context, userID string) (int, error) {
@@ -160,6 +279,10 @@ func (l fixedLimits) MaxPhotosPerEvent(ctx context.Context, userID string) (int,
 
 func (l fixedLimits) MaxStorageBytes(ctx context.Context, userID string) (int64, error) {
 	return 0, l.err
+}
+
+func (l fixedLimits) RetentionDays(ctx context.Context, userID string) (int, error) {
+	return l.retention, l.err
 }
 
 func testHash(pw string) (string, error) { return "hashed:" + pw, nil }
@@ -574,5 +697,171 @@ func TestTransition_ActiveLimitReached(t *testing.T) {
 	_, err = svc.Transition(context.Background(), owner, second.ID, StatusActive)
 	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
 		t.Fatalf("got %s", got)
+	}
+}
+
+func TestCreate_DerivesExpiryFromPlan(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{retention: 7})
+	e, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2026, 1, 8, 12, 0, 0, 0, time.UTC)
+	if e.ExpiresAt == nil || !e.ExpiresAt.Equal(want) {
+		t.Fatalf("expiresAt = %v, want %v", e.ExpiresAt, want)
+	}
+}
+
+func TestCreate_ExplicitExpiryWinsOverPlan(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{retention: 7})
+	explicit := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	e, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Party", ExpiresAt: &explicit})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.ExpiresAt == nil || !e.ExpiresAt.Equal(explicit) {
+		t.Fatalf("expiresAt = %v, want %v", e.ExpiresAt, explicit)
+	}
+}
+
+func TestCreate_ZeroRetentionStaysNull(t *testing.T) {
+	svc := newTestService(newFakeRepo(), fixedLimits{})
+	e, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if e.ExpiresAt != nil {
+		t.Fatalf("expiresAt = %v, want nil", e.ExpiresAt)
+	}
+}
+
+func TestCreate_RetentionErrorMapsToInternal(t *testing.T) {
+	svc := newTestService(newFakeRepo(), fixedLimits{err: errors.New("db down")})
+	_, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Party"})
+	if got := appErrCode(t, err); got != "INTERNAL_ERROR" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestExtend_Validation(t *testing.T) {
+	svc := newTestService(newFakeRepo(), fixedLimits{})
+	for _, days := range []int{0, -1, maxExtendDays + 1} {
+		if _, err := svc.Extend(context.Background(), uuid.New(), uuid.New(), days); appErrCode(t, err) != "VALIDATION_ERROR" {
+			t.Fatalf("days=%d got %v", days, err)
+		}
+	}
+}
+
+func TestExtend_ExtendsFromLaterOfNowAndExpiry(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+
+	future := time.Date(2026, 2, 1, 12, 0, 0, 0, time.UTC)
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.events[e.ID].ExpiresAt = &future
+
+	updated, err := svc.Extend(context.Background(), owner, e.ID, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2026, 3, 3, 12, 0, 0, 0, time.UTC)
+	if updated.ExpiresAt == nil || !updated.ExpiresAt.Equal(want) {
+		t.Fatalf("expiresAt = %v, want %v", updated.ExpiresAt, want)
+	}
+
+	past := time.Date(2025, 12, 1, 0, 0, 0, 0, time.UTC)
+	repo.events[e.ID].ExpiresAt = &past
+	updated, err = svc.Extend(context.Background(), owner, e.ID, 30)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want = time.Date(2026, 1, 31, 12, 0, 0, 0, time.UTC)
+	if updated.ExpiresAt == nil || !updated.ExpiresAt.Equal(want) {
+		t.Fatalf("expiresAt = %v, want %v", updated.ExpiresAt, want)
+	}
+}
+
+func TestExtend_ReactivatesExpired(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	expired, err := svc.Transition(context.Background(), owner, e.ID, StatusExpired)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if expired.Status != StatusExpired {
+		t.Fatalf("status = %q", expired.Status)
+	}
+
+	updated, err := svc.Extend(context.Background(), owner, e.ID, 7)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != StatusActive {
+		t.Fatalf("status = %q, want active", updated.Status)
+	}
+	if updated.ExpiresAt == nil || !updated.ExpiresAt.Equal(time.Date(2026, 1, 8, 12, 0, 0, 0, time.UTC)) {
+		t.Fatalf("expiresAt = %v", updated.ExpiresAt)
+	}
+}
+
+func TestExtend_ReactivationEnforcesActiveLimit(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{max: 1})
+	owner := uuid.New()
+	a, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "A"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "B", Status: StatusActive}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Transition(context.Background(), owner, a.ID, StatusExpired); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err = svc.Extend(context.Background(), owner, a.ID, 7)
+	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestExtend_ArchivedRejected(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Archive(context.Background(), owner, e.ID); err != nil {
+		t.Fatal(err)
+	}
+	_, err = svc.Extend(context.Background(), owner, e.ID, 7)
+	if got := appErrCode(t, err); got != "INVALID_STATUS_TRANSITION" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestExtend_NotFoundForOtherTenant(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := svc.Extend(context.Background(), uuid.New(), e.ID, 7); appErrCode(t, err) != "EVENT_NOT_FOUND" {
+		t.Fatalf("got %v", err)
 	}
 }

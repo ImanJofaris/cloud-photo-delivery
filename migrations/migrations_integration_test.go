@@ -512,6 +512,96 @@ func TestMigrations_BillingUpDownRoundTrip(t *testing.T) {
 	require.False(t, columnExists, "users.storage_bytes should be dropped by down")
 }
 
+func TestMigrations_LifecycleUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	for _, file := range []string{
+		"0001_init.sql", "0002_auth.sql", "0003_events.sql",
+		"0004_photos.sql", "0005_jobs.sql", "0006_gallery.sql", "0007_devices.sql",
+		"0008_branding.sql", "0009_billing.sql",
+	} {
+		sql, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, extractSection(string(sql), "-- +goose Up", "-- +goose Down"))
+		require.NoError(t, err)
+	}
+
+	var userID uuid.UUID
+	err = pool.QueryRow(ctx,
+		`INSERT INTO users (email, password_hash) VALUES ('life@example.com', 'hash') RETURNING id`).Scan(&userID)
+	require.NoError(t, err)
+
+	lifecycleSQL, err := os.ReadFile("0010_lifecycle.sql")
+	require.NoError(t, err)
+	up := extractSection(string(lifecycleSQL), "-- +goose Up", "-- +goose Down")
+	require.NotEmpty(t, up)
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+
+	var exists bool
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'events' AND column_name = 'expiry_warned_at')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.True(t, exists, "events.expiry_warned_at should exist after up")
+
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_events_expires_at')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.True(t, exists, "idx_events_expires_at should exist after up")
+
+	_, err = pool.Exec(ctx,
+		`INSERT INTO events (user_id, name, slug, status) VALUES ($1, 'expired', 'expired', 'expired')`, userID)
+	require.NoError(t, err, "expired status must be accepted after up")
+
+	down := extractSection(string(lifecycleSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, down)
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'events' AND column_name = 'expiry_warned_at')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.False(t, exists, "events.expiry_warned_at should be dropped by down")
+
+	err = pool.QueryRow(ctx,
+		`SELECT EXISTS (SELECT 1 FROM pg_indexes WHERE indexname = 'idx_events_expires_at')`,
+	).Scan(&exists)
+	require.NoError(t, err)
+	require.False(t, exists, "idx_events_expires_at should be dropped by down")
+
+	var status string
+	err = pool.QueryRow(ctx, `SELECT status FROM events WHERE slug = 'expired'`).Scan(&status)
+	require.NoError(t, err)
+	require.Equal(t, "archived", status, "expired rows are archived by down")
+
+	_, err = pool.Exec(ctx,
+		`INSERT INTO events (user_id, name, slug, status) VALUES ($1, 'expired again', 'expired-again', 'expired')`, userID)
+	require.Error(t, err, "expired status must be rejected after down")
+}
+
 func extractSection(s, start, end string) string {
 	i := indexOf(s, start)
 	if i < 0 {

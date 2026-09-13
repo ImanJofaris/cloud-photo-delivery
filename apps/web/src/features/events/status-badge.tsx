@@ -10,6 +10,7 @@ const styles: Record<EventStatus, string> = {
   active: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
   completed: "bg-muted text-muted-foreground",
   archived: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  expired: "bg-red-500/10 text-red-700 dark:text-red-400",
 }
 
 export function EventStatusBadge({

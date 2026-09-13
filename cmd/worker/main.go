@@ -5,8 +5,10 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/jobs"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
@@ -23,6 +25,10 @@ const (
 	jobProcessPhoto = "PROCESS_PHOTO"
 	jobImageProcess = "image.process"
 )
+
+// lifecycleInterval is how often the scheduler enqueues expiry and purge
+// scans. EnqueueUnique keeps at most one instance in flight.
+const lifecycleInterval = 15 * time.Minute
 
 func main() {
 	cfg, err := config.Load()
@@ -61,6 +67,7 @@ func main() {
 	}
 
 	photoRepo := photos.NewRepository(pool.Pool)
+	eventRepo := events.NewRepository(pool.Pool)
 	std := imaging.New()
 	processor := photos.NewProcessor(photoRepo, store, std, std, std, log, photoRepo.EventOwner)
 
@@ -72,8 +79,22 @@ func main() {
 	// permanently. It is idempotent and tolerant of a missing object.
 	registry.Register("object.cleanup", photos.CleanupHandler(photoRepo, store, log))
 
+	// Lifecycle jobs run on a worker-side ticker: expire marks events whose
+	// expires_at passed and warns owners; purge removes events past the grace
+	// period from R2 and the database.
+	registry.Register(events.JobEventExpire, events.ExpireHandler(
+		eventRepo, events.LogNotifier{Log: log}, time.Duration(cfg.ExpiryWarnDays)*24*time.Hour, time.Now, log))
+	registry.Register(events.JobEventPurge, events.PurgeHandler(
+		eventRepo, store, time.Duration(cfg.EventPurgeGraceDays)*24*time.Hour, time.Now, log))
+
 	queue := jobs.NewPostgresQueue(pool.Pool)
 	workerID := workerName(cfg.Env)
+
+	scheduler := jobs.NewScheduler(queue, log,
+		jobs.Schedule{Type: events.JobEventExpire, Every: lifecycleInterval},
+		jobs.Schedule{Type: events.JobEventPurge, Every: lifecycleInterval},
+	)
+	go scheduler.Run(ctx)
 
 	poller := jobs.NewPoller(queue, registry, log, workerID,
 		jobs.WithConcurrency(cfg.WorkerConcurrency),

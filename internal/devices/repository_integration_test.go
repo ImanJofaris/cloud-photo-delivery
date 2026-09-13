@@ -53,6 +53,8 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID) {
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
 		name VARCHAR(255) NOT NULL,
 		slug VARCHAR(255) NOT NULL,
+		expires_at TIMESTAMPTZ,
+		expiry_warned_at TIMESTAMPTZ,
 		deleted_at TIMESTAMPTZ,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

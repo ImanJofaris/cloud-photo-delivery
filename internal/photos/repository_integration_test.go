@@ -61,6 +61,8 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		storage_bytes BIGINT NOT NULL DEFAULT 0,
 		photo_count BIGINT NOT NULL DEFAULT 0,
 		guest_count BIGINT NOT NULL DEFAULT 0,
+		expires_at TIMESTAMPTZ,
+		expiry_warned_at TIMESTAMPTZ,
 		deleted_at TIMESTAMPTZ,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()

@@ -42,6 +42,14 @@ func (e *Entitlements) MaxStorageBytes(ctx context.Context, userID string) (int6
 	return l.StorageBytes, nil
 }
 
+func (e *Entitlements) RetentionDays(ctx context.Context, userID string) (int, error) {
+	l, err := e.limitsFor(ctx, userID)
+	if err != nil {
+		return 0, err
+	}
+	return l.RetentionDays, nil
+}
+
 func (e *Entitlements) limitsFor(ctx context.Context, userID string) (PlanLimits, error) {
 	id, err := uuid.Parse(userID)
 	if err != nil {

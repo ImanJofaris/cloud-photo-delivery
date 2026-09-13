@@ -13,6 +13,7 @@ const (
 	StatusActive    Status = "active"
 	StatusCompleted Status = "completed"
 	StatusArchived  Status = "archived"
+	StatusExpired   Status = "expired"
 )
 
 type Visibility string
@@ -57,7 +58,7 @@ type Settings struct {
 
 func (s Status) Valid() bool {
 	switch s {
-	case StatusUpcoming, StatusActive, StatusCompleted, StatusArchived:
+	case StatusUpcoming, StatusActive, StatusCompleted, StatusArchived, StatusExpired:
 		return true
 	default:
 		return false
@@ -65,10 +66,11 @@ func (s Status) Valid() bool {
 }
 
 var allowedTransitions = map[Status][]Status{
-	StatusUpcoming:  {StatusActive, StatusArchived},
-	StatusActive:    {StatusCompleted, StatusArchived},
-	StatusCompleted: {StatusArchived},
+	StatusUpcoming:  {StatusActive, StatusArchived, StatusExpired},
+	StatusActive:    {StatusCompleted, StatusArchived, StatusExpired},
+	StatusCompleted: {StatusArchived, StatusExpired},
 	StatusArchived:  {},
+	StatusExpired:   {StatusActive},
 }
 
 func CanTransition(from, to Status) bool {

@@ -48,6 +48,21 @@ type UpdateInput struct {
 	ClearExpiry bool
 }
 
+type ExpiryWarning struct {
+	EventID    uuid.UUID
+	UserID     uuid.UUID
+	Name       string
+	OwnerEmail string
+	ExpiresAt  time.Time
+}
+
+type PurgeCandidate struct {
+	EventID      uuid.UUID
+	UserID       uuid.UUID
+	Name         string
+	StorageBytes int64
+}
+
 type Repository interface {
 	Create(ctx context.Context, in CreateInput) (*Event, *Settings, error)
 	GetByID(ctx context.Context, userID, id uuid.UUID) (*Event, error)
@@ -60,6 +75,15 @@ type Repository interface {
 
 	GetSettings(ctx context.Context, userID, eventID uuid.UUID) (*Settings, error)
 	UpdateSettings(ctx context.Context, userID, eventID uuid.UUID, s Settings) (*Settings, error)
+
+	Extend(ctx context.Context, userID, id uuid.UUID, expiresAt time.Time, reactivate bool) (*Event, error)
+	ListDueExpiry(ctx context.Context, now time.Time, limit int) ([]*Event, error)
+	ListExpiryWarnings(ctx context.Context, now, horizon time.Time, limit int) ([]ExpiryWarning, error)
+	MarkExpired(ctx context.Context, id uuid.UUID) error
+	MarkExpiryWarned(ctx context.Context, id uuid.UUID, warnedAt time.Time) error
+	ListPurgeable(ctx context.Context, cutoff time.Time, limit int) ([]PurgeCandidate, error)
+	PurgeKeys(ctx context.Context, eventID uuid.UUID) ([]string, error)
+	PurgeEvent(ctx context.Context, eventID uuid.UUID) (bool, error)
 }
 
 type PostgresRepository struct {
@@ -196,6 +220,7 @@ func (r *PostgresRepository) Update(ctx context.Context, userID, id uuid.UUID, i
 			description = COALESCE($7, description),
 			event_date = CASE WHEN $8 THEN NULL ELSE COALESCE($9, event_date) END,
 			expires_at = CASE WHEN $10 THEN NULL ELSE COALESCE($11, expires_at) END,
+			expiry_warned_at = CASE WHEN $10 OR $11 IS NOT NULL THEN NULL ELSE expiry_warned_at END,
 			updated_at = NOW()
 		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 		 RETURNING `+eventColumns,
@@ -209,6 +234,18 @@ func (r *PostgresRepository) SetStatus(ctx context.Context, userID, id uuid.UUID
 		`UPDATE events SET status = $3, updated_at = NOW()
 		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 		 RETURNING `+eventColumns, id, userID, status)
+	return scanEvent(row)
+}
+
+func (r *PostgresRepository) Extend(ctx context.Context, userID, id uuid.UUID, expiresAt time.Time, reactivate bool) (*Event, error) {
+	row := r.pool.QueryRow(ctx,
+		`UPDATE events SET
+			expires_at = $3,
+			status = CASE WHEN $4 THEN 'active' ELSE status END,
+			expiry_warned_at = NULL,
+			updated_at = NOW()
+		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
+		 RETURNING `+eventColumns, id, userID, expiresAt, reactivate)
 	return scanEvent(row)
 }
 
@@ -289,4 +326,172 @@ func (r *PostgresRepository) UpdateSettings(ctx context.Context, userID, eventID
 		 RETURNING `+settingsColumns, eventID, userID, s.Visibility, nullString(s.PasswordHash),
 		s.AllowDownload, s.AllowOriginalDownload, s.WatermarkEnabled, s.PasswordChangedAt)
 	return scanSettings(row)
+}
+
+func (r *PostgresRepository) ListDueExpiry(ctx context.Context, now time.Time, limit int) ([]*Event, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+eventColumns+` FROM events
+		 WHERE deleted_at IS NULL
+		   AND expires_at IS NOT NULL
+		   AND expires_at <= $1
+		   AND status IN ('upcoming', 'active', 'completed')
+		 ORDER BY expires_at
+		 LIMIT $2`, now, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []*Event
+	for rows.Next() {
+		e, err := scanEvent(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresRepository) ListExpiryWarnings(ctx context.Context, now, horizon time.Time, limit int) ([]ExpiryWarning, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT e.id, e.user_id, e.name, e.expires_at, u.email
+		 FROM events e
+		 JOIN users u ON u.id = e.user_id
+		 WHERE e.deleted_at IS NULL
+		   AND e.expires_at IS NOT NULL
+		   AND e.expires_at > $1
+		   AND e.expires_at <= $2
+		   AND e.expiry_warned_at IS NULL
+		   AND e.status IN ('upcoming', 'active', 'completed')
+		 ORDER BY e.expires_at
+		 LIMIT $3`, now, horizon, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []ExpiryWarning
+	for rows.Next() {
+		var w ExpiryWarning
+		if err := rows.Scan(&w.EventID, &w.UserID, &w.Name, &w.ExpiresAt, &w.OwnerEmail); err != nil {
+			return nil, err
+		}
+		out = append(out, w)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresRepository) MarkExpired(ctx context.Context, id uuid.UUID) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE events SET status = 'expired', updated_at = NOW()
+		 WHERE id = $1 AND deleted_at IS NULL
+		   AND status IN ('upcoming', 'active', 'completed')`, id)
+	return err
+}
+
+func (r *PostgresRepository) MarkExpiryWarned(ctx context.Context, id uuid.UUID, warnedAt time.Time) error {
+	_, err := r.pool.Exec(ctx,
+		`UPDATE events SET expiry_warned_at = $2 WHERE id = $1`, id, warnedAt)
+	return err
+}
+
+func (r *PostgresRepository) ListPurgeable(ctx context.Context, cutoff time.Time, limit int) ([]PurgeCandidate, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT id, user_id, name, storage_bytes FROM events
+		 WHERE (deleted_at IS NOT NULL AND deleted_at <= $1)
+		    OR (status = 'expired' AND expires_at IS NOT NULL AND expires_at <= $1)
+		 ORDER BY COALESCE(deleted_at, expires_at)
+		 LIMIT $2`, cutoff, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []PurgeCandidate
+	for rows.Next() {
+		var c PurgeCandidate
+		if err := rows.Scan(&c.EventID, &c.UserID, &c.Name, &c.StorageBytes); err != nil {
+			return nil, err
+		}
+		out = append(out, c)
+	}
+	return out, rows.Err()
+}
+
+func (r *PostgresRepository) PurgeKeys(ctx context.Context, eventID uuid.UUID) ([]string, error) {
+	rows, err := r.pool.Query(ctx,
+		`SELECT storage_key, COALESCE(thumbnail_key, ''), COALESCE(medium_key, ''), COALESCE(optimized_key, '')
+		 FROM photos WHERE event_id = $1`, eventID)
+	if err != nil {
+		return nil, err
+	}
+
+	var keys []string
+	for rows.Next() {
+		var original, thumbnail, medium, optimized string
+		if err := rows.Scan(&original, &thumbnail, &medium, &optimized); err != nil {
+			rows.Close()
+			return nil, err
+		}
+		for _, key := range []string{original, thumbnail, medium, optimized} {
+			if key != "" {
+				keys = append(keys, key)
+			}
+		}
+	}
+	if err := rows.Err(); err != nil {
+		rows.Close()
+		return nil, err
+	}
+	rows.Close()
+
+	exportRows, err := r.pool.Query(ctx,
+		`SELECT object_key FROM exports
+		 WHERE event_id = $1 AND object_key IS NOT NULL`, eventID)
+	if err != nil {
+		return nil, err
+	}
+	defer exportRows.Close()
+
+	for exportRows.Next() {
+		var key string
+		if err := exportRows.Scan(&key); err != nil {
+			return nil, err
+		}
+		if key != "" {
+			keys = append(keys, key)
+		}
+	}
+	return keys, exportRows.Err()
+}
+
+func (r *PostgresRepository) PurgeEvent(ctx context.Context, eventID uuid.UUID) (bool, error) {
+	tx, err := r.pool.Begin(ctx)
+	if err != nil {
+		return false, err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+
+	var userID uuid.UUID
+	var storageBytes int64
+	err = tx.QueryRow(ctx,
+		`DELETE FROM events WHERE id = $1 RETURNING user_id, storage_bytes`, eventID).Scan(&userID, &storageBytes)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return false, nil
+		}
+		return false, err
+	}
+
+	if _, err := tx.Exec(ctx,
+		`UPDATE users SET storage_bytes = GREATEST(storage_bytes - $2, 0), updated_at = NOW()
+		 WHERE id = $1`, userID, storageBytes); err != nil {
+		return false, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return false, err
+	}
+	return true, nil
 }

@@ -233,3 +233,45 @@ func TestHandler_UnauthorizedWhenNoUser(t *testing.T) {
 		t.Fatalf("got %d", rec.Code)
 	}
 }
+
+func TestHandler_Extend(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{"name":"Party"}`)))
+	env := decodeEnvelope(t, rec)
+	id := env.Data.(map[string]any)["event"].(map[string]any)["id"].(string)
+
+	req := withURLParam(httptest.NewRequest(http.MethodPost, "/api/v1/events/"+id+"/extend",
+		strings.NewReader(`{"days":30}`)), "eventID", id)
+	rec = serve(h.Extend, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "expiresAt") {
+		t.Fatalf("body %s", rec.Body.String())
+	}
+}
+
+func TestHandler_ExtendValidation(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{"name":"Party"}`)))
+	env := decodeEnvelope(t, rec)
+	id := env.Data.(map[string]any)["event"].(map[string]any)["id"].(string)
+
+	req := withURLParam(httptest.NewRequest(http.MethodPost, "/api/v1/events/"+id+"/extend",
+		strings.NewReader(`{"days":0}`)), "eventID", id)
+	rec = serve(h.Extend, req)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestHandler_ExtendNotFound(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	missing := uuid.New().String()
+	req := withURLParam(httptest.NewRequest(http.MethodPost, "/api/v1/events/"+missing+"/extend",
+		strings.NewReader(`{"days":30}`)), "eventID", missing)
+	rec := serve(h.Extend, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("got %d", rec.Code)
+	}
+}

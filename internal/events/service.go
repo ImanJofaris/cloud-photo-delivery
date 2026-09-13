@@ -14,6 +14,8 @@ import (
 
 const maxNameLength = 255
 
+const maxExtendDays = 3650
+
 type PlanLimits = limits.PlanLimits
 
 type CreateParams struct {
@@ -124,6 +126,11 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, p CreateParams) 
 		return nil, nil, err
 	}
 
+	expiresAt, err := s.resolveExpiry(ctx, userID, p.ExpiresAt)
+	if err != nil {
+		return nil, nil, err
+	}
+
 	event, created, err := s.repo.Create(ctx, CreateInput{
 		UserID:      userID,
 		Name:        name,
@@ -134,13 +141,28 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, p CreateParams) 
 		Description: p.Description,
 		EventDate:   p.EventDate,
 		Status:      status,
-		ExpiresAt:   p.ExpiresAt,
+		ExpiresAt:   expiresAt,
 		Settings:    settings,
 	})
 	if err != nil {
 		return nil, nil, apperr.Internal().WithCause(err)
 	}
 	return event, created, nil
+}
+
+func (s *Service) resolveExpiry(ctx context.Context, userID uuid.UUID, explicit *time.Time) (*time.Time, error) {
+	if explicit != nil {
+		return explicit, nil
+	}
+	days, err := s.limits.RetentionDays(ctx, userID.String())
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	if days <= 0 {
+		return nil, nil
+	}
+	t := s.now().UTC().AddDate(0, 0, days)
+	return &t, nil
 }
 
 func (s *Service) Get(ctx context.Context, userID, id uuid.UUID) (*Event, error) {
@@ -219,6 +241,43 @@ func (s *Service) Update(ctx context.Context, userID, id uuid.UUID, p UpdatePara
 
 func (s *Service) Archive(ctx context.Context, userID, id uuid.UUID) (*Event, error) {
 	return s.transition(ctx, userID, id, StatusArchived)
+}
+
+func (s *Service) Extend(ctx context.Context, userID, id uuid.UUID, days int) (*Event, error) {
+	if days < 1 || days > maxExtendDays {
+		return nil, validationError("days must be between 1 and 3650")
+	}
+	current, err := s.repo.GetByID(ctx, userID, id)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, notFound()
+		}
+		return nil, apperr.Internal().WithCause(err)
+	}
+	if current.Status == StatusArchived {
+		return nil, apperr.New("INVALID_STATUS_TRANSITION", "Cannot extend an archived event", 409)
+	}
+	reactivate := current.Status == StatusExpired
+	if reactivate {
+		if err := s.enforceActiveLimit(ctx, userID); err != nil {
+			return nil, err
+		}
+	}
+	now := s.now().UTC()
+	base := now
+	if current.ExpiresAt != nil && current.ExpiresAt.After(now) {
+		base = *current.ExpiresAt
+	}
+	expiresAt := base.AddDate(0, 0, days)
+
+	updated, err := s.repo.Extend(ctx, userID, id, expiresAt, reactivate)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return nil, notFound()
+		}
+		return nil, apperr.Internal().WithCause(err)
+	}
+	return updated, nil
 }
 
 func (s *Service) Transition(ctx context.Context, userID, id uuid.UUID, to Status) (*Event, error) {

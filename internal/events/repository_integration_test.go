@@ -49,6 +49,7 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		email_verified_at TIMESTAMPTZ,
 		failed_login_count INT NOT NULL DEFAULT 0,
 		locked_until TIMESTAMPTZ,
+		storage_bytes BIGINT NOT NULL DEFAULT 0,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
@@ -68,11 +69,32 @@ func setupDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		photo_count BIGINT NOT NULL DEFAULT 0,
 		guest_count BIGINT NOT NULL DEFAULT 0,
 		expires_at TIMESTAMPTZ,
+		expiry_warned_at TIMESTAMPTZ,
 		deleted_at TIMESTAMPTZ,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-		CONSTRAINT events_status_check CHECK (status IN ('upcoming','active','completed','archived')),
+		CONSTRAINT events_status_check CHECK (status IN ('upcoming','active','completed','archived','expired')),
 		CONSTRAINT events_slug_unique UNIQUE (user_id, slug)
+	)`)
+	mustExec(t, pool, `CREATE TABLE photos (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		storage_key TEXT NOT NULL,
+		thumbnail_key TEXT,
+		optimized_key TEXT,
+		medium_key TEXT,
+		status VARCHAR(30) NOT NULL DEFAULT 'READY'
+	)`)
+	mustExec(t, pool, `CREATE TABLE exports (
+		id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+		event_id UUID NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+		status VARCHAR(20) NOT NULL,
+		object_key TEXT,
+		file_size BIGINT,
+		error_message TEXT,
+		expires_at TIMESTAMPTZ,
+		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
 	mustExec(t, pool, `CREATE TABLE event_settings (
 		event_id UUID PRIMARY KEY REFERENCES events(id) ON DELETE CASCADE,
@@ -335,3 +357,165 @@ func TestRepository_SettingsCascadeOnDelete(t *testing.T) {
 }
 
 func strPtr(s string) *string { return &s }
+
+func TestRepository_Extend(t *testing.T) {
+	pool, userA, userB := setupDB(t)
+	repo := events.NewRepository(pool)
+	ctx := context.Background()
+
+	future := time.Now().UTC().Add(48 * time.Hour).Truncate(time.Second)
+	in := createInput(userA, "Party", "party")
+	in.ExpiresAt = &future
+	e, _, err := repo.Create(ctx, in)
+	require.NoError(t, err)
+
+	extended, err := repo.Extend(ctx, userA, e.ID, future.AddDate(0, 0, 30), false)
+	require.NoError(t, err)
+	require.NotNil(t, extended.ExpiresAt)
+	require.WithinDuration(t, future.AddDate(0, 0, 30), *extended.ExpiresAt, time.Second)
+
+	_, err = repo.Extend(ctx, userB, e.ID, future, false)
+	require.ErrorIs(t, err, events.ErrNotFound, "extend must be tenant scoped")
+}
+
+func TestRepository_ExtendReactivatesExpiredAndClearsWarning(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	repo := events.NewRepository(pool)
+	ctx := context.Background()
+
+	in := createInput(userA, "Party", "party")
+	past := time.Now().UTC().Add(-time.Hour)
+	in.ExpiresAt = &past
+	e, _, err := repo.Create(ctx, in)
+	require.NoError(t, err)
+	_, err = repo.SetStatus(ctx, userA, e.ID, events.StatusExpired)
+	require.NoError(t, err)
+	mustExec(t, pool, `UPDATE events SET expiry_warned_at = NOW() WHERE id = '`+e.ID.String()+`'`)
+
+	extended, err := repo.Extend(ctx, userA, e.ID, time.Now().UTC().AddDate(0, 0, 7), true)
+	require.NoError(t, err)
+	require.Equal(t, events.StatusActive, extended.Status)
+
+	var warned *time.Time
+	require.NoError(t, pool.QueryRow(ctx, `SELECT expiry_warned_at FROM events WHERE id = $1`, e.ID).Scan(&warned))
+	require.Nil(t, warned, "extend must reset the expiry warning")
+}
+
+func TestRepository_ListDueExpiry(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	repo := events.NewRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	due, _, err := repo.Create(ctx, createInput(userA, "Due", "due"))
+	require.NoError(t, err)
+	future, _, err := repo.Create(ctx, createInput(userA, "Future", "future"))
+	require.NoError(t, err)
+	archived, _, err := repo.Create(ctx, createInput(userA, "Archived", "archived"))
+	require.NoError(t, err)
+
+	mustExec(t, pool, `UPDATE events SET expires_at = NOW() - INTERVAL '1 hour', status = 'active' WHERE id = '`+due.ID.String()+`'`)
+	mustExec(t, pool, `UPDATE events SET expires_at = NOW() + INTERVAL '1 day', status = 'active' WHERE id = '`+future.ID.String()+`'`)
+	mustExec(t, pool, `UPDATE events SET expires_at = NOW() - INTERVAL '1 hour', status = 'archived' WHERE id = '`+archived.ID.String()+`'`)
+
+	items, err := repo.ListDueExpiry(ctx, now, 10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, due.ID, items[0].ID)
+
+	require.NoError(t, repo.MarkExpired(ctx, due.ID))
+	got, err := repo.GetByID(ctx, userA, due.ID)
+	require.NoError(t, err)
+	require.Equal(t, events.StatusExpired, got.Status)
+}
+
+func TestRepository_ExpiryWarnings(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	repo := events.NewRepository(pool)
+	ctx := context.Background()
+	now := time.Now().UTC()
+
+	soon, _, err := repo.Create(ctx, createInput(userA, "Soon", "soon"))
+	require.NoError(t, err)
+	later, _, err := repo.Create(ctx, createInput(userA, "Later", "later"))
+	require.NoError(t, err)
+	mustExec(t, pool, `UPDATE events SET expires_at = NOW() + INTERVAL '3 days' WHERE id = '`+soon.ID.String()+`'`)
+	mustExec(t, pool, `UPDATE events SET expires_at = NOW() + INTERVAL '30 days' WHERE id = '`+later.ID.String()+`'`)
+
+	warnings, err := repo.ListExpiryWarnings(ctx, now, now.AddDate(0, 0, 7), 10)
+	require.NoError(t, err)
+	require.Len(t, warnings, 1)
+	require.Equal(t, soon.ID, warnings[0].EventID)
+	require.Equal(t, "a@example.com", warnings[0].OwnerEmail)
+
+	require.NoError(t, repo.MarkExpiryWarned(ctx, soon.ID, now))
+	warnings, err = repo.ListExpiryWarnings(ctx, now, now.AddDate(0, 0, 7), 10)
+	require.NoError(t, err)
+	require.Empty(t, warnings, "warned events must not warn twice")
+}
+
+func TestRepository_PurgeFlow(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	repo := events.NewRepository(pool)
+	ctx := context.Background()
+
+	e, _, err := repo.Create(ctx, createInput(userA, "Old", "old"))
+	require.NoError(t, err)
+	mustExec(t, pool, `UPDATE events SET storage_bytes = 4096 WHERE id = '`+e.ID.String()+`'`)
+	mustExec(t, pool, `UPDATE users SET storage_bytes = 4096 WHERE id = '`+userA.String()+`'`)
+	mustExec(t, pool, `INSERT INTO photos (event_id, storage_key, thumbnail_key, medium_key, optimized_key)
+		VALUES ('`+e.ID.String()+`', 'orig-1', 'thumb-1', 'medium-1', 'optimized-1'),
+		       ('`+e.ID.String()+`', 'orig-2', NULL, NULL, NULL)`)
+	mustExec(t, pool, `INSERT INTO exports (event_id, status, object_key)
+		VALUES ('`+e.ID.String()+`', 'ready', 'export-1')`)
+	require.NoError(t, repo.SoftDelete(ctx, userA, e.ID))
+	mustExec(t, pool, `UPDATE events SET deleted_at = NOW() - INTERVAL '40 days' WHERE id = '`+e.ID.String()+`'`)
+
+	cutoff := time.Now().UTC().AddDate(0, 0, -30)
+	candidates, err := repo.ListPurgeable(ctx, cutoff, 10)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	require.Equal(t, int64(4096), candidates[0].StorageBytes)
+
+	keys, err := repo.PurgeKeys(ctx, e.ID)
+	require.NoError(t, err)
+	require.ElementsMatch(t, []string{"orig-1", "thumb-1", "medium-1", "optimized-1", "orig-2", "export-1"}, keys)
+
+	deleted, err := repo.PurgeEvent(ctx, e.ID)
+	require.NoError(t, err)
+	require.True(t, deleted)
+
+	var exportRows int
+	require.NoError(t, pool.QueryRow(ctx, `SELECT COUNT(*) FROM exports WHERE event_id = $1`, e.ID).Scan(&exportRows))
+	require.Zero(t, exportRows, "exports cascade with the event")
+
+	var storage int64
+	require.NoError(t, pool.QueryRow(ctx, `SELECT storage_bytes FROM users WHERE id = $1`, userA).Scan(&storage))
+	require.Zero(t, storage, "purge must decrement user storage once")
+	_, err = repo.GetByID(ctx, userA, e.ID)
+	require.ErrorIs(t, err, events.ErrNotFound)
+
+	deleted, err = repo.PurgeEvent(ctx, e.ID)
+	require.NoError(t, err)
+	require.False(t, deleted, "second purge is a no-op")
+	require.NoError(t, pool.QueryRow(ctx, `SELECT storage_bytes FROM users WHERE id = $1`, userA).Scan(&storage))
+	require.Zero(t, storage)
+}
+
+func TestRepository_ListPurgeableExpiredPastGrace(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	repo := events.NewRepository(pool)
+	ctx := context.Background()
+
+	e, _, err := repo.Create(ctx, createInput(userA, "Expired", "expired"))
+	require.NoError(t, err)
+	_, err = repo.SetStatus(ctx, userA, e.ID, events.StatusExpired)
+	require.NoError(t, err)
+	mustExec(t, pool, `UPDATE events SET expires_at = NOW() - INTERVAL '40 days' WHERE id = '`+e.ID.String()+`'`)
+
+	cutoff := time.Now().UTC().AddDate(0, 0, -30)
+	candidates, err := repo.ListPurgeable(ctx, cutoff, 10)
+	require.NoError(t, err)
+	require.Len(t, candidates, 1)
+	require.Equal(t, e.ID, candidates[0].EventID)
+}

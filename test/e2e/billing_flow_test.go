@@ -90,6 +90,7 @@ func setupBillingAPI(t *testing.T) *billingAPI {
 		photo_count BIGINT NOT NULL DEFAULT 0,
 		guest_count BIGINT NOT NULL DEFAULT 0,
 		expires_at TIMESTAMPTZ,
+		expiry_warned_at TIMESTAMPTZ,
 		deleted_at TIMESTAMPTZ,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

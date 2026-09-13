@@ -31,9 +31,14 @@ type Config struct {
 
 	SignedURLTTL     time.Duration
 	GalleryUnlockTTL time.Duration
+	AnalyticsSalt    string
 
 	BillingProvider      string
 	BillingWebhookSecret string
+
+	EventPurgeGraceDays int
+	ExpiryWarnDays      int
+	ExportTTL           time.Duration
 
 	ShutdownTimeout time.Duration
 
@@ -69,13 +74,21 @@ func Load() (Config, error) {
 
 		SignedURLTTL:     getDuration("SIGNED_URL_TTL", 5*time.Minute),
 		GalleryUnlockTTL: getDuration("GALLERY_UNLOCK_TTL", 30*time.Minute),
+		AnalyticsSalt:    os.Getenv("ANALYTICS_HASH_SALT"),
 
 		BillingProvider:      getEnv("BILLING_PROVIDER", "manual"),
 		BillingWebhookSecret: os.Getenv("BILLING_WEBHOOK_SECRET"),
+
+		EventPurgeGraceDays: getInt("EVENT_PURGE_GRACE_DAYS", 30),
+		ExpiryWarnDays:      getInt("EXPIRY_WARN_DAYS", 7),
+		ExportTTL:           getDuration("EXPORT_TTL", 24*time.Hour),
 	}
 
 	if err := c.validate(); err != nil {
 		return Config{}, err
+	}
+	if c.AnalyticsSalt == "" {
+		c.AnalyticsSalt = c.JWTSecret
 	}
 	return c, nil
 }
@@ -105,6 +118,15 @@ func (c Config) validate() error {
 	}
 	if c.BillingWebhookSecret == "" {
 		errs = append(errs, "BILLING_WEBHOOK_SECRET is required")
+	}
+	if c.EventPurgeGraceDays < 0 {
+		errs = append(errs, "EVENT_PURGE_GRACE_DAYS must not be negative")
+	}
+	if c.ExpiryWarnDays < 0 {
+		errs = append(errs, "EXPIRY_WARN_DAYS must not be negative")
+	}
+	if c.ExportTTL <= 0 {
+		errs = append(errs, "EXPORT_TTL must be positive")
 	}
 	if len(errs) > 0 {
 		return errors.New("invalid config: " + strings.Join(errs, "; "))

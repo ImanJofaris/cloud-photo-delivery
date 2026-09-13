@@ -62,6 +62,31 @@ func (q *PostgresQueue) Enqueue(ctx context.Context, jobType string, payload any
 	return id, err
 }
 
+// EnqueueUnique enqueues a job unless an instance of the same type is already
+// pending or running. It is used by the periodic scheduler; concurrent callers
+// may still race, so handlers must stay idempotent.
+func (q *PostgresQueue) EnqueueUnique(ctx context.Context, jobType string, payload any) (uuid.UUID, bool, error) {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	var id uuid.UUID
+	err = q.pool.QueryRow(ctx,
+		`INSERT INTO jobs (type, payload)
+		 SELECT $1::text, $2::jsonb
+		 WHERE NOT EXISTS (
+			 SELECT 1 FROM jobs WHERE type = $1::text AND status IN ($3::text, $4::text)
+		 )
+		 RETURNING id`, jobType, raw, StatusPending, StatusRunning).Scan(&id)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return uuid.Nil, false, nil
+	}
+	if err != nil {
+		return uuid.Nil, false, err
+	}
+	return id, true, nil
+}
+
 func (q *PostgresQueue) Claim(ctx context.Context, workerID string) (*Job, error) {
 	tx, err := q.pool.Begin(ctx)
 	if err != nil {
