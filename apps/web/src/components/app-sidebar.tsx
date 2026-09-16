@@ -9,8 +9,10 @@ import {
   LogOut,
   Moon,
   Palette,
+  ShieldCheck,
   Sun,
   User,
+  type LucideIcon,
 } from "lucide-react"
 import { useTheme } from "next-themes"
 import Link from "next/link"
@@ -42,15 +44,27 @@ import {
 
 import { useSession } from "@/lib/auth/session-provider"
 
-const navItems = [
+type NavItem = {
+  title: string
+  href: string
+  icon: LucideIcon
+  adminOnly?: boolean
+}
+
+const navItems: NavItem[] = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { title: "Analytics", href: "/analytics", icon: ChartColumn },
   { title: "Events", href: "/events", icon: CalendarDays },
   { title: "Devices", href: "/devices", icon: Camera },
   { title: "Branding", href: "/branding", icon: Palette },
   { title: "Billing", href: "/billing", icon: CreditCard },
+  { title: "Admin", href: "/admin", icon: ShieldCheck, adminOnly: true },
   { title: "Account", href: "/account", icon: User },
 ]
+
+export function visibleNavItems(isAdmin: boolean): NavItem[] {
+  return navItems.filter((item) => !item.adminOnly || isAdmin)
+}
 
 export function isNavActive(pathname: string, href: string): boolean {
   return pathname === href || pathname.startsWith(`${href}/`)
@@ -106,7 +120,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Manage</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {navItems.map((item) => (
+              {visibleNavItems(Boolean(user?.isAdmin)).map((item) => (
                 <SidebarMenuItem key={item.href}>
                   <SidebarMenuButton
                     isActive={isNavActive(pathname, item.href)}

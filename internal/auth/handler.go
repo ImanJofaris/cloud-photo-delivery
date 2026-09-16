@@ -12,6 +12,7 @@ type userDTO struct {
 	ID           string `json:"id"`
 	Email        string `json:"email"`
 	BusinessName string `json:"businessName"`
+	IsAdmin      bool   `json:"isAdmin"`
 }
 
 type authResponse struct {
@@ -22,7 +23,7 @@ type authResponse struct {
 }
 
 func toUserDTO(u *users.User) userDTO {
-	return userDTO{ID: u.ID.String(), Email: u.Email, BusinessName: u.BusinessName}
+	return userDTO{ID: u.ID.String(), Email: u.Email, BusinessName: u.BusinessName, IsAdmin: u.IsAdmin}
 }
 
 type Handler struct {

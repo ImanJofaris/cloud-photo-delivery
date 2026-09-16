@@ -14,6 +14,7 @@ type User struct {
 	EmailVerifiedAt  *time.Time
 	FailedLoginCount int
 	LockedUntil      *time.Time
+	IsAdmin          bool
 	CreatedAt        time.Time
 	UpdatedAt        time.Time
 }

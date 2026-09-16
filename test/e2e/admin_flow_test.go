@@ -171,6 +171,14 @@ func setupAdminFlowAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) 
 	require.NoError(t, err)
 
 	userRepo := users.NewRepository(pool)
+	userSvc := users.NewService(userRepo)
+	userHandler := users.NewHandler(userSvc, func(r *http.Request) (string, bool) {
+		id, ok := auth.UserID(r.Context())
+		if !ok {
+			return "", false
+		}
+		return id.String(), true
+	})
 	authSvc := auth.NewService(userRepo, auth.NewRepository(pool),
 		auth.NewTokenService("e2e-secret", 15*time.Minute, 30*24*time.Hour), &auth.LogMailer{}, auth.Config{
 			AccessTTL:        15 * time.Minute,
@@ -188,6 +196,11 @@ func setupAdminFlowAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) 
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(r chi.Router) {
 		r.Post("/auth/signup", authHandler.Signup)
+		r.Post("/auth/login", authHandler.Login)
+		r.Group(func(r chi.Router) {
+			r.Use(authSvc.RequireAuth)
+			r.Get("/account/me", userHandler.Me)
+		})
 		r.Group(func(r chi.Router) {
 			r.Use(authSvc.RequireAuth, adminSvc.RequireAdmin)
 			r.Get("/admin/stats", adminHandler.Stats)
@@ -214,6 +227,43 @@ func TestE2E_AdminFlow(t *testing.T) {
 	operatorAccess, _ := parseAuth(t, rec)
 
 	adminExec(t, pool, `UPDATE users SET is_admin = TRUE WHERE email = 'admin@example.com'`)
+
+	// The promotion is SQL-only and must surface on the next login and
+	// profile read, while ordinary operators stay false.
+	var profileEnv struct {
+		Data struct {
+			IsAdmin bool `json:"isAdmin"`
+		} `json:"data"`
+	}
+	var loginEnv struct {
+		Data struct {
+			User struct {
+				IsAdmin bool `json:"isAdmin"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	rec = doReq(t, h, http.MethodPost, "/api/v1/auth/login",
+		`{"email":"admin@example.com","password":"password123"}`, "")
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &loginEnv))
+	require.True(t, loginEnv.Data.User.IsAdmin)
+	adminAccess, _ = parseAuth(t, rec)
+
+	rec = doReq(t, h, http.MethodGet, "/api/v1/account/me", "", adminAccess)
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &profileEnv))
+	require.True(t, profileEnv.Data.IsAdmin)
+
+	rec = doReq(t, h, http.MethodPost, "/api/v1/auth/login",
+		`{"email":"operator@example.com","password":"password123"}`, "")
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &loginEnv))
+	require.False(t, loginEnv.Data.User.IsAdmin)
+
+	rec = doReq(t, h, http.MethodGet, "/api/v1/account/me", "", operatorAccess)
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &profileEnv))
+	require.False(t, profileEnv.Data.IsAdmin)
 
 	// Seed one event with one ready photo, a paid invoice, an active
 	// subscription, and a failed job for another tenant.

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest"
 
 import { REFRESH_COOKIE } from "@/lib/auth/cookies"
 
-import { PROTECTED_PREFIXES, isProtectedPath, proxy } from "./proxy"
+import { PROTECTED_PREFIXES, config, isProtectedPath, proxy } from "./proxy"
 
 function request(path: string, signedIn = false): NextRequest {
   const headers = new Headers()
@@ -25,10 +25,12 @@ describe("isProtectedPath", () => {
       "/devices",
       "/branding",
       "/billing",
+      "/admin",
     ])
     for (const prefix of PROTECTED_PREFIXES) {
       expect(isProtectedPath(prefix)).toBe(true)
       expect(isProtectedPath(`${prefix}/nested`)).toBe(true)
+      expect(config.matcher).toContain(`${prefix}/:path*`)
     }
   })
 
@@ -50,6 +52,7 @@ describe("proxy", () => {
       "/devices",
       "/branding",
       "/billing",
+      "/admin",
     ]) {
       const response = proxy(request(path))
       expect(response.status).toBe(307)
@@ -60,8 +63,10 @@ describe("proxy", () => {
   })
 
   it("lets authenticated users through to protected paths", () => {
-    const response = proxy(request("/billing", true))
-    expect(response.headers.get("location")).toBeNull()
+    for (const path of ["/billing", "/admin"]) {
+      const response = proxy(request(path, true))
+      expect(response.headers.get("location")).toBeNull()
+    }
   })
 
   it("sends authenticated users from auth pages to the dashboard", () => {

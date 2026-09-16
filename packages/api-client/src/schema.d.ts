@@ -1188,6 +1188,7 @@ export interface components {
             id: string;
             email: string;
             businessName?: string;
+            isAdmin?: boolean;
         };
         AuthEnvelope: {
             data?: components["schemas"]["AuthResponse"];

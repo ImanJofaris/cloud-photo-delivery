@@ -16,10 +16,11 @@ type profileDTO struct {
 	ID           string `json:"id"`
 	Email        string `json:"email"`
 	BusinessName string `json:"businessName"`
+	IsAdmin      bool   `json:"isAdmin"`
 }
 
 func toProfileDTO(u *User) profileDTO {
-	return profileDTO{ID: u.ID.String(), Email: u.Email, BusinessName: u.BusinessName}
+	return profileDTO{ID: u.ID.String(), Email: u.Email, BusinessName: u.BusinessName, IsAdmin: u.IsAdmin}
 }
 
 type Handler struct {

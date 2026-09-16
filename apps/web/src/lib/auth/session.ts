@@ -2,6 +2,7 @@ export type SessionUser = {
   id: string
   email: string
   businessName?: string
+  isAdmin?: boolean
 }
 
 export type SessionStatus = "loading" | "authenticated" | "anonymous"

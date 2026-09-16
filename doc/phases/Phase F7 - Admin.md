@@ -1,6 +1,6 @@
 # Phase F7 — Admin
 
-> **Status: NOT STARTED.** Backend Phase 9 (admin API) is complete. This phase adds one small backend prerequisite (`isAdmin` on the session profile, §2.1) and a read-only admin UI. A completion report will be linked here when done.
+> **Status: COMPLETE.** Backend Phase 9 (admin API) is complete. This phase added one small backend prerequisite (`isAdmin` on the session profile, §2.1) and a read-only admin UI. See [Phase F7 - Report](Phase F7 - Report.md).
 
 **Goal:** A promoted operator (admin) can open an Admin page and see platform-wide totals, the operator list, subscriptions, and job-queue health — read-only, against the existing Phase 9 admin API plus an `isAdmin` flag exposed on the profile.
 

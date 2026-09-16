@@ -65,6 +65,37 @@ func TestHandler_LoginUnauthorized(t *testing.T) {
 	}
 }
 
+func TestHandler_SignupAndLoginIncludeIsAdminFalse(t *testing.T) {
+	h, _ := newTestHandler(t)
+	rec := doJSON(t, h.Signup, http.MethodPost, "/auth/signup",
+		`{"email":"a@b.com","password":"password123","businessName":"Booth"}`)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("signup got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"isAdmin":false`) {
+		t.Fatalf("signup response missing isAdmin: %s", rec.Body.String())
+	}
+
+	rec = doJSON(t, h.Login, http.MethodPost, "/auth/login",
+		`{"email":"a@b.com","password":"password123"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var env struct {
+		Data struct {
+			User struct {
+				IsAdmin bool `json:"isAdmin"`
+			} `json:"user"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatal(err)
+	}
+	if env.Data.User.IsAdmin {
+		t.Fatalf("ordinary operator must not be admin: %s", rec.Body.String())
+	}
+}
+
 func TestHandler_Refresh(t *testing.T) {
 	h, _ := newTestHandler(t)
 	rec := doJSON(t, h.Signup, http.MethodPost, "/auth/signup",

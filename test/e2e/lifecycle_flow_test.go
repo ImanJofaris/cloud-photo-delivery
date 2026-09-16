@@ -82,6 +82,7 @@ func setupLifecycleAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store, 
 		failed_login_count INT NOT NULL DEFAULT 0,
 		locked_until TIMESTAMPTZ,
 		storage_bytes BIGINT NOT NULL DEFAULT 0,
+		is_admin BOOLEAN NOT NULL DEFAULT FALSE,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)

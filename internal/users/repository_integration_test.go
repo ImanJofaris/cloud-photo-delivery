@@ -48,6 +48,7 @@ func setupDB(t *testing.T) *pgxpool.Pool {
 		email_verified_at TIMESTAMPTZ,
 		failed_login_count INT NOT NULL DEFAULT 0,
 		locked_until TIMESTAMPTZ,
+		is_admin BOOLEAN NOT NULL DEFAULT FALSE,
 		created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 		updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 	)`)
@@ -91,6 +92,27 @@ func TestRepository_GetByEmailAndID(t *testing.T) {
 
 	_, err = repo.GetByID(ctx, uuid.New())
 	require.ErrorIs(t, err, users.ErrNotFound)
+}
+
+func TestRepository_ScansIsAdminFlag(t *testing.T) {
+	pool := setupDB(t)
+	repo := users.NewRepository(pool)
+	ctx := context.Background()
+
+	u, err := repo.Create(ctx, "a@b.com", "hash", "Booth")
+	require.NoError(t, err)
+	require.False(t, u.IsAdmin)
+
+	_, err = pool.Exec(ctx, `UPDATE users SET is_admin = TRUE WHERE id = $1`, u.ID)
+	require.NoError(t, err)
+
+	byID, err := repo.GetByID(ctx, u.ID)
+	require.NoError(t, err)
+	require.True(t, byID.IsAdmin)
+
+	byEmail, err := repo.GetByEmail(ctx, "a@b.com")
+	require.NoError(t, err)
+	require.True(t, byEmail.IsAdmin)
 }
 
 func TestRepository_LockoutCounterIncrementsAndResets(t *testing.T) {

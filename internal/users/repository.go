@@ -33,12 +33,12 @@ func NewRepository(pool *pgxpool.Pool) *PostgresRepository {
 }
 
 const userColumns = `id, email, password_hash, COALESCE(business_name, ''), email_verified_at,
-	failed_login_count, locked_until, created_at, updated_at`
+	failed_login_count, locked_until, created_at, updated_at, is_admin`
 
 func scanUser(row pgx.Row) (*User, error) {
 	var u User
 	err := row.Scan(&u.ID, &u.Email, &u.PasswordHash, &u.BusinessName, &u.EmailVerifiedAt,
-		&u.FailedLoginCount, &u.LockedUntil, &u.CreatedAt, &u.UpdatedAt)
+		&u.FailedLoginCount, &u.LockedUntil, &u.CreatedAt, &u.UpdatedAt, &u.IsAdmin)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound

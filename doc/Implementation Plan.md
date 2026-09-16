@@ -54,6 +54,7 @@ Ordering: F3 shipped its own owner-facing photo API prerequisites (list, owner s
 - [Phase F4 — Report](phases/Phase F4 - Report.md) — COMPLETE (public gallery)
 - [Phase F5 — Report](phases/Phase F5 - Report.md) — COMPLETE (devices, branding & billing)
 - [Phase F6 — Report](phases/Phase F6 - Report.md) — COMPLETE (analytics, exports & lifecycle)
+- [Phase F7 — Report](phases/Phase F7 - Report.md) — COMPLETE (read-only admin UI + `isAdmin` profile flag)
 
 Report template: [`phases/_TEMPLATE - Phase Report.md`](phases/_TEMPLATE - Phase Report.md)
 

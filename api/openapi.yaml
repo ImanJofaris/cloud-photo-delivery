@@ -2289,6 +2289,8 @@ components:
           type: string
         businessName:
           type: string
+        isAdmin:
+          type: boolean
     AuthEnvelope:
       type: object
       properties:
