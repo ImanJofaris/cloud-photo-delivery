@@ -1,4 +1,4 @@
-import { Geist, Geist_Mono } from "next/font/google"
+import { IBM_Plex_Mono, Plus_Jakarta_Sans } from "next/font/google"
 
 import "@workspace/ui/globals.css"
 import { Toaster } from "@workspace/ui/components/sonner"
@@ -8,10 +8,14 @@ import { ThemeProvider } from "@/components/theme-provider"
 import { SessionProvider } from "@/lib/auth/session-provider"
 import { QueryProvider } from "@/lib/query-provider"
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-sans" })
-
-const fontMono = Geist_Mono({
+const plusJakartaSans = Plus_Jakarta_Sans({
   subsets: ["latin"],
+  variable: "--font-sans",
+})
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
   variable: "--font-mono",
 })
 
@@ -26,9 +30,9 @@ export default function RootLayout({
       suppressHydrationWarning
       className={cn(
         "antialiased",
-        fontMono.variable,
+        ibmPlexMono.variable,
         "font-sans",
-        geist.variable
+        plusJakartaSans.variable
       )}
     >
       <body>
