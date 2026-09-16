@@ -16,4 +16,6 @@ export const eventKeys = {
   settings: (id: string) => [...eventKeys.all, "settings", id] as const,
   dashboard: (id: string) => [...eventKeys.all, "dashboard", id] as const,
   url: (id: string) => [...eventKeys.all, "url", id] as const,
+  export: (eventId: string, exportId: string) =>
+    [...eventKeys.all, "export", eventId, exportId] as const,
 }

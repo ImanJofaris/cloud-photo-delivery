@@ -1,8 +1,13 @@
 "use client"
 
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, TriangleAlert } from "lucide-react"
 import Link from "next/link"
 
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
 import {
   Card,
@@ -28,7 +33,11 @@ import {
   useEventDashboard,
   useEventSettings,
 } from "./api"
+import { EventAnalyticsTab } from "./analytics-tab"
 import { DangerZone } from "./danger-zone"
+import { ExpiryLabel } from "./expiry-label"
+import { ExportCard } from "./export-card"
+import { ExtendExpiryDialog } from "./extend-expiry-dialog"
 import { formatBytes, formatDate, formatDateTime } from "./format"
 import { EventSettingsForm } from "./settings-form"
 import { GalleryLinkPreview, SharePanel } from "./share-panel"
@@ -123,12 +132,35 @@ export function EventDetail({ eventId }: { eventId: string }) {
         <Tabs defaultValue="overview" className="gap-6">
           <TabsList variant="line">
             <TabsTrigger value="overview">Overview</TabsTrigger>
+            <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="photos">Photos</TabsTrigger>
             <TabsTrigger value="settings">Settings</TabsTrigger>
             <TabsTrigger value="danger">Danger zone</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
+            {event.status === "expired" && (
+              <Alert variant="destructive">
+                <TriangleAlert />
+                <AlertTitle>This event expired</AlertTitle>
+                <AlertDescription className="flex flex-wrap items-center gap-3">
+                  <span>
+                    This event expired on {formatDate(event.expiresAt)}. Its
+                    gallery is no longer available. Extend to reactivate.
+                  </span>
+                  <ExtendExpiryDialog
+                    eventId={event.id}
+                    status={event.status}
+                    trigger={
+                      <Button variant="outline" size="sm">
+                        Extend
+                      </Button>
+                    }
+                  />
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-3">
               <Card>
                 <CardHeader className="pb-2">
@@ -174,7 +206,19 @@ export function EventDetail({ eventId }: { eventId: string }) {
                     </div>
                     <div className="flex justify-between gap-4">
                       <dt className="text-muted-foreground">Expires</dt>
-                      <dd>{formatDateTime(event.expiresAt)}</dd>
+                      <dd className="flex flex-wrap items-center justify-end gap-2">
+                        <span>{formatDateTime(event.expiresAt)}</span>
+                        <ExpiryLabel expiresAt={event.expiresAt} />
+                        <ExtendExpiryDialog
+                          eventId={event.id}
+                          status={event.status}
+                          trigger={
+                            <Button variant="outline" size="xs">
+                              Extend
+                            </Button>
+                          }
+                        />
+                      </dd>
                     </div>
                     <div className="flex justify-between gap-4">
                       <dt className="text-muted-foreground">Last updated</dt>
@@ -190,6 +234,12 @@ export function EventDetail({ eventId }: { eventId: string }) {
                 </CardContent>
               </Card>
             </div>
+
+            <ExportCard eventId={event.id} photoCount={dashboard?.photoCount} />
+          </TabsContent>
+
+          <TabsContent value="analytics">
+            <EventAnalyticsTab eventId={event.id} />
           </TabsContent>
 
           <TabsContent value="photos">

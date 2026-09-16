@@ -57,8 +57,10 @@ export function DangerZone({
       <CardHeader>
         <CardTitle>Danger zone</CardTitle>
         <CardDescription>
-          Archiving hides the gallery; deleting keeps the photos recoverable
-          during the grace period.
+          Archiving hides the gallery. Deleting hides the event immediately;
+          photos stay recoverable for the 30-day grace period, after which the
+          worker purges database rows and R2 objects permanently. There is no
+          restore endpoint.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -83,7 +85,8 @@ export function DangerZone({
           <div>
             <p className="text-sm font-medium">Delete event</p>
             <p className="text-xs text-muted-foreground">
-              Type the event name to confirm.
+              Type the event name to confirm. This cannot be undone once the
+              grace period ends.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">

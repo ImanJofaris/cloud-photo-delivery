@@ -4,6 +4,7 @@ import { REFRESH_COOKIE } from "@/lib/auth/cookies"
 
 export const PROTECTED_PREFIXES = [
   "/dashboard",
+  "/analytics",
   "/events",
   "/account",
   "/devices",
@@ -44,6 +45,7 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     "/dashboard/:path*",
+    "/analytics/:path*",
     "/events/:path*",
     "/account/:path*",
     "/devices/:path*",

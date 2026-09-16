@@ -13,12 +13,18 @@ import { API_VERSION_PATH, serverApiBaseUrl } from "@/lib/env"
 
 type PublicEvent = components["schemas"]["PublicEvent"]
 
-async function fetchPublicEvent(slug: string): Promise<PublicEvent> {
+async function fetchPublicEvent(
+  slug: string,
+  src: string | undefined
+): Promise<PublicEvent> {
   const client = createApiClient({
     baseUrl: `${serverApiBaseUrl()}${API_VERSION_PATH}`,
   })
   const result = await client.GET("/public/events/{slug}", {
-    params: { path: { slug } },
+    params: {
+      path: { slug },
+      query: src === "qr" ? { src: "qr" } : undefined,
+    },
     cache: "force-cache",
     next: { revalidate: 60 },
   })
@@ -27,14 +33,17 @@ async function fetchPublicEvent(slug: string): Promise<PublicEvent> {
 
 export default async function PublicGalleryPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>
+  searchParams: Promise<{ src?: string }>
 }) {
   const { slug } = await params
+  const { src } = await searchParams
 
   let event: PublicEvent
   try {
-    event = await fetchPublicEvent(slug)
+    event = await fetchPublicEvent(slug, src)
   } catch (error) {
     if (error instanceof ApiError && error.status === 404) {
       notFound()

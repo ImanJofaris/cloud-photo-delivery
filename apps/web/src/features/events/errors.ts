@@ -23,3 +23,29 @@ export function eventErrorMessage(error: unknown): string {
   }
   return FALLBACK
 }
+
+export function extendEventErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.code === "INVALID_STATUS_TRANSITION") {
+    return "Archived events cannot be extended."
+  }
+  return eventErrorMessage(error)
+}
+
+export function exportErrorMessage(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === "EXPORT_NOT_FOUND") {
+      return "That export is no longer available."
+    }
+    if (error.code === "VALIDATION_ERROR") {
+      return "Add photos to this event before exporting."
+    }
+    if (error.code === "RATE_LIMITED") {
+      return "Too many export requests. Please try again shortly."
+    }
+  }
+  return eventErrorMessage(error)
+}
+
+export function isExportNotFound(error: unknown): boolean {
+  return error instanceof ApiError && error.code === "EXPORT_NOT_FOUND"
+}

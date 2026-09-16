@@ -23,14 +23,16 @@ import {
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
 import { useEvents } from "./api"
-import { formatDate } from "./format"
+import { expiryToneClass } from "./expiry-label"
+import { expiryFromNow, formatDate } from "./format"
 import { EventStatusBadge } from "./status-badge"
 
-const STATUS_OPTIONS = [
+export const STATUS_OPTIONS = [
   "all",
   "upcoming",
   "active",
   "completed",
+  "expired",
   "archived",
 ] as const
 
@@ -118,26 +120,38 @@ export function EventsList() {
 
       {events.length > 0 && (
         <div className="space-y-3">
-          {events.map((event) => (
-            <Link
-              key={event.id}
-              href={`/events/${event.id}`}
-              className="block rounded-lg focus-visible:outline-none"
-            >
-              <Card className="transition-colors hover:border-foreground/20">
-                <CardHeader className="gap-1">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <CardTitle className="text-base">{event.name}</CardTitle>
-                    <EventStatusBadge status={event.status} />
-                  </div>
-                  <CardDescription>
-                    {event.clientName ? `${event.clientName} · ` : ""}
-                    {formatDate(event.eventDate)} · {event.photoCount} photos
-                  </CardDescription>
-                </CardHeader>
-              </Card>
-            </Link>
-          ))}
+          {events.map((event) => {
+            const expiry = expiryFromNow(event.expiresAt)
+
+            return (
+              <Link
+                key={event.id}
+                href={`/events/${event.id}`}
+                className="block rounded-lg focus-visible:outline-none"
+              >
+                <Card className="transition-colors hover:border-foreground/20">
+                  <CardHeader className="gap-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <CardTitle className="text-base">{event.name}</CardTitle>
+                      <EventStatusBadge status={event.status} />
+                    </div>
+                    <CardDescription>
+                      {event.clientName ? `${event.clientName} · ` : ""}
+                      {formatDate(event.eventDate)} · {event.photoCount} photos
+                      {expiry.tone !== "neutral" && (
+                        <>
+                          {" · "}
+                          <span className={expiryToneClass(expiry.tone)}>
+                            {expiry.label}
+                          </span>
+                        </>
+                      )}
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )
+          })}
 
           {query.hasNextPage && (
             <div className="flex justify-center pt-2">

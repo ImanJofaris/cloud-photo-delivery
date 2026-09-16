@@ -25,6 +25,19 @@ type CreateEventRequest = components["schemas"]["CreateEventRequest"]
 type UpdateEventRequest = components["schemas"]["UpdateEventRequest"]
 type UpdateEventSettingsRequest =
   components["schemas"]["UpdateEventSettingsRequest"]
+type Export = components["schemas"]["Export"]
+type ExportStatus = components["schemas"]["ExportStatus"]
+type ExtendEventRequest = components["schemas"]["ExtendEventRequest"]
+
+export const EXPORT_POLL_INTERVAL_MS = 5_000
+
+export function exportRefetchInterval(
+  status: ExportStatus | undefined
+): number | false {
+  return status === "pending" || status === "processing"
+    ? EXPORT_POLL_INTERVAL_MS
+    : false
+}
 
 export function isNotFound(error: unknown): boolean {
   return error instanceof ApiError && error.status === 404
@@ -200,6 +213,59 @@ export function useDeleteEvent(eventId: string) {
       ),
     onSuccess: () => {
       queryClient.removeQueries({ queryKey: eventKeys.detail(eventId) })
+      void queryClient.invalidateQueries({ queryKey: eventKeys.lists() })
+    },
+  })
+}
+
+export function useEventExport(eventId: string, exportId: string | null) {
+  return useQuery({
+    queryKey: eventKeys.export(eventId, exportId ?? ""),
+    queryFn: () =>
+      apiCall<Export>((client) =>
+        client.GET("/events/{eventID}/exports/{exportID}", {
+          params: { path: { eventID: eventId, exportID: exportId ?? "" } },
+        })
+      ),
+    enabled: exportId !== null,
+    refetchInterval: (query) => exportRefetchInterval(query.state.data?.status),
+  })
+}
+
+export function useCreateEventExport(eventId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: () =>
+      apiCall<Export>((client) =>
+        client.POST("/events/{eventID}/exports", {
+          params: { path: { eventID: eventId } },
+        })
+      ),
+    onSuccess: (exportJob) => {
+      queryClient.setQueryData(
+        eventKeys.export(eventId, exportJob.id),
+        exportJob
+      )
+    },
+  })
+}
+
+export function useExtendEvent(eventId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (days: number) => {
+      const body: ExtendEventRequest = { days }
+      return apiCall<Event>((client) =>
+        client.POST("/events/{eventID}/extend", {
+          params: { path: { eventID: eventId } },
+          body,
+        })
+      )
+    },
+    onSuccess: (event) => {
+      queryClient.setQueryData(eventKeys.detail(eventId), event)
       void queryClient.invalidateQueries({ queryKey: eventKeys.lists() })
     },
   })

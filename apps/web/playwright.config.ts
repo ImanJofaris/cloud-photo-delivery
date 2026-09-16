@@ -22,9 +22,19 @@ export default defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "pnpm dev",
-    url: "http://localhost:3000",
-    reuseExistingServer: !process.env.CI,
-  },
+  webServer: [
+    {
+      // The suite shares 127.0.0.1 and exhausts the API's per-IP auth rate
+      // limit. The proxy injects a unique X-Forwarded-For per request; run the
+      // Go API on :18081 for E2E (`HTTP_ADDR=:18081`).
+      command: "node e2e/api-proxy.mjs",
+      port: 18080,
+      reuseExistingServer: true,
+    },
+    {
+      command: "pnpm dev",
+      url: "http://localhost:3000",
+      reuseExistingServer: !process.env.CI,
+    },
+  ],
 })

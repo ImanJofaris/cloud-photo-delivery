@@ -10,13 +10,16 @@ function request(path: string, signedIn = false): NextRequest {
   if (signedIn) {
     headers.set("cookie", `${REFRESH_COOKIE}=refresh-token`)
   }
-  return new NextRequest(new Request(`http://localhost:3000${path}`, { headers }))
+  return new NextRequest(
+    new Request(`http://localhost:3000${path}`, { headers })
+  )
 }
 
 describe("isProtectedPath", () => {
   it("protects every dashboard prefix and its nested routes", () => {
     expect(PROTECTED_PREFIXES).toEqual([
       "/dashboard",
+      "/analytics",
       "/events",
       "/account",
       "/devices",
@@ -40,6 +43,7 @@ describe("proxy", () => {
   it("redirects each protected prefix to login when the cookie is absent", () => {
     for (const path of [
       "/dashboard",
+      "/analytics",
       "/events",
       "/events/123",
       "/account",

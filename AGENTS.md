@@ -134,6 +134,7 @@ Frontend phases (F-prefixed) follow the same workflow; step 3 becomes UI/data wo
 ## Environment gotchas (win32 / PowerShell 5.1)
 
 - Port 8080 may be reserved by WinNAT/Hyper-V. Use `HTTP_ADDR=:18080` for live smoke tests.
+- `pnpm test:e2e` expects the Go API on `:18081` (`HTTP_ADDR=:18081`). Playwright starts `apps/web/e2e/api-proxy.mjs` on `:18080` (the `.env.local` origin) and injects a per-request `X-Forwarded-For` so the API's per-IP auth rate limit (10/min on login/refresh) cannot throttle the suite; requests 502/skip when the API is down.
 - `pnpm` is not installed by default; run `corepack enable` once. If that fails with `EPERM` (Node in `C:\Program Files`), use `npm install -g pnpm`. Never add npm/yarn lockfiles.
 - Next dev serves `apps/web` on `:3000` and reads `API_BASE_URL` (server-only) from `apps/web/.env.local`.
 - shadcn CLI 4.20/4.21 truncates resolved paths when the project path contains a dot (e.g. `UF-Iman.Jofaris`) due to a Windows regex bug. Use `pnpm shadcn add <component> -c apps/web` (wrapper in `scripts/shadcn.cjs` applies `scripts/shadcn-path-fix.cjs`). The shadcn MCP server gets the same fix via `NODE_OPTIONS` in `opencode.json`.

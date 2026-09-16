@@ -47,3 +47,13 @@ export const eventSettingsSchema = z
   })
 
 export type EventSettingsValues = z.infer<typeof eventSettingsSchema>
+
+export const EXTEND_PRESET_DAYS = [7, 30, 90] as const
+export const EXTEND_MIN_DAYS = 1
+export const EXTEND_MAX_DAYS = 3650
+
+export function parseExtendDays(input: string): number | null {
+  const value = Number(input.trim())
+  if (!Number.isInteger(value)) return null
+  return value >= EXTEND_MIN_DAYS && value <= EXTEND_MAX_DAYS ? value : null
+}

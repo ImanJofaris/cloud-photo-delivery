@@ -3,6 +3,7 @@
 import {
   CalendarDays,
   Camera,
+  ChartColumn,
   CreditCard,
   LayoutDashboard,
   LogOut,
@@ -43,6 +44,7 @@ import { useSession } from "@/lib/auth/session-provider"
 
 const navItems = [
   { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { title: "Analytics", href: "/analytics", icon: ChartColumn },
   { title: "Events", href: "/events", icon: CalendarDays },
   { title: "Devices", href: "/devices", icon: Camera },
   { title: "Branding", href: "/branding", icon: Palette },
