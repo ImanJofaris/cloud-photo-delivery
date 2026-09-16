@@ -89,7 +89,7 @@ func (s *Service) GetSubscription(ctx context.Context, userID uuid.UUID) (*Subsc
 		return nil, apperr.Internal().WithCause(err)
 	}
 
-	active, err := s.repo.CountActiveEvents(ctx, userID)
+	live, err := s.repo.CountLiveEvents(ctx, userID)
 	if err != nil {
 		return nil, apperr.Internal().WithCause(err)
 	}
@@ -101,7 +101,7 @@ func (s *Service) GetSubscription(ctx context.Context, userID uuid.UUID) (*Subsc
 	return &SubscriptionView{
 		Subscription: sub,
 		Plan:         plan,
-		Usage:        Usage{ActiveEvents: active, StorageBytes: storage},
+		Usage:        Usage{Events: live, StorageBytes: storage},
 	}, nil
 }
 

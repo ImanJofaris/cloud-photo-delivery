@@ -272,7 +272,7 @@ func setupUploadsAPIWithEndpoint(t *testing.T) (http.Handler, *pgxpool.Pool, str
 	})
 
 	deviceRepo := devices.NewRepository(pool)
-	deviceSvc := devices.NewService(deviceRepo)
+	deviceSvc := devices.NewService(deviceRepo, nil)
 	deviceHandler := devices.NewHandler(deviceSvc, func(r *http.Request) (string, bool) {
 		id, ok := auth.UserID(r.Context())
 		if !ok {

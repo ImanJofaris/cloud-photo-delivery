@@ -25,7 +25,7 @@ func newTestServiceFull() (*Service, *fakeRepo, *fakePresigner, *fakeBrandingPro
 	branding := &fakeBrandingProvider{}
 	urls := photos.NewSignedURLGenerator(presigner, 5*time.Minute)
 	tokens := NewUnlockTokens("secret", 30*time.Minute)
-	svc := NewService(repo, urls, tokens, func(hash, pw string) bool { return hash == "hash:"+pw }, branding, &fakeRecorder{})
+	svc := NewService(repo, urls, tokens, func(hash, pw string) bool { return hash == "hash:"+pw }, branding, &fakeRecorder{}, nil)
 	return svc, repo, presigner, branding
 }
 
@@ -63,6 +63,43 @@ func TestService_GetEvent_UnknownSlug(t *testing.T) {
 	svc, _, _ := newTestService()
 	_, _, err := svc.GetEvent(context.Background(), "nope", "", Visitor{})
 	require.Equal(t, "EVENT_NOT_FOUND", codeOf(t, err))
+}
+
+func TestService_GetEvent_ArchivedHidden(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("archived")
+	e.Status = events.StatusArchived
+	repo.addEvent(e, s)
+
+	_, _, err := svc.GetEvent(context.Background(), "archived", "", Visitor{})
+	require.Equal(t, "EVENT_NOT_FOUND", codeOf(t, err))
+}
+
+type fakeDownloadPolicy struct{ allow bool }
+
+func (f fakeDownloadPolicy) OriginalDownloads(context.Context, string) (bool, error) {
+	return f.allow, nil
+}
+
+func TestService_PhotoURL_PlanDisablesOriginal(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo, photos.NewSignedURLGenerator(&fakePresigner{}, 5*time.Minute),
+		NewUnlockTokens("secret", 30*time.Minute), func(hash, pw string) bool { return hash == "hash:"+pw },
+		&fakeBrandingProvider{}, &fakeRecorder{}, fakeDownloadPolicy{allow: false})
+
+	e, s := publicEvent("wedding")
+	s.AllowOriginalDownload = true
+	repo.addEvent(e, s)
+	p := readyPhoto(e.ID, time.Now())
+	repo.photos[e.ID] = append(repo.photos[e.ID], p)
+
+	_, err := svc.PhotoURL(context.Background(), "wedding", "", p.ID.String(), "original")
+	require.Equal(t, "ORIGINAL_DOWNLOAD_DISABLED", codeOf(t, err))
+
+	// The public DTO must not advertise originals the plan cannot serve.
+	ve, _, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{})
+	require.NoError(t, err)
+	require.False(t, ve.Settings.AllowOriginalDownload)
 }
 
 func TestService_GetEvent_PasswordRequiresUnlock(t *testing.T) {
@@ -430,7 +467,7 @@ func TestService_GetEvent_NilRecorder(t *testing.T) {
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
 	svc := NewService(repo, photos.NewSignedURLGenerator(&fakePresigner{}, time.Minute),
-		NewUnlockTokens("secret", time.Minute), func(hash, pw string) bool { return true }, nil, nil)
+		NewUnlockTokens("secret", time.Minute), func(hash, pw string) bool { return true }, nil, nil, nil)
 
 	_, _, err := svc.GetEvent(context.Background(), "wedding", "", Visitor{})
 	require.NoError(t, err)

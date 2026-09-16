@@ -85,7 +85,7 @@ func TestHandler_GetSubscriptionShowsFreePlan(t *testing.T) {
 			ID string `json:"id"`
 		} `json:"plan"`
 		Usage struct {
-			ActiveEvents int `json:"activeEvents"`
+			Events int `json:"events"`
 		} `json:"usage"`
 	}
 	require.NoError(t, json.Unmarshal(env.Data, &data))

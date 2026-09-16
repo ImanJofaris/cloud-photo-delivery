@@ -194,7 +194,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 		store = s
 	}
 	store = metrics.WrapStore(store, m)
-	brandingSvc := users.NewBrandingService(userRepo, store, cfg.SignedURLTTL)
+	brandingSvc := users.NewBrandingService(userRepo, store, cfg.SignedURLTTL, entitlements)
 	brandingHandler := users.NewBrandingHandler(brandingSvc, func(req *http.Request) (string, bool) {
 		id, ok := auth.UserID(req.Context())
 		if !ok {
@@ -219,7 +219,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 	})
 
 	deviceRepo := devices.NewRepository(pool.Pool)
-	deviceSvc := devices.NewService(deviceRepo)
+	deviceSvc := devices.NewService(deviceRepo, entitlements)
 	deviceHandler := devices.NewHandler(deviceSvc, func(req *http.Request) (string, bool) {
 		id, ok := auth.UserID(req.Context())
 		if !ok {
@@ -244,7 +244,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 	galleryRepo := gallery.NewRepository(pool.Pool)
 	galleryURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	galleryTokens := gallery.NewUnlockTokens(cfg.JWTSecret, cfg.GalleryUnlockTTL)
-	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword, brandingSvc, analyticsSvc)
+	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword, brandingSvc, analyticsSvc, entitlements)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	photoURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
@@ -351,6 +351,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 					r.Get("/", eventHandler.Get)
 					r.Patch("/", eventHandler.Update)
 					r.Post("/archive", eventHandler.Archive)
+					r.Post("/status", eventHandler.UpdateStatus)
 					r.Post("/extend", eventHandler.Extend)
 					r.Delete("/", eventHandler.Delete)
 

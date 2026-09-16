@@ -44,6 +44,23 @@ async function accessToken(
   return token
 }
 
+// The lifecycle flow needs several live events and a 30-day extend, which the
+// Free plan's 1-event/7-day retention does not allow.
+async function subscribe(
+  request: APIRequestContext,
+  email: string,
+  planId: string
+) {
+  const token = await accessToken(request, email)
+  const res = await request.post(`${apiOrigin}/api/v1/billing/subscribe`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { planId },
+  })
+  if (!res.ok()) {
+    throw new Error(`subscribe failed: ${res.status()} ${await res.text()}`)
+  }
+}
+
 async function seedEvent(
   request: APIRequestContext,
   auth: Record<string, string>,
@@ -71,6 +88,7 @@ test("lifecycle: expired banner, extend, expiring-soon hint, expired filter", as
   test.setTimeout(120_000)
 
   const email = await signup(page)
+  await subscribe(request, email, "starter")
   const token = await accessToken(request, email)
   const auth = { Authorization: `Bearer ${token}` }
   const prefix = `E2E Lifecycle ${Date.now()}`

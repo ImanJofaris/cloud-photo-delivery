@@ -96,6 +96,33 @@ func TestInitialize_Validation(t *testing.T) {
 	}
 }
 
+func TestInitialize_RejectsClosedEvents(t *testing.T) {
+	past := time.Date(2026, 9, 11, 10, 0, 0, 0, time.UTC)
+	cases := []struct {
+		name  string
+		state EventState
+	}{
+		{"archived", EventState{Status: "archived"}},
+		{"expired status", EventState{Status: "expired"}},
+		{"past expiry", EventState{Status: "active", ExpiresAt: &past}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, _, uploadRepo, _, _, userID, eventID := newTestService(t)
+			uploadRepo.states[eventID] = tc.state
+
+			_, err := svc.Initialize(context.Background(), Actor{UserID: userID}, InitParams{
+				EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 100,
+			})
+			require.Error(t, err)
+			var appErr *apperr.Error
+			require.True(t, errors.As(err, &appErr))
+			require.Equal(t, "INVALID_STATUS_TRANSITION", appErr.Code)
+			require.Equal(t, 409, appErr.HTTPStatus)
+		})
+	}
+}
+
 func TestInitialize_Idempotency(t *testing.T) {
 	svc, photoRepo, _, _, _, userID, eventID := newTestService(t)
 	ctx := context.Background()

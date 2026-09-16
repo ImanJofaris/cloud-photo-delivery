@@ -1,6 +1,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
+import Link from "next/link"
 import * as React from "react"
 import { Controller, useForm, useWatch } from "react-hook-form"
 import { toast } from "sonner"
@@ -30,6 +31,7 @@ import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Skeleton } from "@workspace/ui/components/skeleton"
 
+import { useSubscription } from "@/features/billing/api"
 import { useObjectUrl } from "@/lib/hooks/use-object-url"
 
 import { useBranding, useUpdateBranding } from "./api"
@@ -100,8 +102,9 @@ function ColorField({
 
 export function BrandingForm() {
   const brandingQuery = useBranding()
+  const subscriptionQuery = useSubscription()
 
-  if (brandingQuery.isPending) {
+  if (brandingQuery.isPending || subscriptionQuery.isPending) {
     return (
       <div className="space-y-4">
         <Skeleton className="h-8 w-48" />
@@ -119,6 +122,26 @@ export function BrandingForm() {
             Refresh the page to try again.
           </CardDescription>
         </CardHeader>
+      </Card>
+    )
+  }
+
+  const plan = subscriptionQuery.data?.plan
+  if (plan && !plan.limits.branding) {
+    return (
+      <Card className="max-w-xl">
+        <CardHeader>
+          <CardTitle>Custom branding is a Starter feature</CardTitle>
+          <CardDescription>
+            Upgrade to add your business name, logo, and colors to every
+            gallery.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Button render={<Link href="/billing" />} nativeButton={false}>
+            View plans
+          </Button>
+        </CardContent>
       </Card>
     )
   }

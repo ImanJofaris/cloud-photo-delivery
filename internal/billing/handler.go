@@ -22,11 +22,13 @@ type planDTO struct {
 }
 
 type planLimitsDTO struct {
-	ActiveEvents   int   `json:"activeEvents"`
-	PhotosPerEvent int   `json:"photosPerEvent"`
-	StorageBytes   int64 `json:"storageBytes"`
-	RetentionDays  int   `json:"retentionDays"`
-	APIAccess      bool  `json:"apiAccess"`
+	Events            int   `json:"events"`
+	PhotosPerEvent    int   `json:"photosPerEvent"`
+	StorageBytes      int64 `json:"storageBytes"`
+	RetentionDays     int   `json:"retentionDays"`
+	APIAccess         bool  `json:"apiAccess"`
+	Branding          bool  `json:"branding"`
+	OriginalDownloads bool  `json:"originalDownloads"`
 }
 
 type subscriptionDTO struct {
@@ -44,7 +46,7 @@ type subscriptionDTO struct {
 }
 
 type usageDTO struct {
-	ActiveEvents int   `json:"activeEvents"`
+	Events       int   `json:"events"`
 	StorageBytes int64 `json:"storageBytes"`
 }
 
@@ -100,11 +102,13 @@ func toPlanDTO(p *Plan) planDTO {
 		Currency:   p.Currency,
 		Interval:   p.Interval,
 		Limits: planLimitsDTO{
-			ActiveEvents:   p.Limits.ActiveEvents,
-			PhotosPerEvent: p.Limits.PhotosPerEvent,
-			StorageBytes:   p.Limits.StorageBytes,
-			RetentionDays:  p.Limits.RetentionDays,
-			APIAccess:      p.Limits.APIAccess,
+			Events:            p.Limits.Events,
+			PhotosPerEvent:    p.Limits.PhotosPerEvent,
+			StorageBytes:      p.Limits.StorageBytes,
+			RetentionDays:     p.Limits.RetentionDays,
+			APIAccess:         p.Limits.APIAccess,
+			Branding:          p.Limits.Branding,
+			OriginalDownloads: p.Limits.OriginalDownloads,
 		},
 		Active: p.Active,
 	}
@@ -196,7 +200,7 @@ func (h *Handler) GetSubscription(w http.ResponseWriter, r *http.Request) {
 		"subscription": sub,
 		"plan":         toPlanDTO(view.Plan),
 		"usage": usageDTO{
-			ActiveEvents: view.Usage.ActiveEvents,
+			Events:       view.Usage.Events,
 			StorageBytes: view.Usage.StorageBytes,
 		},
 	})

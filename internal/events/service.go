@@ -110,14 +110,15 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, p CreateParams) 
 		return nil, nil, validationError("Invalid event status")
 	}
 
-	if status == StatusActive {
-		if err := s.enforceActiveLimit(ctx, userID); err != nil {
-			return nil, nil, err
-		}
+	if err := s.enforceEventLimit(ctx, userID); err != nil {
+		return nil, nil, err
 	}
 
 	settings, err := s.buildSettings(Settings{Visibility: VisibilityPublic, AllowDownload: true}, p.Settings)
 	if err != nil {
+		return nil, nil, err
+	}
+	if err := s.enforceOriginalDownloadLimit(ctx, userID, settings); err != nil {
 		return nil, nil, err
 	}
 
@@ -151,18 +152,33 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, p CreateParams) 
 }
 
 func (s *Service) resolveExpiry(ctx context.Context, userID uuid.UUID, explicit *time.Time) (*time.Time, error) {
-	if explicit != nil {
-		return explicit, nil
-	}
 	days, err := s.limits.RetentionDays(ctx, userID.String())
 	if err != nil {
 		return nil, apperr.Internal().WithCause(err)
+	}
+	if explicit != nil {
+		if err := checkRetention(s.now().UTC(), days, *explicit); err != nil {
+			return nil, err
+		}
+		return explicit, nil
 	}
 	if days <= 0 {
 		return nil, nil
 	}
 	t := s.now().UTC().AddDate(0, 0, days)
 	return &t, nil
+}
+
+// checkRetention rejects expiries beyond the plan's retention window. A plan
+// retention of zero means unlimited.
+func checkRetention(now time.Time, days int, expiresAt time.Time) error {
+	if days <= 0 {
+		return nil
+	}
+	if expiresAt.After(now.AddDate(0, 0, days)) {
+		return apperr.New("PLAN_LIMIT_REACHED", "retentionDays limit reached for your plan", 402)
+	}
+	return nil
 }
 
 func (s *Service) Get(ctx context.Context, userID, id uuid.UUID) (*Event, error) {
@@ -218,6 +234,24 @@ func (s *Service) Update(ctx context.Context, userID, id uuid.UUID, p UpdatePara
 	if p.ClientEmail != nil && *p.ClientEmail != "" && !validEmail(*p.ClientEmail) {
 		return nil, validationError("Client email is invalid")
 	}
+	if p.ExpiresAt != nil || p.ClearExpiry {
+		days, err := s.limits.RetentionDays(ctx, userID.String())
+		if err != nil {
+			return nil, apperr.Internal().WithCause(err)
+		}
+		if p.ExpiresAt != nil {
+			if err := checkRetention(s.now().UTC(), days, *p.ExpiresAt); err != nil {
+				return nil, err
+			}
+		}
+		if p.ClearExpiry {
+			p.ClearExpiry = false
+			if days > 0 {
+				t := s.now().UTC().AddDate(0, 0, days)
+				p.ExpiresAt = &t
+			}
+		}
+	}
 
 	e, err := s.repo.Update(ctx, userID, id, UpdateInput{
 		Name:        p.Name,
@@ -259,7 +293,7 @@ func (s *Service) Extend(ctx context.Context, userID, id uuid.UUID, days int) (*
 	}
 	reactivate := current.Status == StatusExpired
 	if reactivate {
-		if err := s.enforceActiveLimit(ctx, userID); err != nil {
+		if err := s.enforceEventLimit(ctx, userID); err != nil {
 			return nil, err
 		}
 	}
@@ -269,6 +303,13 @@ func (s *Service) Extend(ctx context.Context, userID, id uuid.UUID, days int) (*
 		base = *current.ExpiresAt
 	}
 	expiresAt := base.AddDate(0, 0, days)
+	retention, err := s.limits.RetentionDays(ctx, userID.String())
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	if err := checkRetention(now, retention, expiresAt); err != nil {
+		return nil, err
+	}
 
 	updated, err := s.repo.Extend(ctx, userID, id, expiresAt, reactivate)
 	if err != nil {
@@ -303,7 +344,7 @@ func (s *Service) transition(ctx context.Context, userID, id uuid.UUID, to Statu
 			"Cannot transition event from "+string(current.Status)+" to "+string(to), 409)
 	}
 	if to == StatusActive {
-		if err := s.enforceActiveLimit(ctx, userID); err != nil {
+		if err := s.enforceEventLimit(ctx, userID); err != nil {
 			return nil, err
 		}
 	}
@@ -349,6 +390,9 @@ func (s *Service) UpdateSettings(ctx context.Context, userID, id uuid.UUID, in S
 	}
 	next, err := s.buildSettings(*current, in)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.enforceOriginalDownloadLimit(ctx, userID, next); err != nil {
 		return nil, err
 	}
 	updated, err := s.repo.UpdateSettings(ctx, userID, id, next)
@@ -441,20 +485,34 @@ func (s *Service) uniqueSlug(ctx context.Context, userID uuid.UUID, name string)
 	return "", apperr.Internal().WithCause(errors.New("could not generate unique slug"))
 }
 
-func (s *Service) enforceActiveLimit(ctx context.Context, userID uuid.UUID) error {
-	max, err := s.limits.MaxActiveEvents(ctx, userID.String())
+func (s *Service) enforceEventLimit(ctx context.Context, userID uuid.UUID) error {
+	max, err := s.limits.MaxEvents(ctx, userID.String())
 	if err != nil {
 		return apperr.Internal().WithCause(err)
 	}
 	if max <= 0 {
 		return nil
 	}
-	count, err := s.repo.CountByStatus(ctx, userID, StatusActive)
+	count, err := s.repo.CountLiveEvents(ctx, userID)
 	if err != nil {
 		return apperr.Internal().WithCause(err)
 	}
 	if count >= max {
-		return apperr.New("PLAN_LIMIT_REACHED", "activeEvents limit reached for your plan", 402)
+		return apperr.New("PLAN_LIMIT_REACHED", "events limit reached for your plan", 402)
+	}
+	return nil
+}
+
+func (s *Service) enforceOriginalDownloadLimit(ctx context.Context, userID uuid.UUID, next Settings) error {
+	if !next.AllowOriginalDownload {
+		return nil
+	}
+	allowed, err := s.limits.OriginalDownloads(ctx, userID.String())
+	if err != nil {
+		return apperr.Internal().WithCause(err)
+	}
+	if !allowed {
+		return apperr.New("PLAN_LIMIT_REACHED", "originalDownloads limit reached for your plan", 402)
 	}
 	return nil
 }

@@ -3,6 +3,7 @@ package uploads
 import (
 	"context"
 	"errors"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -19,8 +20,16 @@ type IdempotencyRecord struct {
 	RequestHash string
 }
 
+// EventState is the minimal event lifecycle state needed to decide whether an
+// event still accepts new uploads.
+type EventState struct {
+	Status    string
+	ExpiresAt *time.Time
+}
+
 type Repository interface {
 	EventOwnedBy(ctx context.Context, userID, eventID uuid.UUID) (bool, error)
+	EventState(ctx context.Context, userID, eventID uuid.UUID) (*EventState, error)
 	UserStorageBytes(ctx context.Context, userID uuid.UUID) (int64, error)
 	LookupIdempotency(ctx context.Context, key string) (*IdempotencyRecord, error)
 	SaveIdempotency(ctx context.Context, key string, rec IdempotencyRecord) error
@@ -41,6 +50,21 @@ func (r *PostgresRepository) EventOwnedBy(ctx context.Context, userID, eventID u
 		`SELECT EXISTS (SELECT 1 FROM events WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL)`,
 		eventID, userID).Scan(&exists)
 	return exists, err
+}
+
+func (r *PostgresRepository) EventState(ctx context.Context, userID, eventID uuid.UUID) (*EventState, error) {
+	var state EventState
+	err := r.pool.QueryRow(ctx,
+		`SELECT status, expires_at FROM events
+		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL`,
+		eventID, userID).Scan(&state.Status, &state.ExpiresAt)
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, err
+	}
+	return &state, nil
 }
 
 func (r *PostgresRepository) UserStorageBytes(ctx context.Context, userID uuid.UUID) (int64, error) {

@@ -18,12 +18,12 @@ func NewEntitlements(repo Repository) *Entitlements {
 	return &Entitlements{repo: repo}
 }
 
-func (e *Entitlements) MaxActiveEvents(ctx context.Context, userID string) (int, error) {
+func (e *Entitlements) MaxEvents(ctx context.Context, userID string) (int, error) {
 	l, err := e.limitsFor(ctx, userID)
 	if err != nil {
 		return 0, err
 	}
-	return l.ActiveEvents, nil
+	return l.Events, nil
 }
 
 func (e *Entitlements) MaxPhotosPerEvent(ctx context.Context, userID string) (int, error) {
@@ -48,6 +48,30 @@ func (e *Entitlements) RetentionDays(ctx context.Context, userID string) (int, e
 		return 0, err
 	}
 	return l.RetentionDays, nil
+}
+
+func (e *Entitlements) APIAccess(ctx context.Context, userID string) (bool, error) {
+	l, err := e.limitsFor(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return l.APIAccess, nil
+}
+
+func (e *Entitlements) BrandingEnabled(ctx context.Context, userID string) (bool, error) {
+	l, err := e.limitsFor(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return l.Branding, nil
+}
+
+func (e *Entitlements) OriginalDownloads(ctx context.Context, userID string) (bool, error) {
+	l, err := e.limitsFor(ctx, userID)
+	if err != nil {
+		return false, err
+	}
+	return l.OriginalDownloads, nil
 }
 
 func (e *Entitlements) limitsFor(ctx context.Context, userID string) (PlanLimits, error) {

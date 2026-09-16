@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
@@ -168,6 +169,9 @@ func (s *Service) initialize(ctx context.Context, actor Actor, p InitParams) (*I
 	}
 	if !owned {
 		return nil, apperr.New("EVENT_NOT_FOUND", "Event not found", 404)
+	}
+	if err := s.enforceEventOpen(ctx, actor.UserID, p.EventID); err != nil {
+		return nil, err
 	}
 
 	filename := strings.TrimSpace(p.Filename)
@@ -482,6 +486,26 @@ func (s *Service) actorOwnsEvent(ctx context.Context, actor Actor, eventID uuid.
 		return actor.AssignedEvent != nil && *actor.AssignedEvent == eventID, nil
 	}
 	return s.repo.EventOwnedBy(ctx, actor.UserID, eventID)
+}
+
+// enforceEventOpen rejects new uploads once an event is archived or past its
+// expiry. Completion of already-initialized uploads is unaffected.
+func (s *Service) enforceEventOpen(ctx context.Context, userID, eventID uuid.UUID) error {
+	state, err := s.repo.EventState(ctx, userID, eventID)
+	if err != nil {
+		if errors.Is(err, ErrNotFound) {
+			return apperr.New("EVENT_NOT_FOUND", "Event not found", 404)
+		}
+		return apperr.Internal().WithCause(err)
+	}
+	if state.Status == string(events.StatusArchived) {
+		return apperr.New("INVALID_STATUS_TRANSITION", "Event is archived; uploads are closed", 409)
+	}
+	if state.Status == string(events.StatusExpired) ||
+		(state.ExpiresAt != nil && !state.ExpiresAt.After(s.now().UTC())) {
+		return apperr.New("INVALID_STATUS_TRANSITION", "Event has expired; uploads are closed", 409)
+	}
+	return nil
 }
 
 func (s *Service) enforcePlanLimits(ctx context.Context, userID, eventID uuid.UUID, size int64) error {

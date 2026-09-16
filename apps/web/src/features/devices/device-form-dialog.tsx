@@ -1,6 +1,7 @@
 "use client"
 
 import { zodResolver } from "@hookform/resolvers/zod"
+import Link from "next/link"
 import * as React from "react"
 import { Controller, useForm } from "react-hook-form"
 
@@ -26,6 +27,8 @@ import {
   SelectValue,
 } from "@workspace/ui/components/select"
 
+import { isPlanLimitReached } from "@/lib/api-errors"
+
 import { useCreateDevice } from "./api"
 import { deviceErrorMessage } from "./errors"
 import {
@@ -49,26 +52,45 @@ export function DeviceFormDialog({
   events: EventOption[]
   onCreated: (result: DeviceWithKey) => void
 }) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DeviceFormBody
+          key={open ? "open" : "closed"}
+          events={events}
+          onCreated={onCreated}
+          onClose={() => onOpenChange(false)}
+        />
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+function DeviceFormBody({
+  events,
+  onCreated,
+  onClose,
+}: {
+  events: EventOption[]
+  onCreated: (result: DeviceWithKey) => void
+  onClose: () => void
+}) {
   const createDevice = useCreateDevice()
+  const [planLimitReached, setPlanLimitReached] = React.useState(false)
   const form = useForm<CreateDeviceValues>({
     resolver: zodResolver(createDeviceSchema),
     defaultValues: { name: "", assignedEventId: NO_EVENT },
   })
-
-  React.useEffect(() => {
-    if (open) {
-      form.reset({ name: "", assignedEventId: NO_EVENT })
-    }
-  }, [open, form])
 
   async function onSubmit(values: CreateDeviceValues) {
     try {
       const created = await createDevice.mutateAsync(
         toCreateDeviceRequest(values)
       )
-      onOpenChange(false)
+      onClose()
       onCreated(created)
     } catch (error) {
+      setPlanLimitReached(isPlanLimitReached(error))
       form.setError("root", { message: deviceErrorMessage(error) })
     }
   }
@@ -76,20 +98,19 @@ export function DeviceFormDialog({
   const { errors, isSubmitting } = form.formState
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Add device</DialogTitle>
-          <DialogDescription>
-            Register a photobooth. The API key is shown once after creating.
-          </DialogDescription>
-        </DialogHeader>
+    <>
+      <DialogHeader>
+        <DialogTitle>Add device</DialogTitle>
+        <DialogDescription>
+          Register a photobooth. The API key is shown once after creating.
+        </DialogDescription>
+      </DialogHeader>
 
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-4"
-          noValidate
-        >
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-4"
+        noValidate
+      >
           <div className="space-y-2">
             <Label htmlFor="device-name">Device name</Label>
             <Input
@@ -134,16 +155,25 @@ export function DeviceFormDialog({
 
           {errors.root && (
             <Alert variant="destructive">
-              <AlertDescription>{errors.root.message}</AlertDescription>
+              <AlertDescription>
+                <p>{errors.root.message}</p>
+                {planLimitReached && (
+                  <Button
+                    render={<Link href="/billing" />}
+                    nativeButton={false}
+                    size="sm"
+                    variant="outline"
+                    className="mt-2"
+                  >
+                    View plans
+                  </Button>
+                )}
+              </AlertDescription>
             </Alert>
           )}
 
           <DialogFooter>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => onOpenChange(false)}
-            >
+            <Button type="button" variant="outline" onClick={onClose}>
               Cancel
             </Button>
             <Button type="submit" disabled={isSubmitting}>
@@ -151,7 +181,6 @@ export function DeviceFormDialog({
             </Button>
           </DialogFooter>
         </form>
-      </DialogContent>
-    </Dialog>
+    </>
   )
 }

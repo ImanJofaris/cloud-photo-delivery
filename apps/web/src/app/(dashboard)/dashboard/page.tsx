@@ -116,10 +116,9 @@ export default function DashboardPage() {
           {view && (
             <dl className="grid gap-2 text-sm">
               <div className="flex justify-between gap-4">
-                <dt className="text-muted-foreground">Active events</dt>
+                <dt className="text-muted-foreground">Events</dt>
                 <dd>
-                  {view.usage.activeEvents} of{" "}
-                  {formatLimit(view.plan.limits.activeEvents)}
+                  {view.usage.events} of {formatLimit(view.plan.limits.events)}
                 </dd>
               </div>
               <div className="flex justify-between gap-4">

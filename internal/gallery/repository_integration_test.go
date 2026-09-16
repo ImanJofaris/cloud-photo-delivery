@@ -338,6 +338,7 @@ func TestGalleryService_ViewVsDownloadIntegration(t *testing.T) {
 		func(hash, password string) bool { return hash == "hash:"+password },
 		nil,
 		nil,
+		nil,
 	)
 
 	setDownload := func(allowDownload, allowOriginal bool) {

@@ -291,6 +291,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/events/{eventID}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Transition an event's status
+         * @description Applies the status lifecycle: `upcoming → active|archived`,
+         *     `active → completed|archived`, `completed → archived`, `archived`
+         *     (terminal), `expired → active`. Activating enforces the plan's
+         *     active-event limit.
+         */
+        post: operations["updateEventStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events/{eventID}/extend": {
         parameters: {
             query?: never;
@@ -305,7 +330,9 @@ export interface paths {
         /**
          * Extend an event's expiry
          * @description Extends the expiry from the later of now and the current `expiresAt`.
-         *     An `expired` event is re-activated.
+         *     An `expired` event is re-activated. The resulting expiry must stay
+         *     within the plan's retention window (`PLAN_LIMIT_REACHED` otherwise);
+         *     re-activation also respects the plan's event limit.
          */
         post: operations["extendEvent"];
         delete?: never;
@@ -1307,6 +1334,7 @@ export interface components {
             /** @description Set a gallery password; empty string clears it */
             password?: string;
             allowDownload?: boolean;
+            /** @description Rejected with `PLAN_LIMIT_REACHED` when the plan lacks original downloads. */
             allowOriginalDownload?: boolean;
             watermarkEnabled?: boolean;
         };
@@ -1320,7 +1348,12 @@ export interface components {
             location?: string;
             description?: string;
             status?: components["schemas"]["EventStatus"];
-            /** Format: date-time */
+            /**
+             * Format: date-time
+             * @description Must not be later than the plan's retention window; later values
+             *     are rejected with `PLAN_LIMIT_REACHED`. Omit to derive it from the
+             *     plan's retention.
+             */
             expiresAt?: string;
             settings?: components["schemas"]["EventSettingsInput"];
         };
@@ -1338,9 +1371,14 @@ export interface components {
             description?: string;
             /**
              * Format: date-time
-             * @description Empty string clears the expiry
+             * @description Empty string resets the expiry to the plan's retention window
+             *     (clears it on unlimited plans). Values later than the retention
+             *     window are rejected with `PLAN_LIMIT_REACHED`.
              */
             expiresAt?: string;
+        };
+        UpdateEventStatusRequest: {
+            status: components["schemas"]["EventStatus"];
         };
         ExtendEventRequest: {
             /** @description Days to extend from the later of now and the current expiry */
@@ -1640,6 +1678,7 @@ export interface components {
             description?: string;
             visibility?: components["schemas"]["EventVisibility"];
             allowDownload?: boolean;
+            /** @description Effective value; false when the owner's plan excludes original downloads. */
             allowOriginalDownload?: boolean;
             /** Format: int64 */
             photoCount?: number;
@@ -1720,8 +1759,12 @@ export interface components {
             error?: null | components["schemas"]["Error"];
         };
         BillingPlanLimits: {
-            /** @description Maximum concurrent active events; `0` means unlimited. */
-            activeEvents: number;
+            /**
+             * @description Maximum events that guests can still reach (`upcoming`, `active`,
+             *     `completed`) at the same time; `0` means unlimited. Archiving,
+             *     expiring, or deleting an event frees a slot.
+             */
+            events: number;
             /** @description Maximum photos per event; `0` means unlimited. */
             photosPerEvent: number;
             /**
@@ -1729,9 +1772,18 @@ export interface components {
              * @description Total storage bytes for the tenant; `0` means unlimited.
              */
             storageBytes: number;
-            /** @description Gallery retention window. Expiry enforcement lands in Phase 9. */
+            /**
+             * @description Maximum event expiry window; `0` means unlimited. Explicit
+             *     `expiresAt` values and extends beyond it are rejected with
+             *     `PLAN_LIMIT_REACHED`.
+             */
             retentionDays: number;
+            /** @description Device registration and API keys require this. */
             apiAccess: boolean;
+            /** @description Custom branding updates require this. */
+            branding: boolean;
+            /** @description Serving original photo downloads requires this. */
+            originalDownloads: boolean;
         };
         Plan: {
             id: string;
@@ -1776,7 +1828,8 @@ export interface components {
             error?: null | components["schemas"]["Error"];
         };
         SubscriptionUsage: {
-            activeEvents: number;
+            /** @description Live events (upcoming, active, completed) currently owned. */
+            events: number;
             /** Format: int64 */
             storageBytes: number;
         };
@@ -2361,6 +2414,15 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
+            /** @description Plan does not include custom branding */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
             /** @description Validation error (invalid color, email, URL, or asset key) */
             422: {
                 headers: {
@@ -2396,6 +2458,15 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Plan does not include custom branding */
+            402: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2644,6 +2715,15 @@ export interface operations {
                     "application/json": components["schemas"]["EventEnvelope"];
                 };
             };
+            /** @description Expiry beyond the plan's retention window */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
             /** @description Event not found */
             404: {
                 headers: {
@@ -2704,6 +2784,77 @@ export interface operations {
             };
         };
     };
+    updateEventStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                eventID: components["parameters"]["EventID"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateEventStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated event */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EventEnvelope"];
+                };
+            };
+            /** @description Unauthenticated */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Active event limit reached */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid status transition */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Validation error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
     extendEvent: {
         parameters: {
             query?: never;
@@ -2730,6 +2881,15 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Retention window or event limit reached */
+            402: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2961,6 +3121,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EventSettingsEnvelope"];
+                };
+            };
+            /** @description Plan does not include original downloads */
+            402: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
                 };
             };
             /** @description Event not found */
@@ -3240,7 +3409,10 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description Idempotency key reused with a different request body */
+            /**
+             * @description The event is archived or expired, or the idempotency key was reused
+             *     with a different request body
+             */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -3651,6 +3823,15 @@ export interface operations {
             };
             /** @description Unauthenticated */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Plan does not include API access */
+            402: {
                 headers: {
                     [name: string]: unknown;
                 };

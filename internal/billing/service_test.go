@@ -197,7 +197,7 @@ func TestGetSubscription_NoSubscriptionShowsFreePlanAndUsage(t *testing.T) {
 	require.NoError(t, err)
 	require.Nil(t, view.Subscription)
 	require.Equal(t, FreePlanID, view.Plan.ID)
-	require.Equal(t, 2, view.Usage.ActiveEvents)
+	require.Equal(t, 2, view.Usage.Events)
 	require.EqualValues(t, 1234, view.Usage.StorageBytes)
 }
 

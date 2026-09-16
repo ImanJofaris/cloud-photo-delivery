@@ -14,7 +14,7 @@ import (
 func newTestService(t *testing.T) (*Service, *fakeRepo, uuid.UUID) {
 	t.Helper()
 	repo := newFakeRepo()
-	svc := NewService(repo)
+	svc := NewService(repo, nil)
 	svc.SetClock(func() time.Time { return time.Date(2026, 9, 13, 10, 0, 0, 0, time.UTC) })
 	return svc, repo, uuid.New()
 }
@@ -42,6 +42,12 @@ func TestCreate_StoresHashNotRawKey(t *testing.T) {
 	require.Equal(t, device.KeyPrefix, stored.KeyPrefix)
 }
 
+type fakeLimits struct{ apiAccess bool }
+
+func (f fakeLimits) APIAccess(context.Context, string) (bool, error) {
+	return f.apiAccess, nil
+}
+
 func TestCreate_AssignedEventMustBeOwned(t *testing.T) {
 	svc, repo, userID := newTestService(t)
 	eventID := uuid.New()
@@ -55,6 +61,16 @@ func TestCreate_AssignedEventMustBeOwned(t *testing.T) {
 	_, _, err = svc.Create(context.Background(), userID, CreateParams{Name: "Booth", AssignedEventID: &foreign})
 	require.Error(t, err)
 	require.Equal(t, "EVENT_NOT_FOUND", appErrCode(t, err))
+}
+
+func TestCreate_RequiresAPIAccess(t *testing.T) {
+	repo := newFakeRepo()
+	svc := NewService(repo, fakeLimits{apiAccess: false})
+
+	_, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Booth"})
+	require.Error(t, err)
+	require.Equal(t, "PLAN_LIMIT_REACHED", appErrCode(t, err))
+	require.Empty(t, repo.byID, "no device may be created without API access")
 }
 
 func TestCreate_Validation(t *testing.T) {

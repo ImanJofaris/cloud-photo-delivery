@@ -56,16 +56,16 @@ export function UsageMeters({
   plan: Plan
   usage: SubscriptionUsage
 }) {
-  const activeLimit = plan.limits.activeEvents
+  const eventsLimit = plan.limits.events
   const storageLimit = plan.limits.storageBytes
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
       <Meter
-        label="Active events"
-        used={usage.activeEvents}
-        limit={activeLimit}
-        valueText={`${usage.activeEvents} of ${formatLimit(activeLimit)}`}
+        label="Events"
+        used={usage.events}
+        limit={eventsLimit}
+        valueText={`${usage.events} of ${formatLimit(eventsLimit)}`}
       />
       <Meter
         label="Storage"

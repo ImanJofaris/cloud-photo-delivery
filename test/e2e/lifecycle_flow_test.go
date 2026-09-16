@@ -197,7 +197,7 @@ func setupLifecycleAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store, 
 	galleryRepo := gallery.NewRepository(pool)
 	urls := photos.NewSignedURLGenerator(store, 5*time.Minute)
 	tokens := gallery.NewUnlockTokens("e2e-secret", 30*time.Minute)
-	gallerySvc := gallery.NewService(galleryRepo, urls, tokens, auth.VerifyPassword, e2eBrandingProvider{}, nil)
+	gallerySvc := gallery.NewService(galleryRepo, urls, tokens, auth.VerifyPassword, e2eBrandingProvider{}, nil, nil)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	notifier := &fakeLifecycleNotifier{}

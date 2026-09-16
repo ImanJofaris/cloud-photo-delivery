@@ -62,7 +62,7 @@ type Repository interface {
 	RecordWebhookEvent(ctx context.Context, provider, providerRef, eventType string) (bool, error)
 	DeleteWebhookEvent(ctx context.Context, provider, providerRef string) error
 
-	CountActiveEvents(ctx context.Context, userID uuid.UUID) (int, error)
+	CountLiveEvents(ctx context.Context, userID uuid.UUID) (int, error)
 	UserStorageBytes(ctx context.Context, userID uuid.UUID) (int64, error)
 }
 
@@ -293,10 +293,11 @@ func (r *PostgresRepository) DeleteWebhookEvent(ctx context.Context, provider, p
 	return err
 }
 
-func (r *PostgresRepository) CountActiveEvents(ctx context.Context, userID uuid.UUID) (int, error) {
+func (r *PostgresRepository) CountLiveEvents(ctx context.Context, userID uuid.UUID) (int, error) {
 	var count int
 	err := r.pool.QueryRow(ctx,
-		`SELECT COUNT(*) FROM events WHERE user_id = $1 AND status = 'active' AND deleted_at IS NULL`,
+		`SELECT COUNT(*) FROM events WHERE user_id = $1
+		   AND status IN ('upcoming', 'active', 'completed') AND deleted_at IS NULL`,
 		userID).Scan(&count)
 	return count, err
 }

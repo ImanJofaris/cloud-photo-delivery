@@ -322,6 +322,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Plan does not include custom branding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
         "422":
           description: Validation error (invalid color, email, URL, or asset key)
           content:
@@ -355,6 +361,12 @@ paths:
                 $ref: "#/components/schemas/BrandingAssetEnvelope"
         "401":
           description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Plan does not include custom branding
           content:
             application/json:
               schema:
@@ -541,6 +553,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Expiry beyond the plan's retention window
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
         "422":
           description: Validation error
           content:
@@ -592,6 +610,64 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /events/{eventID}/status:
+    parameters:
+      - $ref: "#/components/parameters/EventID"
+    post:
+      tags: [Events]
+      operationId: updateEventStatus
+      summary: Transition an event's status
+      description: |
+        Applies the status lifecycle: `upcoming → active|archived`,
+        `active → completed|archived`, `completed → archived`, `archived`
+        (terminal), `expired → active`. Activating enforces the plan's
+        active-event limit.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateEventStatusRequest"
+      responses:
+        "200":
+          description: Updated event
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EventEnvelope"
+        "401":
+          description: Unauthenticated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Active event limit reached
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "409":
+          description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
   /events/{eventID}/extend:
     parameters:
       - $ref: "#/components/parameters/EventID"
@@ -601,7 +677,9 @@ paths:
       summary: Extend an event's expiry
       description: |
         Extends the expiry from the later of now and the current `expiresAt`.
-        An `expired` event is re-activated.
+        An `expired` event is re-activated. The resulting expiry must stay
+        within the plan's retention window (`PLAN_LIMIT_REACHED` otherwise);
+        re-activation also respects the plan's event limit.
       security:
         - bearerAuth: []
       requestBody:
@@ -631,6 +709,12 @@ paths:
                 $ref: "#/components/schemas/Envelope"
         "409":
           description: Invalid status transition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Retention window or event limit reached
           content:
             application/json:
               schema:
@@ -801,6 +885,12 @@ paths:
                 $ref: "#/components/schemas/EventSettingsEnvelope"
         "404":
           description: Event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Plan does not include original downloads
           content:
             application/json:
               schema:
@@ -1045,7 +1135,9 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
         "409":
-          description: Idempotency key reused with a different request body
+          description: |
+            The event is archived or expired, or the idempotency key was reused
+            with a different request body
           content:
             application/json:
               schema:
@@ -1363,6 +1455,12 @@ paths:
                 $ref: "#/components/schemas/Envelope"
         "404":
           description: Assigned event not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "402":
+          description: Plan does not include API access
           content:
             application/json:
               schema:
@@ -2525,6 +2623,7 @@ components:
           type: boolean
         allowOriginalDownload:
           type: boolean
+          description: Rejected with `PLAN_LIMIT_REACHED` when the plan lacks original downloads.
         watermarkEnabled:
           type: boolean
     CreateEventRequest:
@@ -2554,6 +2653,10 @@ components:
         expiresAt:
           type: string
           format: date-time
+          description: |
+            Must not be later than the plan's retention window; later values
+            are rejected with `PLAN_LIMIT_REACHED`. Omit to derive it from the
+            plan's retention.
         settings:
           $ref: "#/components/schemas/EventSettingsInput"
     UpdateEventRequest:
@@ -2578,7 +2681,16 @@ components:
         expiresAt:
           type: string
           format: date-time
-          description: Empty string clears the expiry
+          description: |
+            Empty string resets the expiry to the plan's retention window
+            (clears it on unlimited plans). Values later than the retention
+            window are rejected with `PLAN_LIMIT_REACHED`.
+    UpdateEventStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          $ref: "#/components/schemas/EventStatus"
     ExtendEventRequest:
       type: object
       required: [days]
@@ -3165,6 +3277,7 @@ components:
           type: boolean
         allowOriginalDownload:
           type: boolean
+          description: Effective value; false when the owner's plan excludes original downloads.
         photoCount:
           type: integer
           format: int64
@@ -3307,11 +3420,14 @@ components:
             - $ref: "#/components/schemas/Error"
     BillingPlanLimits:
       type: object
-      required: [activeEvents, photosPerEvent, storageBytes, retentionDays, apiAccess]
+      required: [events, photosPerEvent, storageBytes, retentionDays, apiAccess, branding, originalDownloads]
       properties:
-        activeEvents:
+        events:
           type: integer
-          description: Maximum concurrent active events; `0` means unlimited.
+          description: |
+            Maximum events that guests can still reach (`upcoming`, `active`,
+            `completed`) at the same time; `0` means unlimited. Archiving,
+            expiring, or deleting an event frees a slot.
         photosPerEvent:
           type: integer
           description: Maximum photos per event; `0` means unlimited.
@@ -3321,9 +3437,19 @@ components:
           description: Total storage bytes for the tenant; `0` means unlimited.
         retentionDays:
           type: integer
-          description: Gallery retention window. Expiry enforcement lands in Phase 9.
+          description: |
+            Maximum event expiry window; `0` means unlimited. Explicit
+            `expiresAt` values and extends beyond it are rejected with
+            `PLAN_LIMIT_REACHED`.
         apiAccess:
           type: boolean
+          description: Device registration and API keys require this.
+        branding:
+          type: boolean
+          description: Custom branding updates require this.
+        originalDownloads:
+          type: boolean
+          description: Serving original photo downloads requires this.
     Plan:
       type: object
       required: [id, name, priceCents, currency, interval, limits, active]
@@ -3417,10 +3543,11 @@ components:
             - $ref: "#/components/schemas/Error"
     SubscriptionUsage:
       type: object
-      required: [activeEvents, storageBytes]
+      required: [events, storageBytes]
       properties:
-        activeEvents:
+        events:
           type: integer
+          description: Live events (upcoming, active, completed) currently owned.
         storageBytes:
           type: integer
           format: int64

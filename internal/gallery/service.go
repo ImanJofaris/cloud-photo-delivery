@@ -13,6 +13,13 @@ import (
 )
 
 type PasswordVerifier func(hash, password string) bool
+
+// DownloadPolicy reports whether the event owner's plan includes original
+// downloads. The gallery degrades the event settings when it does not.
+type DownloadPolicy interface {
+	OriginalDownloads(ctx context.Context, userID string) (bool, error)
+}
+
 type Service struct {
 	repo      Repository
 	urls      *photos.SignedURLGenerator
@@ -20,10 +27,30 @@ type Service struct {
 	verify    PasswordVerifier
 	branding  BrandingProvider
 	analytics AnalyticsRecorder
+	downloads DownloadPolicy
 }
 
-func NewService(repo Repository, urls *photos.SignedURLGenerator, tokens *UnlockTokens, verify PasswordVerifier, branding BrandingProvider, analytics AnalyticsRecorder) *Service {
-	return &Service{repo: repo, urls: urls, tokens: tokens, verify: verify, branding: branding, analytics: analytics}
+func NewService(repo Repository, urls *photos.SignedURLGenerator, tokens *UnlockTokens, verify PasswordVerifier, branding BrandingProvider, analytics AnalyticsRecorder, downloads DownloadPolicy) *Service {
+	return &Service{repo: repo, urls: urls, tokens: tokens, verify: verify, branding: branding, analytics: analytics, downloads: downloads}
+}
+
+// effectiveSettings applies plan entitlements to per-event settings. A plan
+// without original downloads can never expose them, even if an event was
+// configured while a higher plan was active.
+func (s *Service) effectiveSettings(ctx context.Context, userID uuid.UUID, settings *events.Settings) (*events.Settings, error) {
+	if s.downloads == nil || settings == nil || !settings.AllowOriginalDownload {
+		return settings, nil
+	}
+	allowed, err := s.downloads.OriginalDownloads(ctx, userID.String())
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+	if allowed {
+		return settings, nil
+	}
+	clone := *settings
+	clone.AllowOriginalDownload = false
+	return &clone, nil
 }
 
 // recordView reports a successful gallery view. Failures are dropped so
@@ -84,6 +111,10 @@ func (s *Service) visibleEvent(ctx context.Context, slug, unlockToken string) (*
 			return nil, unauthorized()
 		}
 	}
+	settings, err = s.effectiveSettings(ctx, event.UserID, settings)
+	if err != nil {
+		return nil, err
+	}
 	return &VisibleEvent{Event: event, Settings: settings}, nil
 }
 
@@ -101,6 +132,10 @@ func (s *Service) GetEvent(ctx context.Context, slug, unlockToken string, v Visi
 	}
 	if settings.Visibility == events.VisibilityPrivate {
 		return nil, false, notFound()
+	}
+	settings, err = s.effectiveSettings(ctx, event.UserID, settings)
+	if err != nil {
+		return nil, false, err
 	}
 	requiresUnlock := settings.Visibility == events.VisibilityPassword
 	if requiresUnlock && unlockToken != "" {

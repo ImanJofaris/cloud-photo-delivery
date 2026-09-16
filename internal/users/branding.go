@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
 )
 
@@ -77,21 +78,42 @@ type BrandingRepository interface {
 	UpsertBranding(ctx context.Context, b Branding) (*Branding, error)
 }
 
-type BrandingService struct {
-	repo  BrandingRepository
-	store AssetPresigner
-	ttl   time.Duration
-	now   func() time.Time
+// PlanLimits is the narrow entitlement surface branding needs. A nil
+// implementation falls back to limits.Default (branding enabled).
+type PlanLimits interface {
+	BrandingEnabled(ctx context.Context, userID string) (bool, error)
 }
 
-func NewBrandingService(repo BrandingRepository, store AssetPresigner, ttl time.Duration) *BrandingService {
-	return &BrandingService{repo: repo, store: store, ttl: ttl, now: time.Now}
+type BrandingService struct {
+	repo   BrandingRepository
+	store  AssetPresigner
+	limits PlanLimits
+	ttl    time.Duration
+	now    func() time.Time
+}
+
+func NewBrandingService(repo BrandingRepository, store AssetPresigner, ttl time.Duration, planLimits PlanLimits) *BrandingService {
+	if planLimits == nil {
+		planLimits = limits.NewDefault()
+	}
+	return &BrandingService{repo: repo, store: store, limits: planLimits, ttl: ttl, now: time.Now}
 }
 
 func (s *BrandingService) SetClock(now func() time.Time) { s.now = now }
 
 func brandingValidation(msg string) *apperr.Error {
 	return apperr.New("VALIDATION_ERROR", msg, 422)
+}
+
+func (s *BrandingService) enforcePlan(ctx context.Context, userID uuid.UUID) error {
+	allowed, err := s.limits.BrandingEnabled(ctx, userID.String())
+	if err != nil {
+		return apperr.Internal().WithCause(err)
+	}
+	if !allowed {
+		return apperr.New("PLAN_LIMIT_REACHED", "branding limit reached for your plan", 402)
+	}
+	return nil
 }
 
 func (s *BrandingService) Get(ctx context.Context, userID uuid.UUID) (*BrandingView, error) {
@@ -107,6 +129,9 @@ func (s *BrandingService) Get(ctx context.Context, userID uuid.UUID) (*BrandingV
 
 func (s *BrandingService) Update(ctx context.Context, userID uuid.UUID, in BrandingInput) (*BrandingView, error) {
 	if err := validateBrandingInput(userID, &in); err != nil {
+		return nil, err
+	}
+	if err := s.enforcePlan(ctx, userID); err != nil {
 		return nil, err
 	}
 	current, err := s.repo.GetBranding(ctx, userID)
@@ -139,6 +164,9 @@ func (s *BrandingService) CreateAssetUpload(ctx context.Context, userID uuid.UUI
 	ext, ok := brandingAssetExtensions[contentType]
 	if !ok {
 		return nil, brandingValidation("contentType must be image/png, image/jpeg, or image/webp")
+	}
+	if err := s.enforcePlan(ctx, userID); err != nil {
+		return nil, err
 	}
 	key := r2.BrandingAssetKey(userID, kind, ext)
 	uploadURL, err := s.store.PresignPut(ctx, key, contentType, s.ttl)

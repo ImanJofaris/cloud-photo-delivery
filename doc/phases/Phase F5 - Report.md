@@ -191,7 +191,7 @@ pnpm gen:api && git diff --exit-code schema.d.ts  -> no diff
 | Sidebar marked only exact matches active, so nested routes lost their highlight | `isNavActive` matches `href` and `href + "/"` |
 | QR/branding binaries cannot go through `apiCall` (envelope-only) | `apiBlobCall` with the same 401 refresh + retry-once semantics; blobs render via object URLs |
 | The API auth limiter (30/min, burst 10 per IP) broke the E2E suite once it grew to 14 tests under parallel workers | `playwright.config.ts` runs `workers: 1` locally (CI does not run E2E); documented in the config |
-| The F2 create-event form never sends `status: "active"`, so the active-event 402 cannot be reached through normal UI clicks | The plan-limit E2E marks the UI create request active via `page.route` to exercise the real API 402 and the real error UI; noted as a follow-up (an activate/transition UI would make it reachable) |
+| The F2 create-event form never sends `status: "active"`, so the active-event 402 cannot be reached through normal UI clicks | The plan-limit E2E marks the UI create request active via `page.route` to exercise the real API 402 and the real error UI. **Closed after the phase:** `POST /events/{eventID}/status` + the event-detail "Event status" card (`Mark active` / `Mark completed`) make the 402 reachable; `plan-limit.spec.ts` now clicks the real UI (no `page.route`) |
 | Base UI `Button render={<Link/>}` keeps `role="button"` (it is an anchor) | E2E targets the button role and asserts the `href` |
 
 ---
@@ -199,10 +199,11 @@ pnpm gen:api && git diff --exit-code schema.d.ts  -> no diff
 ## 9. Known limitations / follow-ups
 
 - `PATCH /account/me` OpenAPI drift and the account edit form remain unbuilt (backlog).
-- Event create/transition does not expose `active`; the events 402 link is wired but only reachable when the request declares an active event (e.g. via API). A status transition UI would close this.
+- ~~Event create/transition does not expose `active`; the events 402 link is wired but only reachable when the request declares an active event (e.g. via API).~~ **Closed:** `POST /events/{eventID}/status` exposes the existing transition state machine (activating enforces the plan's active-event limit), and `status-actions.tsx` renders an "Event status" card on the event detail overview with `Mark active` / `Mark completed` and the 402 → `/billing` link.
 - The F4 viewer still lacks end-of-page advance; original-filename downloads and watermark worker support remain backlog.
 - Branding asset replacement leaves orphaned objects until the Phase 9 cleanup job; the form keeps a failed PATCH's preview so "Save again" can finish.
 - `manual://` checkout stays offline by design; polling/hosted gateways arrive with a real provider adapter.
+- **Post-phase (Phase 8.1):** devices now require `apiAccess` (Pro+) and branding requires `branding` (Starter+); the devices dialog shows a `View plans` link on 402 and the branding page renders an upgrade card when the plan has no branding. `PLAN_LIMIT_REACHED` on event create now fires for any status because every live event counts toward the limit.
 - Phase F6 (analytics/exports/lifecycle) stays blocked on Phase 9.
 
 ---

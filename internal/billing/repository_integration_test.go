@@ -132,9 +132,9 @@ func setupBillingDB(t *testing.T) (*pgxpool.Pool, uuid.UUID, uuid.UUID) {
 		active BOOLEAN NOT NULL DEFAULT TRUE
 	)`)
 	mustExec(t, pool, `INSERT INTO plans (id, name, price_cents, limits) VALUES
-		('free', 'Free', 0, '{"activeEvents":1,"photosPerEvent":1,"storageBytes":100000,"retentionDays":7,"apiAccess":false}'::jsonb),
-		('starter', 'Starter', 2900, '{"activeEvents":5,"photosPerEvent":10,"storageBytes":1000000,"retentionDays":30,"apiAccess":false}'::jsonb),
-		('pro', 'Pro', 5900, '{"activeEvents":0,"photosPerEvent":20,"storageBytes":5000000,"retentionDays":90,"apiAccess":true}'::jsonb)`)
+		('free', 'Free', 0, '{"events":1,"photosPerEvent":1,"storageBytes":100000,"retentionDays":7,"apiAccess":false,"branding":false,"originalDownloads":false}'::jsonb),
+		('starter', 'Starter', 2900, '{"events":5,"photosPerEvent":10,"storageBytes":1000000,"retentionDays":30,"apiAccess":false,"branding":true,"originalDownloads":true}'::jsonb),
+		('pro', 'Pro', 5900, '{"events":0,"photosPerEvent":20,"storageBytes":5000000,"retentionDays":90,"apiAccess":true,"branding":true,"originalDownloads":true}'::jsonb)`)
 
 	mustExec(t, pool, `CREATE TABLE subscriptions (
 		id UUID PRIMARY KEY,
@@ -256,7 +256,7 @@ func TestBillingRepository_SubscriptionLifecycle(t *testing.T) {
 
 	plan, err := repo.GetPlan(ctx, "free")
 	require.NoError(t, err)
-	require.Equal(t, 1, plan.Limits.ActiveEvents)
+	require.Equal(t, 1, plan.Limits.Events)
 	require.EqualValues(t, 100000, plan.Limits.StorageBytes)
 
 	sub, err := repo.CreateSubscription(ctx, activeInput(userA, "ref-a"))
@@ -358,23 +358,20 @@ func TestBillingEntitlements_BlockEventCreationAtBoundary(t *testing.T) {
 	eventSvc := events.NewService(events.NewRepository(pool), ent,
 		func(string) (string, error) { return "hash", nil })
 
-	_, _, err := eventSvc.Create(ctx, userA, events.CreateParams{Name: "First", Status: events.StatusActive})
+	_, _, err := eventSvc.Create(ctx, userA, events.CreateParams{Name: "First"})
 	require.NoError(t, err)
 
-	_, _, err = eventSvc.Create(ctx, userA, events.CreateParams{Name: "Second", Status: events.StatusActive})
+	_, _, err = eventSvc.Create(ctx, userA, events.CreateParams{Name: "Second"})
 	require.Error(t, err)
 	var appErr *apperr.Error
 	require.ErrorAs(t, err, &appErr)
 	require.Equal(t, "PLAN_LIMIT_REACHED", appErr.Code)
-	require.Contains(t, appErr.Message, "activeEvents")
-
-	_, _, err = eventSvc.Create(ctx, userA, events.CreateParams{Name: "Upcoming"})
-	require.NoError(t, err, "upcoming events are not limited")
+	require.Contains(t, appErr.Message, "events")
 
 	_, err = repo.CreateSubscription(ctx, activeInput(userA, "ref-lift"))
 	require.NoError(t, err)
-	_, _, err = eventSvc.Create(ctx, userA, events.CreateParams{Name: "Third", Status: events.StatusActive})
-	require.NoError(t, err, "starter lifts the active-event limit")
+	_, _, err = eventSvc.Create(ctx, userA, events.CreateParams{Name: "Third"})
+	require.NoError(t, err, "starter lifts the event limit")
 }
 
 func TestBillingEntitlements_BlockUploadInitAtBoundary(t *testing.T) {
@@ -475,7 +472,7 @@ func TestBillingRepository_InvoiceAndUsageRoundTrip(t *testing.T) {
 	eventID := insertEvent(t, pool, userA, "active-event")
 	_, err = pool.Exec(ctx, `UPDATE events SET status = 'active' WHERE id = $1`, eventID)
 	require.NoError(t, err)
-	count, err := repo.CountActiveEvents(ctx, userA)
+	count, err := repo.CountLiveEvents(ctx, userA)
 	require.NoError(t, err)
 	require.Equal(t, 1, count)
 

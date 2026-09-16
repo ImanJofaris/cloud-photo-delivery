@@ -29,7 +29,7 @@ type Plan = components["schemas"]["Plan"]
 
 function limitsFor(plan: Plan): string[] {
   return [
-    `${formatLimit(plan.limits.activeEvents)} active events`,
+    `${formatLimit(plan.limits.events)} events at a time`,
     `${formatLimit(plan.limits.photosPerEvent)} photos per event`,
     `${formatByteLimit(plan.limits.storageBytes)} storage`,
     `${formatLimit(plan.limits.retentionDays)} day retention`,

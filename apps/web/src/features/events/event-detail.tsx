@@ -43,6 +43,7 @@ import { EventSettingsForm } from "./settings-form"
 import { GalleryLinkPreview, SharePanel } from "./share-panel"
 import type { EventSettingsValues } from "./schema"
 import { EventStatusBadge } from "./status-badge"
+import { EventStatusCard } from "./status-actions"
 
 function toSettingsDefaults(
   settings: ReturnType<typeof useEventSettings>["data"]
@@ -160,6 +161,8 @@ export function EventDetail({ eventId }: { eventId: string }) {
                 </AlertDescription>
               </Alert>
             )}
+
+            <EventStatusCard eventId={event.id} status={event.status} />
 
             <div className="grid gap-4 sm:grid-cols-3">
               <Card>

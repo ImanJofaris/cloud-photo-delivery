@@ -52,6 +52,29 @@ async function counterValue(page: Page, label: string): Promise<number> {
   return Number(text.replace(/[^0-9]/g, ""))
 }
 
+// The seeded event needs a 30-day expiry, which the Free plan's 7-day
+// retention does not allow.
+async function subscribe(
+  request: APIRequestContext,
+  email: string,
+  planId: string
+) {
+  const login = await request.post(`${apiOrigin}/api/v1/auth/login`, {
+    data: { email, password: "password123" },
+  })
+  const payload = (await login.json()) as { data?: { accessToken?: string } }
+  const token = payload.data?.accessToken
+  if (!token) throw new Error("could not obtain an access token")
+
+  const res = await request.post(`${apiOrigin}/api/v1/billing/subscribe`, {
+    headers: { Authorization: `Bearer ${token}` },
+    data: { planId },
+  })
+  if (!res.ok()) {
+    throw new Error(`subscribe failed: ${res.status()} ${await res.text()}`)
+  }
+}
+
 test("analytics: gallery views and QR scans reach the account and event views", async ({
   page,
   request,
@@ -60,6 +83,7 @@ test("analytics: gallery views and QR scans reach the account and event views", 
   test.setTimeout(120_000)
 
   const email = await signup(page)
+  await subscribe(request, email, "starter")
   const token = await accessToken(request, email)
 
   const name = `E2E Analytics ${Date.now()}`

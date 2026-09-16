@@ -69,10 +69,37 @@ func brandingCodeOf(t *testing.T, err error) string {
 
 func strPtr(s string) *string { return &s }
 
+type fakeLimits struct{ branding bool }
+
+func (f fakeLimits) BrandingEnabled(context.Context, string) (bool, error) {
+	return f.branding, nil
+}
+
 func newBrandingService(repo *fakeBrandingRepo, store *fakeAssetStore) *BrandingService {
-	svc := NewBrandingService(repo, store, 5*time.Minute)
+	svc := NewBrandingService(repo, store, 5*time.Minute, nil)
 	svc.SetClock(func() time.Time { return time.Date(2026, 1, 2, 3, 4, 5, 0, time.UTC) })
 	return svc
+}
+
+func TestBrandingService_Update_RequiresPlan(t *testing.T) {
+	repo := &fakeBrandingRepo{}
+	svc := NewBrandingService(repo, &fakeAssetStore{}, 5*time.Minute, fakeLimits{branding: false})
+
+	name := "New Booth"
+	_, err := svc.Update(context.Background(), uuid.New(), BrandingInput{BusinessName: &name})
+	require.Error(t, err)
+	require.Equal(t, "PLAN_LIMIT_REACHED", brandingCodeOf(t, err))
+	require.Zero(t, repo.upserts, "no branding may be written without the entitlement")
+}
+
+func TestBrandingService_CreateAssetUpload_RequiresPlan(t *testing.T) {
+	store := &fakeAssetStore{}
+	svc := NewBrandingService(&fakeBrandingRepo{}, store, 5*time.Minute, fakeLimits{branding: false})
+
+	_, err := svc.CreateAssetUpload(context.Background(), uuid.New(), BrandingAssetLogo, "image/png")
+	require.Error(t, err)
+	require.Equal(t, "PLAN_LIMIT_REACHED", brandingCodeOf(t, err))
+	require.Empty(t, store.lastKey, "no presign may be issued without the entitlement")
 }
 
 func TestBrandingService_Get_DefaultsWhenMissing(t *testing.T) {

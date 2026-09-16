@@ -35,11 +35,13 @@ func (s Status) Usable() bool {
 }
 
 type PlanLimits struct {
-	ActiveEvents   int   `json:"activeEvents"`
-	PhotosPerEvent int   `json:"photosPerEvent"`
-	StorageBytes   int64 `json:"storageBytes"`
-	RetentionDays  int   `json:"retentionDays"`
-	APIAccess      bool  `json:"apiAccess"`
+	Events            int   `json:"events"`
+	PhotosPerEvent    int   `json:"photosPerEvent"`
+	StorageBytes      int64 `json:"storageBytes"`
+	RetentionDays     int   `json:"retentionDays"`
+	APIAccess         bool  `json:"apiAccess"`
+	Branding          bool  `json:"branding"`
+	OriginalDownloads bool  `json:"originalDownloads"`
 }
 
 type Plan struct {
@@ -88,7 +90,7 @@ type Invoice struct {
 }
 
 type Usage struct {
-	ActiveEvents int
+	Events       int
 	StorageBytes int64
 }
 

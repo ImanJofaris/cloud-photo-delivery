@@ -10,6 +10,12 @@ vi.mock("./api", () => ({
   useCreateBrandingAssetUpload: vi.fn(),
 }))
 
+vi.mock("@/features/billing/api", () => ({
+  useSubscription: vi.fn(),
+}))
+
+import { useSubscription } from "@/features/billing/api"
+
 import { useBranding, useCreateBrandingAssetUpload, useUpdateBranding } from "./api"
 import { BrandingForm } from "./branding-form"
 
@@ -49,6 +55,28 @@ describe("BrandingForm", () => {
       mutateAsync: vi.fn(),
       isPending: false,
     } as unknown as ReturnType<typeof useCreateBrandingAssetUpload>)
+    vi.mocked(useSubscription).mockReturnValue({
+      data: { plan: { limits: { branding: true } } },
+      isPending: false,
+    } as unknown as ReturnType<typeof useSubscription>)
+  })
+
+  it("shows the upgrade card when the plan has no branding", () => {
+    vi.mocked(useSubscription).mockReturnValue({
+      data: { plan: { limits: { branding: false } } },
+      isPending: false,
+    } as unknown as ReturnType<typeof useSubscription>)
+
+    render(<BrandingForm />)
+
+    expect(
+      screen.getByText("Custom branding is a Starter feature")
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "View plans" })).toHaveAttribute(
+      "href",
+      "/billing"
+    )
+    expect(screen.queryByLabelText("Business name")).not.toBeInTheDocument()
   })
 
   it("patches only the changed field and omits assets", async () => {

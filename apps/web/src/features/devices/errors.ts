@@ -6,6 +6,7 @@ const messages: Record<string, string> = {
   DEVICE_NOT_FOUND: "This device no longer exists.",
   DEVICE_REVOKED: "This device key has been revoked. Rotate the key first.",
   EVENT_NOT_FOUND: "The selected event no longer exists.",
+  PLAN_LIMIT_REACHED: "Your plan does not include device API access.",
   VALIDATION_ERROR: "Please check the form and try again.",
   RATE_LIMITED: "Too many requests. Please wait a moment and try again.",
 }

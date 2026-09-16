@@ -180,7 +180,7 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 		}
 		return id.String(), true
 	})
-	brandingSvc := users.NewBrandingService(userRepo, store, 5*time.Minute)
+	brandingSvc := users.NewBrandingService(userRepo, store, 5*time.Minute, nil)
 	brandingHandler := users.NewBrandingHandler(brandingSvc, func(r *http.Request) (string, bool) {
 		id, ok := auth.UserID(r.Context())
 		if !ok {
@@ -195,6 +195,7 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 		gallery.NewUnlockTokens("e2e-secret", 30*time.Minute),
 		auth.VerifyPassword,
 		brandingSvc,
+		nil,
 		nil)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 

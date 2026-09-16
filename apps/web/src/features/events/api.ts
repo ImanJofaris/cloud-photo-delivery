@@ -23,6 +23,8 @@ type EventWithSettings = components["schemas"]["EventWithSettings"]
 type EventStatus = components["schemas"]["EventStatus"]
 type CreateEventRequest = components["schemas"]["CreateEventRequest"]
 type UpdateEventRequest = components["schemas"]["UpdateEventRequest"]
+type UpdateEventStatusRequest =
+  components["schemas"]["UpdateEventStatusRequest"]
 type UpdateEventSettingsRequest =
   components["schemas"]["UpdateEventSettingsRequest"]
 type Export = components["schemas"]["Export"]
@@ -180,6 +182,26 @@ export function useUpdateEventSettings(eventId: string) {
       ),
     onSuccess: (settings) => {
       queryClient.setQueryData(eventKeys.settings(eventId), settings)
+    },
+  })
+}
+
+export function useTransitionEvent(eventId: string) {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: (status: EventStatus) => {
+      const body: UpdateEventStatusRequest = { status }
+      return apiCall<Event>((client) =>
+        client.POST("/events/{eventID}/status", {
+          params: { path: { eventID: eventId } },
+          body,
+        })
+      )
+    },
+    onSuccess: (event) => {
+      queryClient.setQueryData(eventKeys.detail(eventId), event)
+      void queryClient.invalidateQueries({ queryKey: eventKeys.lists() })
     },
   })
 }

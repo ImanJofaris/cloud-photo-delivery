@@ -45,6 +45,7 @@ Ordering: F3 shipped its own owner-facing photo API prerequisites (list, owner s
 - [Phase 6 — Report](phases/Phase 6 - Report.md) — COMPLETE (devices & API keys)
 - [Phase 7 — Report](phases/Phase 7 - Report.md) — COMPLETE (QR codes & branding)
 - [Phase 8 — Report](phases/Phase 8 - Report.md) — COMPLETE (billing, plans & limits)
+- [Phase 8.1 — Report](phases/Phase 8.1 - Report.md) — COMPLETE (entitlement hardening: live-event counting, retention enforcement, gallery/upload lifecycle, apiAccess/branding/original-download gates)
 - [Phase 9 — Report](phases/Phase 9 - Report.md) — COMPLETE (lifecycle, ZIP, analytics & admin)
 - [Phase 10 — Report](phases/Phase 10 - Report.md) — COMPLETE (hardening, observability & deployment; load execution pending staging)
 - [Phase F0 — Report](phases/Phase F0 - Report.md) — COMPLETE (web foundation)

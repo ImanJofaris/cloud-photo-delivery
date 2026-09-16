@@ -189,7 +189,8 @@ func setupAnalyticsAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) 
 		gallery.NewUnlockTokens("e2e-secret", 30*time.Minute),
 		auth.VerifyPassword,
 		nil,
-		analyticsSvc)
+		analyticsSvc,
+		nil)
 	galleryHandler := gallery.NewHandler(gallerySvc)
 
 	r := chi.NewRouter()

@@ -145,6 +145,7 @@ func setupEventsAPI(t *testing.T) http.Handler {
 					r.Get("/", eventHandler.Get)
 					r.Patch("/", eventHandler.Update)
 					r.Post("/archive", eventHandler.Archive)
+					r.Post("/status", eventHandler.UpdateStatus)
 					r.Delete("/", eventHandler.Delete)
 					r.Get("/settings", eventHandler.GetSettings)
 					r.Patch("/settings", eventHandler.UpdateSettings)
@@ -215,6 +216,17 @@ func TestE2E_EventsLifecycle(t *testing.T) {
 	rec = doReq(t, h, http.MethodGet, "/api/v1/events?status=upcoming", "", access)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Contains(t, rec.Body.String(), "items")
+
+	// start an event, then reject an invalid backwards transition
+	rec = doReq(t, h, http.MethodPost, "/api/v1/events/"+ids[2]+"/status",
+		`{"status":"active"}`, access)
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Contains(t, rec.Body.String(), `"active"`)
+
+	rec = doReq(t, h, http.MethodPost, "/api/v1/events/"+ids[2]+"/status",
+		`{"status":"upcoming"}`, access)
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Contains(t, rec.Body.String(), "INVALID_STATUS_TRANSITION")
 
 	// update one
 	rec = doReq(t, h, http.MethodPatch, "/api/v1/events/"+ids[0],

@@ -117,8 +117,8 @@ func setupBillingAPI(t *testing.T) *billingAPI {
 		active BOOLEAN NOT NULL DEFAULT TRUE
 	)`)
 	mustExec(t, pool, `INSERT INTO plans (id, name, price_cents, limits) VALUES
-		('free', 'Free', 0, '{"activeEvents":1,"photosPerEvent":500,"storageBytes":5368709120,"retentionDays":7,"apiAccess":false}'::jsonb),
-		('starter', 'Starter', 2900, '{"activeEvents":5,"photosPerEvent":5000,"storageBytes":53687091200,"retentionDays":30,"apiAccess":false}'::jsonb)`)
+		('free', 'Free', 0, '{"events":1,"photosPerEvent":500,"storageBytes":5368709120,"retentionDays":7,"apiAccess":false,"branding":false,"originalDownloads":false}'::jsonb),
+		('starter', 'Starter', 2900, '{"events":5,"photosPerEvent":5000,"storageBytes":53687091200,"retentionDays":30,"apiAccess":false,"branding":true,"originalDownloads":true}'::jsonb)`)
 	mustExec(t, pool, `CREATE TABLE subscriptions (
 		id UUID PRIMARY KEY,
 		user_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -225,7 +225,7 @@ func TestE2E_BillingFlow(t *testing.T) {
 	rec = doReq(t, api.handler, http.MethodPost, "/api/v1/events", `{"name":"Two","status":"active"}`, access)
 	require.Equal(t, http.StatusPaymentRequired, rec.Code, "body=%s", rec.Body.String())
 	require.Contains(t, rec.Body.String(), "PLAN_LIMIT_REACHED")
-	require.Contains(t, rec.Body.String(), "activeEvents")
+	require.Contains(t, rec.Body.String(), "events")
 
 	rec = doReq(t, api.handler, http.MethodPost, "/api/v1/billing/subscribe", `{"planId":"starter"}`, access)
 	require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())

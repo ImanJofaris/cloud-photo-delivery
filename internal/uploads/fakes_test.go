@@ -160,6 +160,7 @@ func (f *fakePhotoRepo) DeleteOwned(context.Context, uuid.UUID, uuid.UUID) (*pho
 type fakeUploadRepo struct {
 	owned        map[uuid.UUID]bool
 	owners       map[uuid.UUID]uuid.UUID
+	states       map[uuid.UUID]EventState
 	idempotency  map[string]IdempotencyRecord
 	partETags    map[uuid.UUID]map[int]string
 	storageBytes map[uuid.UUID]int64
@@ -169,6 +170,7 @@ func newFakeUploadRepo() *fakeUploadRepo {
 	return &fakeUploadRepo{
 		owned:        map[uuid.UUID]bool{},
 		owners:       map[uuid.UUID]uuid.UUID{},
+		states:       map[uuid.UUID]EventState{},
 		idempotency:  map[string]IdempotencyRecord{},
 		partETags:    map[uuid.UUID]map[int]string{},
 		storageBytes: map[uuid.UUID]int64{},
@@ -185,6 +187,21 @@ func (f *fakeUploadRepo) EventOwnedBy(_ context.Context, userID, eventID uuid.UU
 		return f.owned[eventID], nil
 	}
 	return owner == userID, nil
+}
+
+func (f *fakeUploadRepo) EventState(_ context.Context, userID, eventID uuid.UUID) (*EventState, error) {
+	owner, ok := f.owners[eventID]
+	if ok && owner != userID {
+		return nil, ErrNotFound
+	}
+	if !ok && !f.owned[eventID] {
+		return nil, ErrNotFound
+	}
+	state, ok := f.states[eventID]
+	if !ok {
+		state = EventState{Status: "active"}
+	}
+	return &state, nil
 }
 
 func (f *fakeUploadRepo) LookupIdempotency(_ context.Context, key string) (*IdempotencyRecord, error) {
@@ -293,7 +310,7 @@ type fakeLimits struct {
 	err       error
 }
 
-func (f fakeLimits) MaxActiveEvents(context.Context, string) (int, error) {
+func (f fakeLimits) MaxEvents(context.Context, string) (int, error) {
 	return f.maxEvents, f.err
 }
 
@@ -307,4 +324,16 @@ func (f fakeLimits) MaxStorageBytes(context.Context, string) (int64, error) {
 
 func (f fakeLimits) RetentionDays(context.Context, string) (int, error) {
 	return 0, f.err
+}
+
+func (f fakeLimits) APIAccess(context.Context, string) (bool, error) {
+	return true, f.err
+}
+
+func (f fakeLimits) BrandingEnabled(context.Context, string) (bool, error) {
+	return true, f.err
+}
+
+func (f fakeLimits) OriginalDownloads(context.Context, string) (bool, error) {
+	return true, f.err
 }

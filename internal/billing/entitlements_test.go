@@ -15,7 +15,7 @@ func TestEntitlements_FreePlanWhenNoSubscription(t *testing.T) {
 	ctx := context.Background()
 	userID := uuid.New().String()
 
-	maxEvents, err := ent.MaxActiveEvents(ctx, userID)
+	maxEvents, err := ent.MaxEvents(ctx, userID)
 	require.NoError(t, err)
 	require.Equal(t, 1, maxEvents)
 
@@ -39,7 +39,7 @@ func TestEntitlements_ActivePlanOverridesFree(t *testing.T) {
 	})
 	ent := NewEntitlements(repo)
 
-	maxEvents, err := ent.MaxActiveEvents(context.Background(), userID.String())
+	maxEvents, err := ent.MaxEvents(context.Background(), userID.String())
 	require.NoError(t, err)
 	require.Equal(t, 5, maxEvents)
 }
@@ -56,7 +56,7 @@ func TestEntitlements_UnlimitedPlanReturnsZero(t *testing.T) {
 	ent := NewEntitlements(repo)
 	ctx := context.Background()
 
-	maxEvents, err := ent.MaxActiveEvents(ctx, userID.String())
+	maxEvents, err := ent.MaxEvents(ctx, userID.String())
 	require.NoError(t, err)
 	require.Zero(t, maxEvents, "zero means unlimited")
 
@@ -80,7 +80,7 @@ func TestEntitlements_ExpiredSubscriptionFallsBackToFree(t *testing.T) {
 	})
 	ent := NewEntitlements(repo)
 
-	maxEvents, err := ent.MaxActiveEvents(context.Background(), userID.String())
+	maxEvents, err := ent.MaxEvents(context.Background(), userID.String())
 	require.NoError(t, err)
 	require.Equal(t, 1, maxEvents)
 }
@@ -89,6 +89,6 @@ func TestEntitlements_InvalidUserID(t *testing.T) {
 	repo := newFakeRepo()
 	seedPlans(repo)
 	ent := NewEntitlements(repo)
-	_, err := ent.MaxActiveEvents(context.Background(), "not-a-uuid")
+	_, err := ent.MaxEvents(context.Background(), "not-a-uuid")
 	require.Error(t, err)
 }

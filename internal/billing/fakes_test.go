@@ -290,7 +290,7 @@ func (f *fakeRepo) DeleteWebhookEvent(ctx context.Context, providerName, provide
 	return nil
 }
 
-func (f *fakeRepo) CountActiveEvents(ctx context.Context, userID uuid.UUID) (int, error) {
+func (f *fakeRepo) CountLiveEvents(ctx context.Context, userID uuid.UUID) (int, error) {
 	return f.activeEvents, nil
 }
 
@@ -355,10 +355,10 @@ func testPlan(id string, price int, limits PlanLimits) *Plan {
 }
 
 func seedPlans(repo *fakeRepo) {
-	repo.plans[FreePlanID] = testPlan(FreePlanID, 0, PlanLimits{ActiveEvents: 1, PhotosPerEvent: 500, StorageBytes: 5 << 30, RetentionDays: 7})
-	repo.plans["starter"] = testPlan("starter", 2900, PlanLimits{ActiveEvents: 5, PhotosPerEvent: 5000, StorageBytes: 50 << 30, RetentionDays: 30})
-	repo.plans["pro"] = testPlan("pro", 5900, PlanLimits{ActiveEvents: 0, PhotosPerEvent: 20000, StorageBytes: 500 << 30, RetentionDays: 90, APIAccess: true})
-	repo.plans["business"] = testPlan("business", 9900, PlanLimits{ActiveEvents: 0, PhotosPerEvent: 0, StorageBytes: 1 << 40, RetentionDays: 365, APIAccess: true})
+	repo.plans[FreePlanID] = testPlan(FreePlanID, 0, PlanLimits{Events: 1, PhotosPerEvent: 500, StorageBytes: 5 << 30, RetentionDays: 7})
+	repo.plans["starter"] = testPlan("starter", 2900, PlanLimits{Events: 5, PhotosPerEvent: 5000, StorageBytes: 50 << 30, RetentionDays: 30, Branding: true, OriginalDownloads: true})
+	repo.plans["pro"] = testPlan("pro", 5900, PlanLimits{Events: 0, PhotosPerEvent: 20000, StorageBytes: 500 << 30, RetentionDays: 90, APIAccess: true, Branding: true, OriginalDownloads: true})
+	repo.plans["business"] = testPlan("business", 9900, PlanLimits{Events: 0, PhotosPerEvent: 0, StorageBytes: 1 << 40, RetentionDays: 365, APIAccess: true, Branding: true, OriginalDownloads: true})
 }
 
 func newTestService(t *testing.T) (*Service, *fakeRepo, *fakeProvider) {

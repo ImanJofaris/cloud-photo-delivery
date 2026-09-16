@@ -6,7 +6,7 @@ const messages: Record<string, string> = {
   EVENT_NOT_FOUND: "This event no longer exists.",
   INVALID_STATUS_TRANSITION:
     "That action is not allowed for the event's current status.",
-  PLAN_LIMIT_REACHED: "You have reached your plan's active event limit.",
+  PLAN_LIMIT_REACHED: "You have reached your plan's event limit.",
   VALIDATION_ERROR: "Please check the form and try again.",
 }
 

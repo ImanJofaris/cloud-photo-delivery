@@ -8,17 +8,28 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/limits"
 )
 
 const maxNameLength = 120
 
-type Service struct {
-	repo Repository
-	now  func() time.Time
+// PlanLimits is the narrow entitlement surface devices need. A nil
+// implementation falls back to limits.Default (API access enabled).
+type PlanLimits interface {
+	APIAccess(ctx context.Context, userID string) (bool, error)
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo, now: time.Now}
+type Service struct {
+	repo   Repository
+	limits PlanLimits
+	now    func() time.Time
+}
+
+func NewService(repo Repository, planLimits PlanLimits) *Service {
+	if planLimits == nil {
+		planLimits = limits.NewDefault()
+	}
+	return &Service{repo: repo, limits: planLimits, now: time.Now}
 }
 
 func (s *Service) SetClock(now func() time.Time) { s.now = now }
@@ -51,6 +62,13 @@ func (s *Service) Create(ctx context.Context, userID uuid.UUID, p CreateParams) 
 	}
 	if len(name) > maxNameLength {
 		return nil, "", validationError("Device name must be 120 characters or fewer")
+	}
+	allowed, err := s.limits.APIAccess(ctx, userID.String())
+	if err != nil {
+		return nil, "", apperr.Internal().WithCause(err)
+	}
+	if !allowed {
+		return nil, "", apperr.New("PLAN_LIMIT_REACHED", "apiAccess limit reached for your plan", 402)
 	}
 	if p.AssignedEventID != nil {
 		owned, err := s.repo.EventOwnedBy(ctx, userID, *p.AssignedEventID)

@@ -97,6 +97,11 @@ func (f *fakeRepo) Update(ctx context.Context, userID, id uuid.UUID, in UpdateIn
 	} else if in.EventDate != nil {
 		e.EventDate = in.EventDate
 	}
+	if in.ExpiresAt != nil {
+		e.ExpiresAt = in.ExpiresAt
+	} else if in.ClearExpiry {
+		e.ExpiresAt = nil
+	}
 	return e, nil
 }
 
@@ -123,6 +128,20 @@ func (f *fakeRepo) CountByStatus(ctx context.Context, userID uuid.UUID, status S
 	n := 0
 	for _, e := range f.events {
 		if e.UserID == userID && e.DeletedAt == nil && e.Status == status {
+			n++
+		}
+	}
+	return n, nil
+}
+
+func (f *fakeRepo) CountLiveEvents(ctx context.Context, userID uuid.UUID) (int, error) {
+	n := 0
+	for _, e := range f.events {
+		if e.UserID != userID || e.DeletedAt != nil {
+			continue
+		}
+		switch e.Status {
+		case StatusUpcoming, StatusActive, StatusCompleted:
 			n++
 		}
 	}
@@ -264,12 +283,15 @@ func (f *fakeRepo) PurgeEvent(ctx context.Context, eventID uuid.UUID) (bool, err
 }
 
 type fixedLimits struct {
-	max       int
-	retention int
-	err       error
+	max                int
+	retention          int
+	err                error
+	noAPI              bool
+	noBranding         bool
+	noOriginalDownload bool
 }
 
-func (l fixedLimits) MaxActiveEvents(ctx context.Context, userID string) (int, error) {
+func (l fixedLimits) MaxEvents(ctx context.Context, userID string) (int, error) {
 	return l.max, l.err
 }
 
@@ -283,6 +305,18 @@ func (l fixedLimits) MaxStorageBytes(ctx context.Context, userID string) (int64,
 
 func (l fixedLimits) RetentionDays(ctx context.Context, userID string) (int, error) {
 	return l.retention, l.err
+}
+
+func (l fixedLimits) APIAccess(ctx context.Context, userID string) (bool, error) {
+	return !l.noAPI, l.err
+}
+
+func (l fixedLimits) BrandingEnabled(ctx context.Context, userID string) (bool, error) {
+	return !l.noBranding, l.err
+}
+
+func (l fixedLimits) OriginalDownloads(ctx context.Context, userID string) (bool, error) {
+	return !l.noOriginalDownload, l.err
 }
 
 func testHash(pw string) (string, error) { return "hashed:" + pw, nil }
@@ -392,22 +426,26 @@ func TestCreate_SameSlugAcrossTenantsAllowed(t *testing.T) {
 	}
 }
 
-func TestCreate_ActiveLimitReached(t *testing.T) {
+func TestCreate_LiveEventLimitReached(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo, fixedLimits{max: 1})
 	userID := uuid.New()
 
-	_, _, err := svc.Create(context.Background(), userID, CreateParams{Name: "First", Status: StatusActive})
+	first, _, err := svc.Create(context.Background(), userID, CreateParams{Name: "First"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = svc.Create(context.Background(), userID, CreateParams{Name: "Second", Status: StatusActive})
+	// Upcoming events are reachable, so they occupy a slot too.
+	_, _, err = svc.Create(context.Background(), userID, CreateParams{Name: "Second"})
 	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
 		t.Fatalf("got %s", got)
 	}
-	// Upcoming is not limited.
-	if _, _, err := svc.Create(context.Background(), userID, CreateParams{Name: "Third", Status: StatusUpcoming}); err != nil {
-		t.Fatalf("upcoming should not be limited: %v", err)
+	// Archiving frees the slot.
+	if _, err := svc.Archive(context.Background(), userID, first.ID); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := svc.Create(context.Background(), userID, CreateParams{Name: "Third"}); err != nil {
+		t.Fatalf("archive should free a slot: %v", err)
 	}
 }
 
@@ -458,6 +496,49 @@ func TestUpdate_RequiresNonEmptyName(t *testing.T) {
 	empty := "  "
 	if _, err := svc.Update(context.Background(), owner, e.ID, UpdateParams{Name: &empty}); appErrCode(t, err) != "VALIDATION_ERROR" {
 		t.Fatalf("got %v", err)
+	}
+}
+
+func TestUpdate_ExpiryBeyondRetentionRejected(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{retention: 7})
+	owner := uuid.New()
+	e, _, _ := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+
+	beyond := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	if _, err := svc.Update(context.Background(), owner, e.ID, UpdateParams{ExpiresAt: &beyond}); appErrCode(t, err) != "PLAN_LIMIT_REACHED" {
+		t.Fatalf("got %v", err)
+	}
+}
+
+func TestUpdate_ClearExpiryResetsToRetention(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{retention: 7})
+	owner := uuid.New()
+	e, _, _ := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+
+	updated, err := svc.Update(context.Background(), owner, e.ID, UpdateParams{ClearExpiry: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := time.Date(2026, 1, 8, 12, 0, 0, 0, time.UTC)
+	if updated.ExpiresAt == nil || !updated.ExpiresAt.Equal(want) {
+		t.Fatalf("expiresAt = %v, want %v", updated.ExpiresAt, want)
+	}
+}
+
+func TestUpdate_ClearExpiryUnlimitedPlanStaysNull(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, _ := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+
+	updated, err := svc.Update(context.Background(), owner, e.ID, UpdateParams{ClearExpiry: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ExpiresAt != nil {
+		t.Fatalf("expiresAt = %v, want nil", updated.ExpiresAt)
 	}
 }
 
@@ -687,14 +768,15 @@ func TestTransition_ActiveLimitReached(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo, fixedLimits{max: 1})
 	owner := uuid.New()
-	if _, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "First", Status: StatusActive}); err != nil {
+	if _, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "First"}); err != nil {
 		t.Fatal(err)
 	}
-	second, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Second"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = svc.Transition(context.Background(), owner, second.ID, StatusActive)
+	// An expired event does not occupy a slot, so it can exist alongside the
+	// live one; reactivating it must respect the limit.
+	secondID := uuid.New()
+	repo.events[secondID] = &Event{ID: secondID, UserID: owner, Name: "Second", Status: StatusExpired}
+	repo.settings[secondID] = &Settings{EventID: secondID}
+	_, err := svc.Transition(context.Background(), owner, secondID, StatusActive)
 	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
 		t.Fatalf("got %s", got)
 	}
@@ -713,16 +795,26 @@ func TestCreate_DerivesExpiryFromPlan(t *testing.T) {
 	}
 }
 
-func TestCreate_ExplicitExpiryWinsOverPlan(t *testing.T) {
+func TestCreate_ExplicitExpiryWithinRetention(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo, fixedLimits{retention: 7})
-	explicit := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	explicit := time.Date(2026, 1, 5, 0, 0, 0, 0, time.UTC)
 	e, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Party", ExpiresAt: &explicit})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if e.ExpiresAt == nil || !e.ExpiresAt.Equal(explicit) {
 		t.Fatalf("expiresAt = %v, want %v", e.ExpiresAt, explicit)
+	}
+}
+
+func TestCreate_ExplicitExpiryBeyondRetentionRejected(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{retention: 7})
+	explicit := time.Date(2026, 5, 1, 0, 0, 0, 0, time.UTC)
+	_, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Party", ExpiresAt: &explicit})
+	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
+		t.Fatalf("got %s", got)
 	}
 }
 
@@ -741,6 +833,33 @@ func TestCreate_RetentionErrorMapsToInternal(t *testing.T) {
 	svc := newTestService(newFakeRepo(), fixedLimits{err: errors.New("db down")})
 	_, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{Name: "Party"})
 	if got := appErrCode(t, err); got != "INTERNAL_ERROR" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestCreate_OriginalDownloadsGated(t *testing.T) {
+	svc := newTestService(newFakeRepo(), fixedLimits{noOriginalDownload: true})
+	yes := true
+	_, _, err := svc.Create(context.Background(), uuid.New(), CreateParams{
+		Name:     "Party",
+		Settings: SettingsInput{AllowOriginalDownload: &yes},
+	})
+	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestUpdateSettings_OriginalDownloadsGated(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{noOriginalDownload: true})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	yes := true
+	_, err = svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{AllowOriginalDownload: &yes})
+	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
 		t.Fatalf("got %s", got)
 	}
 }
@@ -823,14 +942,29 @@ func TestExtend_ReactivationEnforcesActiveLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "B", Status: StatusActive}); err != nil {
+	if _, err := svc.Transition(context.Background(), owner, a.ID, StatusExpired); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Transition(context.Background(), owner, a.ID, StatusExpired); err != nil {
+	if _, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "B"}); err != nil {
 		t.Fatal(err)
 	}
 
 	_, err = svc.Extend(context.Background(), owner, a.ID, 7)
+	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
+		t.Fatalf("got %s", got)
+	}
+}
+
+func TestExtend_BeyondRetentionRejected(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{retention: 7})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// now + 7 + 7 days would exceed the plan retention window.
+	_, err = svc.Extend(context.Background(), owner, e.ID, 30)
 	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
 		t.Fatalf("got %s", got)
 	}

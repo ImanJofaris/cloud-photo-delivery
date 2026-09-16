@@ -71,6 +71,7 @@ type Repository interface {
 	SetStatus(ctx context.Context, userID, id uuid.UUID, status Status) (*Event, error)
 	SoftDelete(ctx context.Context, userID, id uuid.UUID) error
 	CountByStatus(ctx context.Context, userID uuid.UUID, status Status) (int, error)
+	CountLiveEvents(ctx context.Context, userID uuid.UUID) (int, error)
 	SlugExists(ctx context.Context, userID uuid.UUID, slug string) (bool, error)
 
 	GetSettings(ctx context.Context, userID, eventID uuid.UUID) (*Settings, error)
@@ -267,6 +268,15 @@ func (r *PostgresRepository) CountByStatus(ctx context.Context, userID uuid.UUID
 	err := r.pool.QueryRow(ctx,
 		`SELECT COUNT(*) FROM events
 		 WHERE user_id = $1 AND status = $2 AND deleted_at IS NULL`, userID, status).Scan(&n)
+	return n, err
+}
+
+func (r *PostgresRepository) CountLiveEvents(ctx context.Context, userID uuid.UUID) (int, error) {
+	var n int
+	err := r.pool.QueryRow(ctx,
+		`SELECT COUNT(*) FROM events
+		 WHERE user_id = $1 AND status IN ('upcoming', 'active', 'completed')
+		   AND deleted_at IS NULL`, userID).Scan(&n)
 	return n, err
 }
 

@@ -159,6 +159,110 @@ func TestHandler_Archive(t *testing.T) {
 	}
 }
 
+func TestHandler_UpdateStatus(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{"name":"Party"}`)))
+	env := decodeEnvelope(t, rec)
+	id := env.Data.(map[string]any)["event"].(map[string]any)["id"].(string)
+
+	req := withURLParam(httptest.NewRequest(http.MethodPost, "/api/v1/events/"+id+"/status",
+		strings.NewReader(`{"status":"active"}`)), "eventID", id)
+	rec = serve(h.UpdateStatus, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"active"`) {
+		t.Fatalf("body %s", rec.Body.String())
+	}
+}
+
+func TestHandler_UpdateStatusInvalidTransition(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{"name":"Party"}`)))
+	env := decodeEnvelope(t, rec)
+	id := env.Data.(map[string]any)["event"].(map[string]any)["id"].(string)
+
+	req := withURLParam(httptest.NewRequest(http.MethodPost, "/api/v1/events/"+id+"/status",
+		strings.NewReader(`{"status":"completed"}`)), "eventID", id)
+	rec = serve(h.UpdateStatus, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "INVALID_STATUS_TRANSITION") {
+		t.Fatalf("body %s", rec.Body.String())
+	}
+}
+
+func TestHandler_UpdateStatusValidation(t *testing.T) {
+	h, _ := newHandlerForTest(t)
+	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{"name":"Party"}`)))
+	env := decodeEnvelope(t, rec)
+	id := env.Data.(map[string]any)["event"].(map[string]any)["id"].(string)
+
+	req := withURLParam(httptest.NewRequest(http.MethodPost, "/api/v1/events/"+id+"/status",
+		strings.NewReader(`{"status":"bogus"}`)), "eventID", id)
+	rec = serve(h.UpdateStatus, req)
+	if rec.Code != http.StatusUnprocessableEntity {
+		t.Fatalf("got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "VALIDATION_ERROR") {
+		t.Fatalf("body %s", rec.Body.String())
+	}
+}
+
+func TestHandler_CreatePlanLimit(t *testing.T) {
+	userID := uuid.New()
+	svc := newTestService(newFakeRepo(), fixedLimits{max: 1})
+	h := NewHandler(svc, func(r *http.Request) (string, bool) {
+		return userID.String(), true
+	})
+
+	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events",
+		strings.NewReader(`{"name":"First"}`)))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create first got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	rec = serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events",
+		strings.NewReader(`{"name":"Second"}`)))
+	if rec.Code != http.StatusPaymentRequired {
+		t.Fatalf("got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "PLAN_LIMIT_REACHED") {
+		t.Fatalf("body %s", rec.Body.String())
+	}
+}
+
+func TestHandler_UpdateStatusPlanLimit(t *testing.T) {
+	userID := uuid.New()
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{max: 1})
+	h := NewHandler(svc, func(r *http.Request) (string, bool) {
+		return userID.String(), true
+	})
+
+	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events",
+		strings.NewReader(`{"name":"First"}`)))
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create first got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	// An expired event occupies no slot, so reactivating it is what trips the
+	// limit when a live event already exists.
+	expiredID := uuid.New()
+	repo.events[expiredID] = &Event{ID: expiredID, UserID: userID, Name: "Expired", Status: StatusExpired}
+	repo.settings[expiredID] = &Settings{EventID: expiredID}
+	req := withURLParam(httptest.NewRequest(http.MethodPost, "/api/v1/events/"+expiredID.String()+"/status",
+		strings.NewReader(`{"status":"active"}`)), "eventID", expiredID.String())
+	rec = serve(h.UpdateStatus, req)
+	if rec.Code != http.StatusPaymentRequired {
+		t.Fatalf("got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "PLAN_LIMIT_REACHED") {
+		t.Fatalf("body %s", rec.Body.String())
+	}
+}
+
 func TestHandler_DeleteNoContent(t *testing.T) {
 	h, _ := newHandlerForTest(t)
 	rec := serve(h.Create, httptest.NewRequest(http.MethodPost, "/api/v1/events", strings.NewReader(`{"name":"Party"}`)))

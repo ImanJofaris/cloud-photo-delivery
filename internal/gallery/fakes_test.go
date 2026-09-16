@@ -42,7 +42,7 @@ func (f *fakeRepo) EventBySlug(_ context.Context, slug string) (*events.Event, *
 		return nil, nil, f.err
 	}
 	e, ok := f.events[slug]
-	if !ok {
+	if !ok || e.Status == events.StatusArchived {
 		return nil, nil, ErrNotFound
 	}
 	s, ok := f.settings[e.ID]

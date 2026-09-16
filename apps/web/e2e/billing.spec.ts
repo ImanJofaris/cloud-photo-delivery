@@ -56,7 +56,9 @@ test("billing: subscribe with manual billing, cancel, and resume", async ({
     timeout: 15_000,
   })
   await expect(page.getByText("Active", { exact: true })).toBeVisible()
-  await expect(page.getByText("Active events", { exact: true })).toBeVisible()
+  await expect(
+    page.getByRole("main").getByText("Events", { exact: true })
+  ).toBeVisible()
 
   await page.getByRole("button", { name: "Cancel subscription" }).click()
   await page

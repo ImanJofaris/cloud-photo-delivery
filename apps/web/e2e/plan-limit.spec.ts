@@ -45,30 +45,18 @@ test("plan limit: the 402 links to billing instead of dead-ending", async ({
 
   const created = await request.post(`${apiOrigin}/api/v1/events`, {
     headers: { Authorization: `Bearer ${token}` },
-    data: { name: `E2E Active ${Date.now()}`, status: "active" },
+    data: { name: `E2E Active ${Date.now()}` },
   })
   expect(created.ok()).toBe(true)
 
-  // The F2 create form does not expose a status field (events default to
-  // upcoming, which does not count against the active-event limit), so mark
-  // the UI request active to exercise the real 402 from the API.
-  await page.route("**/api/v1/events", async (route) => {
-    if (route.request().method() !== "POST") {
-      await route.continue()
-      return
-    }
-    const body = route.request().postDataJSON() as Record<string, unknown>
-    await route.continue({
-      postData: JSON.stringify({ ...body, status: "active" }),
-    })
-  })
-
+  // Every event guests can reach occupies a Free slot, so the second create
+  // is blocked with the real 402 and renders the upgrade link.
   await page.goto("/events/new")
   await page.getByLabel("Event name").fill(`E2E Blocked ${Date.now()}`)
   await page.getByRole("button", { name: "Create event" }).click()
 
   await expect(
-    page.getByText("You have reached your plan's active event limit.")
+    page.getByText("You have reached your plan's event limit.")
   ).toBeVisible({ timeout: 15_000 })
 
   const billingLink = page.getByRole("button", { name: "View plans" })

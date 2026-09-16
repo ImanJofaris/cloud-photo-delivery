@@ -4,6 +4,11 @@
 **Completed:** 2026-09-13
 **Author:** opencode
 
+> **Post-phase note:** entitlements were hardened and renamed in
+> [Phase 8.1](Phase 8.1 - Report.md). `activeEvents` is now `events` (all live
+> events: upcoming, active, completed) and the plan limits gained `branding`
+> and `originalDownloads`. Read Phase 8.1 for the current semantics.
+
 ---
 
 ## 1. Summary
