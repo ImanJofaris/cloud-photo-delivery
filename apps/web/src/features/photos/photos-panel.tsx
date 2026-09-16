@@ -65,7 +65,10 @@ export function PhotosPanel({ eventId }: { eventId: string }) {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <UploadDropzone onFiles={handleFiles} />
+          <UploadDropzone
+            onFiles={handleFiles}
+            onDropError={(message) => toast.error(message)}
+          />
           <UploadQueueList
             items={items}
             onRetry={(key) => queue.retry(key)}
