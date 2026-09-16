@@ -2,8 +2,8 @@ package httpx
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
@@ -76,7 +76,7 @@ func TestError_HidesInternalError(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	rec := httptest.NewRecorder()
 
-	Error(rec, req, context.DeadlineExceeded)
+	Error(rec, req, errors.New("pq: relation \"users\" does not exist"))
 
 	if rec.Code != http.StatusInternalServerError {
 		t.Fatalf("got %d", rec.Code)
@@ -85,7 +85,7 @@ func TestError_HidesInternalError(t *testing.T) {
 	if env.Error.Code != "INTERNAL_ERROR" {
 		t.Fatalf("unexpected code: %s", env.Error.Code)
 	}
-	if bytes.Contains(rec.Body.Bytes(), []byte("context deadline")) {
+	if bytes.Contains(rec.Body.Bytes(), []byte("relation")) {
 		t.Fatal("internal error detail leaked to client")
 	}
 }

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/metrics"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -30,7 +31,7 @@ func testPool(t *testing.T) *database.Pool {
 }
 
 func TestHealthz(t *testing.T) {
-	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -51,7 +52,7 @@ func TestHealthz(t *testing.T) {
 }
 
 func TestReadyz_DatabaseDown(t *testing.T) {
-	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -66,7 +67,7 @@ func TestReadyz_DatabaseDown(t *testing.T) {
 }
 
 func TestHealthz_RequestIDHeader(t *testing.T) {
-	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
@@ -77,7 +78,7 @@ func TestHealthz_RequestIDHeader(t *testing.T) {
 }
 
 func TestProtectedRoute_RequiresAuth(t *testing.T) {
-	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
 
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/api/v1/account/me", nil))
@@ -88,7 +89,7 @@ func TestProtectedRoute_RequiresAuth(t *testing.T) {
 }
 
 func TestAuthRoute_RejectsInvalidJSON(t *testing.T) {
-	router := NewRouter(config.Config{Env: "test"}, nil, testPool(t))
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", strings.NewReader("{bad"))
 	req.Header.Set("Content-Type", "application/json")
@@ -97,5 +98,44 @@ func TestAuthRoute_RejectsInvalidJSON(t *testing.T) {
 
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("expected 422, got %d", rec.Code)
+	}
+}
+
+func TestRouter_SecurityHeaders(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/healthz", nil))
+
+	if got := rec.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+		t.Fatalf("unexpected X-Content-Type-Options: %q", got)
+	}
+	if got := rec.Header().Get("Strict-Transport-Security"); got != "" {
+		t.Fatalf("HSTS must not be set in non-prod, got %q", got)
+	}
+}
+
+func TestRouter_BodyLimitReturns413(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 10, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
+
+	body := strings.NewReader(`{"email":"` + strings.Repeat("a", 1<<11) + `"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/auth/signup", body)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("expected 413, got %d", rec.Code)
+	}
+}
+
+func TestRouter_MetricsNotExposedPublicly(t *testing.T) {
+	router := NewRouter(config.Config{Env: "test", CORSAllowedOrigins: []string{"*"}, MaxBodyBytes: 1 << 20, RequestTimeout: time.Second}, nil, testPool(t), metrics.New())
+
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/metrics", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected /metrics to be absent from the public router, got %d", rec.Code)
 	}
 }

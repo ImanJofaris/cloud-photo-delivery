@@ -15,6 +15,7 @@ type Poller struct {
 	workerID    string
 	concurrency int
 	pollEvery   time.Duration
+	observer    Observer
 }
 
 type Option func(*Poller)
@@ -32,6 +33,13 @@ func WithPollInterval(d time.Duration) Option {
 		if d > 0 {
 			p.pollEvery = d
 		}
+	}
+}
+
+// WithObserver attaches a metrics observer to job outcomes. Nil is a no-op.
+func WithObserver(obs Observer) Option {
+	return func(p *Poller) {
+		p.observer = obs
 	}
 }
 
@@ -119,6 +127,7 @@ func (p *Poller) handle(ctx context.Context, job *Job) {
 			log.Error("complete failed", "error", cerr)
 			return
 		}
+		p.observe(job.Type, OutcomeDone, duration)
 		log.Info("job done", "duration_ms", duration.Milliseconds())
 		return
 	}
@@ -127,6 +136,7 @@ func (p *Poller) handle(ctx context.Context, job *Job) {
 		if rerr := p.queue.Release(context.WithoutCancel(ctx), job.ID); rerr != nil {
 			log.Error("release failed", "error", rerr)
 		}
+		p.observe(job.Type, OutcomeReleased, duration)
 		log.Info("job released on shutdown")
 		return
 	}
@@ -137,10 +147,18 @@ func (p *Poller) handle(ctx context.Context, job *Job) {
 		return
 	}
 	if retry {
+		p.observe(job.Type, OutcomeRetry, duration)
 		log.Warn("job failed, will retry", "error", err.Error(),
 			"duration_ms", duration.Milliseconds())
 		return
 	}
+	p.observe(job.Type, OutcomeFailed, duration)
 	log.Error("job failed permanently", "error", err.Error(),
 		"duration_ms", duration.Milliseconds())
+}
+
+func (p *Poller) observe(jobType, outcome string, d time.Duration) {
+	if p.observer != nil {
+		p.observer.RecordJob(jobType, outcome, d)
+	}
 }

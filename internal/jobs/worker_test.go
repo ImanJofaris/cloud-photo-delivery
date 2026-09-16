@@ -151,3 +151,46 @@ func TestPoller_ContextCancelledBeforeClaim(t *testing.T) {
 		t.Fatal("poller did not stop after cancel")
 	}
 }
+
+type fakeObserver struct {
+	mu       sync.Mutex
+	outcomes []string
+}
+
+func (f *fakeObserver) RecordJob(_ string, outcome string, _ time.Duration) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.outcomes = append(f.outcomes, outcome)
+}
+
+func TestPoller_RecordsDoneOutcome(t *testing.T) {
+	q := &fakeQueue{jobs: []fakeJob{{id: uuid.New(), jobType: "ok"}}}
+	reg := NewRegistry().Register("ok", func(context.Context, []byte) error { return nil })
+	obs := &fakeObserver{}
+	p := NewPoller(q, reg, discardLogger(), "w1", WithPollInterval(5*time.Millisecond), WithObserver(obs))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go p.Run(ctx)
+	waitFor(t, func() bool { q.mu.Lock(); defer q.mu.Unlock(); return len(q.done) == 1 })
+	cancel()
+
+	obs.mu.Lock()
+	defer obs.mu.Unlock()
+	require.Equal(t, []string{OutcomeDone}, obs.outcomes)
+}
+
+func TestPoller_RecordsRetryOutcome(t *testing.T) {
+	q := &fakeQueue{jobs: []fakeJob{{id: uuid.New(), jobType: "bad"}}}
+	reg := NewRegistry().Register("bad", func(context.Context, []byte) error { return errors.New("kaboom") })
+	obs := &fakeObserver{}
+	p := NewPoller(q, reg, discardLogger(), "w1", WithPollInterval(5*time.Millisecond), WithObserver(obs))
+
+	ctx, cancel := context.WithCancel(context.Background())
+	go p.Run(ctx)
+	waitFor(t, func() bool { q.mu.Lock(); defer q.mu.Unlock(); return len(q.failed) == 1 })
+	cancel()
+
+	obs.mu.Lock()
+	defer obs.mu.Unlock()
+	require.Equal(t, []string{OutcomeRetry}, obs.outcomes)
+}

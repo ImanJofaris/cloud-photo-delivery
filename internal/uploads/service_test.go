@@ -520,3 +520,50 @@ func TestInitialize_LimitLookupErrorIsInternal(t *testing.T) {
 	require.ErrorAs(t, err, &appErr)
 	require.Equal(t, "INTERNAL_ERROR", appErr.Code)
 }
+
+type fakeObserver struct {
+	outcomes []string
+}
+
+func (f *fakeObserver) RecordUpload(outcome string) {
+	f.outcomes = append(f.outcomes, outcome)
+}
+
+func TestService_RecordsUploadOutcomes(t *testing.T) {
+	svc, _, _, _, _, userID, eventID := newTestService(t)
+	obs := &fakeObserver{}
+	svc.WithObserver(obs)
+	ctx := context.Background()
+
+	_, err := svc.Initialize(ctx, Actor{UserID: userID}, InitParams{
+		EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 1024,
+	})
+	require.NoError(t, err)
+
+	_, err = svc.Initialize(ctx, Actor{UserID: userID}, InitParams{
+		EventID: uuid.New(), Filename: "a.jpg", ContentType: "image/jpeg", Size: 1024,
+	})
+	require.Error(t, err)
+
+	res, err := svc.Initialize(ctx, Actor{UserID: userID}, InitParams{
+		EventID: eventID, Filename: "b.jpg", ContentType: "image/jpeg", Size: 1024,
+	})
+	require.NoError(t, err)
+	_, err = svc.Complete(ctx, Actor{UserID: userID}, res.PhotoID, "")
+	require.NoError(t, err)
+
+	require.Equal(t, []string{
+		OutcomeInitialized,
+		OutcomeFailed,
+		OutcomeInitialized,
+		OutcomeCompleted,
+	}, obs.outcomes)
+}
+
+func TestService_NilObserverIsSafe(t *testing.T) {
+	svc, _, _, _, _, userID, eventID := newTestService(t)
+	_, err := svc.Initialize(context.Background(), Actor{UserID: userID}, InitParams{
+		EventID: eventID, Filename: "a.jpg", ContentType: "image/jpeg", Size: 1024,
+	})
+	require.NoError(t, err)
+}

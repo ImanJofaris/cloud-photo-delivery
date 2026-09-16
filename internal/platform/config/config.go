@@ -3,10 +3,13 @@ package config
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
 )
 
 type Config struct {
@@ -44,9 +47,36 @@ type Config struct {
 
 	WorkerConcurrency int
 	WorkerPollEvery   time.Duration
+
+	CORSAllowedOrigins []string
+	MaxBodyBytes       int64
+	RequestTimeout     time.Duration
+
+	MetricsAddr       string
+	WorkerMetricsAddr string
+
+	DBMaxConns           int
+	DBMinConns           int
+	DBConnMaxLifetime    time.Duration
+	DBConnMaxIdleTime    time.Duration
+	DBStatementTimeout   time.Duration
+	DBSlowQueryThreshold time.Duration
 }
 
 func (c Config) IsProd() bool { return c.Env == "prod" }
+
+// DatabaseOptions maps the DB_* environment knobs onto pool options.
+func (c Config) DatabaseOptions(log *slog.Logger) database.Options {
+	opts := database.DefaultOptions()
+	opts.MaxConns = c.DBMaxConns
+	opts.MinConns = c.DBMinConns
+	opts.MaxConnLifetime = c.DBConnMaxLifetime
+	opts.MaxConnIdleTime = c.DBConnMaxIdleTime
+	opts.StatementTimeout = c.DBStatementTimeout
+	opts.SlowQueryThreshold = c.DBSlowQueryThreshold
+	opts.Logger = log
+	return opts
+}
 
 func Load() (Config, error) {
 	c := Config{
@@ -82,6 +112,20 @@ func Load() (Config, error) {
 		EventPurgeGraceDays: getInt("EVENT_PURGE_GRACE_DAYS", 30),
 		ExpiryWarnDays:      getInt("EXPIRY_WARN_DAYS", 7),
 		ExportTTL:           getDuration("EXPORT_TTL", 24*time.Hour),
+
+		CORSAllowedOrigins: getList("CORS_ALLOWED_ORIGINS", []string{"*"}),
+		MaxBodyBytes:       getInt64("MAX_BODY_BYTES", 1<<20),
+		RequestTimeout:     getDuration("HTTP_REQUEST_TIMEOUT", 30*time.Second),
+
+		MetricsAddr:       getEnv("METRICS_ADDR", ":9091"),
+		WorkerMetricsAddr: getEnv("WORKER_METRICS_ADDR", ":9092"),
+
+		DBMaxConns:           getInt("DB_MAX_CONNS", 10),
+		DBMinConns:           getInt("DB_MIN_CONNS", 1),
+		DBConnMaxLifetime:    getDuration("DB_CONN_MAX_LIFETIME", time.Hour),
+		DBConnMaxIdleTime:    getDuration("DB_CONN_MAX_IDLE_TIME", 30*time.Minute),
+		DBStatementTimeout:   getDuration("DB_STATEMENT_TIMEOUT", 30*time.Second),
+		DBSlowQueryThreshold: getDuration("DB_SLOW_QUERY_THRESHOLD", 500*time.Millisecond),
 	}
 
 	if err := c.validate(); err != nil {
@@ -128,6 +172,32 @@ func (c Config) validate() error {
 	if c.ExportTTL <= 0 {
 		errs = append(errs, "EXPORT_TTL must be positive")
 	}
+	if c.MaxBodyBytes <= 0 {
+		errs = append(errs, "MAX_BODY_BYTES must be positive")
+	}
+	if c.RequestTimeout <= 0 {
+		errs = append(errs, "HTTP_REQUEST_TIMEOUT must be positive")
+	}
+	if c.DBMaxConns < 1 {
+		errs = append(errs, "DB_MAX_CONNS must be at least 1")
+	}
+	if c.DBMinConns < 0 || c.DBMinConns > c.DBMaxConns {
+		errs = append(errs, "DB_MIN_CONNS must be between 0 and DB_MAX_CONNS")
+	}
+	if c.DBStatementTimeout < 0 {
+		errs = append(errs, "DB_STATEMENT_TIMEOUT must not be negative")
+	}
+	if c.DBSlowQueryThreshold < 0 {
+		errs = append(errs, "DB_SLOW_QUERY_THRESHOLD must not be negative")
+	}
+	if c.IsProd() {
+		for _, o := range c.CORSAllowedOrigins {
+			if o == "*" {
+				errs = append(errs, "CORS_ALLOWED_ORIGINS must not contain * in prod")
+				break
+			}
+		}
+	}
 	if len(errs) > 0 {
 		return errors.New("invalid config: " + strings.Join(errs, "; "))
 	}
@@ -158,6 +228,36 @@ func getInt(key string, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func getInt64(key string, fallback int64) int64 {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		return fallback
+	}
+	return n
+}
+
+func getList(key string, fallback []string) []string {
+	v, ok := os.LookupEnv(key)
+	if !ok || strings.TrimSpace(v) == "" {
+		return fallback
+	}
+	parts := strings.Split(v, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if p = strings.TrimSpace(p); p != "" {
+			out = append(out, p)
+		}
+	}
+	if len(out) == 0 {
+		return fallback
+	}
+	return out
 }
 
 func getDuration(key string, fallback time.Duration) time.Duration {

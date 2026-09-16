@@ -9,11 +9,12 @@ Cloud-based photo delivery SaaS for Malaysian photobooths. See `doc/` for the Pr
 - [Contributing](doc/Contributing.md) — workflow, layering rules, Definition of Done.
 - [Implementation Plan](doc/Implementation%20Plan.md) — all phases and conventions.
 - [Test Strategy](doc/Test%20Strategy.md) — unit / integration / E2E approach.
-- Completion reports: [Phase 0](doc/phases/Phase%200%20-%20Report.md), [Phase 1](doc/phases/Phase%201%20-%20Report.md), [Phase 2](doc/phases/Phase%202%20-%20Report.md).
+- [Deployment](doc/Deployment.md) — topology, release process, observability, backups, runbook.
+- Completion reports: all phases under [doc/phases](doc/phases) — latest: [Phase 10](doc/phases/Phase%2010%20-%20Report.md).
 
 ## Status
 
-Phases 0–2 are **complete**: foundation, authentication & users, and events & settings. See the phase reports under `doc/phases/` for details. Next up: Phase 3 — Uploads & Object Storage.
+All phases are **complete**: backend Phases 0–10 and frontend Phases F0–F5. The API covers auth, events, uploads, processing, public galleries, devices, branding, billing, lifecycle/ZIP/analytics/admin, and Phase 10 hardening (rate limits, security headers, Prometheus metrics, audit logs, backups, load scripts). See the phase reports under `doc/phases/` and the [Deployment guide](doc/Deployment.md).
 
 ## Stack
 
@@ -37,11 +38,13 @@ curl http://localhost:8080/healthz
 curl http://localhost:8080/readyz
 ```
 
-Worker (placeholder until Phase 4):
+Worker (processing, lifecycle, exports, reconciliation):
 
 ```text
 make worker
 ```
+
+Operational endpoints (internal only): API `http://localhost:9091/metrics`, worker `http://localhost:9092/metrics`.
 
 ## Common commands
 

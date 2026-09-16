@@ -1,13 +1,13 @@
 package devices
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/audit"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 )
 
@@ -83,12 +83,7 @@ func (h *Handler) deviceID(r *http.Request) (uuid.UUID, error) {
 }
 
 func decodeBody(r *http.Request, dst any) error {
-	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		return validationError("Request body is not valid JSON")
-	}
-	return nil
+	return httpx.DecodeJSONStrict(r, dst, 1<<20)
 }
 
 type createDeviceRequest struct {
@@ -123,6 +118,8 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
+	audit.Record(r.Context(), "device.create", "outcome", "success",
+		"actor_id", userID.String(), "device_id", device.ID.String())
 	httpx.Success(w, http.StatusCreated, deviceWithKeyDTO{Device: toDeviceDTO(device), Key: raw})
 }
 
@@ -188,6 +185,8 @@ func (h *Handler) Rotate(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
+	audit.Record(r.Context(), "device.rotate", "outcome", "success",
+		"actor_id", userID.String(), "device_id", id.String())
 	httpx.Success(w, http.StatusOK, deviceWithKeyDTO{Device: toDeviceDTO(device), Key: raw})
 }
 
@@ -206,5 +205,7 @@ func (h *Handler) Revoke(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
+	audit.Record(r.Context(), "device.revoke", "outcome", "success",
+		"actor_id", userID.String(), "device_id", id.String())
 	w.WriteHeader(http.StatusNoContent)
 }

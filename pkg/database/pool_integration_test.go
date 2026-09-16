@@ -49,3 +49,34 @@ func TestNew_InvalidDSN(t *testing.T) {
 		t.Fatal("expected error for invalid DSN")
 	}
 }
+
+func TestPool_StatementTimeoutEnforced(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	opts := database.DefaultOptions()
+	opts.StatementTimeout = 100 * time.Millisecond
+	pool, err := database.NewWithOptions(ctx, dsn, opts)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	var one int
+	err = pool.QueryRow(ctx, "SELECT pg_sleep(1)").Scan(&one)
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "statement timeout")
+}

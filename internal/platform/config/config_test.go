@@ -226,3 +226,106 @@ func TestValidateStorage(t *testing.T) {
 		t.Fatal("expected error for incomplete storage config")
 	}
 }
+
+func setBaseEnv(t *testing.T) {
+	t.Helper()
+	t.Setenv("APP_ENV", "test")
+	t.Setenv("DATABASE_URL", "postgres://x")
+	t.Setenv("JWT_SECRET", "test-secret")
+	t.Setenv("BILLING_WEBHOOK_SECRET", "billing-secret")
+}
+
+func TestLoad_HardeningDefaults(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("CORS_ALLOWED_ORIGINS", "")
+	t.Setenv("MAX_BODY_BYTES", "")
+	t.Setenv("HTTP_REQUEST_TIMEOUT", "")
+	t.Setenv("METRICS_ADDR", "")
+	t.Setenv("WORKER_METRICS_ADDR", "")
+	t.Setenv("DB_MAX_CONNS", "")
+	t.Setenv("DB_MIN_CONNS", "")
+	t.Setenv("DB_STATEMENT_TIMEOUT", "")
+	t.Setenv("DB_SLOW_QUERY_THRESHOLD", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.CORSAllowedOrigins) != 1 || cfg.CORSAllowedOrigins[0] != "*" {
+		t.Errorf("expected default CORS wildcard, got %v", cfg.CORSAllowedOrigins)
+	}
+	if cfg.MaxBodyBytes != 1<<20 {
+		t.Errorf("expected 1 MiB default body limit, got %d", cfg.MaxBodyBytes)
+	}
+	if cfg.RequestTimeout != 30*time.Second {
+		t.Errorf("expected 30s request timeout, got %v", cfg.RequestTimeout)
+	}
+	if cfg.MetricsAddr != ":9091" || cfg.WorkerMetricsAddr != ":9092" {
+		t.Errorf("unexpected metrics addrs: %q %q", cfg.MetricsAddr, cfg.WorkerMetricsAddr)
+	}
+	if cfg.DBMaxConns != 10 || cfg.DBMinConns != 1 {
+		t.Errorf("unexpected pool bounds: %d %d", cfg.DBMaxConns, cfg.DBMinConns)
+	}
+	if cfg.DBStatementTimeout != 30*time.Second {
+		t.Errorf("unexpected statement timeout: %v", cfg.DBStatementTimeout)
+	}
+	if cfg.DBSlowQueryThreshold != 500*time.Millisecond {
+		t.Errorf("unexpected slow query threshold: %v", cfg.DBSlowQueryThreshold)
+	}
+}
+
+func TestLoad_CORSListParsed(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com, https://admin.example.com")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.CORSAllowedOrigins) != 2 {
+		t.Fatalf("expected 2 origins, got %v", cfg.CORSAllowedOrigins)
+	}
+	if cfg.CORSAllowedOrigins[0] != "https://app.example.com" || cfg.CORSAllowedOrigins[1] != "https://admin.example.com" {
+		t.Fatalf("unexpected origins: %v", cfg.CORSAllowedOrigins)
+	}
+}
+
+func TestLoad_ProdRejectsWildcardCORS(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_ENV", "prod")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "*")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for wildcard CORS in prod")
+	}
+}
+
+func TestLoad_ProdAllowsExplicitCORS(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("APP_ENV", "prod")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "https://app.example.com")
+
+	if _, err := Load(); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestLoad_InvalidDBPoolBounds(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("DB_MAX_CONNS", "5")
+	t.Setenv("DB_MIN_CONNS", "10")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error when DB_MIN_CONNS exceeds DB_MAX_CONNS")
+	}
+}
+
+func TestLoad_InvalidBodyAndTimeout(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("MAX_BODY_BYTES", "0")
+	t.Setenv("HTTP_REQUEST_TIMEOUT", "0s")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for non-positive body limit and timeout")
+	}
+}

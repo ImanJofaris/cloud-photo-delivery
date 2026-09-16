@@ -1,13 +1,13 @@
 package events
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/audit"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 )
 
@@ -158,12 +158,7 @@ type createRequest struct {
 }
 
 func decodeBody(r *http.Request, dst any) error {
-	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		return validationError("Request body is not valid JSON")
-	}
-	return nil
+	return httpx.DecodeJSONStrict(r, dst, 1<<20)
 }
 
 func toSettingsInput(in *struct {
@@ -422,6 +417,8 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
+	audit.Record(r.Context(), "event.delete", "outcome", "success",
+		"actor_id", userID.String(), "event_id", id.String())
 	w.WriteHeader(http.StatusNoContent)
 }
 

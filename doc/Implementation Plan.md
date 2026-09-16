@@ -2,7 +2,7 @@
 
 This is the master plan. Each phase has its own detailed document under `doc/phases/`.
 
-**Start here:** [Developer Onboarding](Developer Onboarding.md) | [Contributing](Contributing.md) | [Test Strategy](Test Strategy.md)
+**Start here:** [Developer Onboarding](Developer Onboarding.md) | [Contributing](Contributing.md) | [Test Strategy](Test Strategy.md) | [Deployment](Deployment.md)
 
 ## Phase Plans
 
@@ -44,6 +44,7 @@ Ordering: F3 shipped its own owner-facing photo API prerequisites (list, owner s
 - [Phase 7 — Report](phases/Phase 7 - Report.md) — COMPLETE (QR codes & branding)
 - [Phase 8 — Report](phases/Phase 8 - Report.md) — COMPLETE (billing, plans & limits)
 - [Phase 9 — Report](phases/Phase 9 - Report.md) — COMPLETE (lifecycle, ZIP, analytics & admin)
+- [Phase 10 — Report](phases/Phase 10 - Report.md) — COMPLETE (hardening, observability & deployment; load execution pending staging)
 - [Phase F0 — Report](phases/Phase F0 - Report.md) — COMPLETE (web foundation)
 - [Phase F1 — Report](phases/Phase F1 - Report.md) — COMPLETE (BFF-lite auth + shell)
 - [Phase F2 — Report](phases/Phase F2 - Report.md) — COMPLETE (events dashboard)

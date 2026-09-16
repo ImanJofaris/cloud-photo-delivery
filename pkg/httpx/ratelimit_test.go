@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -67,5 +68,49 @@ func TestClientIP(t *testing.T) {
 	req.Header.Set("X-Forwarded-For", "1.1.1.1, 2.2.2.2")
 	if got := ClientIP(req); got != "1.1.1.1" {
 		t.Fatalf("got %q", got)
+	}
+}
+
+func TestRateLimiter_RefillsOverTime(t *testing.T) {
+	rl := NewRateLimiter(60, 1, time.Minute)
+	base := time.Now()
+	rl.now = func() time.Time { return base }
+
+	if !rl.Allow("key") {
+		t.Fatal("first request should be allowed")
+	}
+	if rl.Allow("key") {
+		t.Fatal("second request should be blocked (burst 1)")
+	}
+
+	base = base.Add(2 * time.Second)
+	if !rl.Allow("key") {
+		t.Fatal("request after refill window should be allowed")
+	}
+}
+
+func TestRateLimiter_MiddlewareEnvelope(t *testing.T) {
+	rl := NewRateLimiter(60, 1, time.Minute)
+	h := rl.Middleware(func(r *http.Request) string { return "ip" })(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }),
+	)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/auth/login", nil))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/login", nil))
+
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("got %d", rec.Code)
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After header")
+	}
+	var env Envelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if env.Error == nil || env.Error.Code != "RATE_LIMITED" {
+		t.Fatalf("unexpected body: %s", rec.Body.String())
 	}
 }

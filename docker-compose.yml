@@ -72,8 +72,10 @@ services:
       R2_REGION: auto
       JWT_SECRET: dev-only-change-me
       PUBLIC_BASE_URL: http://localhost:3000
+      METRICS_ADDR: ":9091"
     ports:
       - "8080:8080"
+      - "9091:9091"
 
   worker:
     build:
@@ -99,6 +101,9 @@ services:
       JWT_SECRET: dev-only-change-me
       WORKER_CONCURRENCY: "2"
       WORKER_POLL_INTERVAL: 1s
+      WORKER_METRICS_ADDR: ":9092"
+    ports:
+      - "9092:9092"
 
 volumes:
   pgdata:

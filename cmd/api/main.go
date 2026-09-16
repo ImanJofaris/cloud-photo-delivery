@@ -24,6 +24,7 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/logging"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/metrics"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/qr"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/uploads"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
@@ -49,14 +50,20 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := database.New(ctx, cfg.DatabaseURL)
+	pool, err := database.NewWithOptions(ctx, cfg.DatabaseURL, cfg.DatabaseOptions(log))
 	if err != nil {
 		log.Error("database init failed", "error", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
 
-	router := NewRouter(cfg, log, pool)
+	m := metrics.New()
+	if err := metrics.RegisterDBPool(m.Registry(), func() metrics.PoolStats { return pool.Stat() }); err != nil {
+		log.Error("metrics registration failed", "error", err)
+		os.Exit(1)
+	}
+
+	router := NewRouter(cfg, log, pool, m)
 
 	srv := httpx.NewServer(cfg.HTTPAddr, router)
 
@@ -68,6 +75,16 @@ func main() {
 		}
 	}()
 
+	metricsSrv := httpx.NewInternalServer(cfg.MetricsAddr, m.Handler())
+	if cfg.MetricsAddr != "" {
+		go func() {
+			log.Info("metrics server listening", "addr", cfg.MetricsAddr)
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Error("metrics server error", "error", err)
+			}
+		}()
+	}
+
 	<-ctx.Done()
 	log.Info("shutting down")
 
@@ -76,15 +93,22 @@ func main() {
 	if err := srv.Shutdown(shutdownCtx); err != nil {
 		log.Error("graceful shutdown failed", "error", err)
 	}
+	if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
+		log.Error("metrics shutdown failed", "error", err)
+	}
 }
 
-func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Handler {
+func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metrics.Metrics) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(httpx.RequestID)
 	r.Use(httpx.Recover)
 	r.Use(httpx.Logging(log))
-	r.Use(httpx.CORS([]string{"*"}))
+	r.Use(httpx.Metrics(m))
+	r.Use(httpx.SecurityHeaders(cfg.IsProd()))
+	r.Use(httpx.CORS(cfg.CORSAllowedOrigins))
+	r.Use(httpx.MaxBytes(cfg.MaxBodyBytes))
+	r.Use(httpx.RequestTimeout(cfg.RequestTimeout))
 
 	r.Get("/healthz", func(w http.ResponseWriter, req *http.Request) {
 		httpx.Success(w, http.StatusOK, map[string]string{"status": "ok"})
@@ -169,6 +193,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		}
 		store = s
 	}
+	store = metrics.WrapStore(store, m)
 	brandingSvc := users.NewBrandingService(userRepo, store, cfg.SignedURLTTL)
 	brandingHandler := users.NewBrandingHandler(brandingSvc, func(req *http.Request) (string, bool) {
 		id, ok := auth.UserID(req.Context())
@@ -177,7 +202,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		}
 		return id.String(), true
 	})
-	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool.Pool), entitlements)
+	uploadSvc := uploads.NewService(photoRepo, uploadRepo, store, uploads.NewPostgresQueue(pool.Pool), entitlements).WithObserver(m)
 	uploadHandler := uploads.NewHandler(uploadSvc, func(req *http.Request) (uploads.Actor, bool) {
 		if device, ok := devices.FromContext(req.Context()); ok {
 			return uploads.Actor{
@@ -250,13 +275,33 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		return id.String(), true
 	})
 
-	authLimiter := httpx.NewRateLimiter(30, 10, 10*time.Minute)
-	deviceUploadLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
+	// Phase 10 starting values (doc/phases/Phase 10 - Hardening and Deploy.md §2).
+	loginLimiter := httpx.NewRateLimiter(10, 10, 10*time.Minute)
+	signupLimiter := httpx.NewRateLimiter(5, 5, 10*time.Minute)
+	adminLimiter := httpx.NewRateLimiter(30, 30, 10*time.Minute)
+	uploadInitLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
+	uploadCompleteLimiter := httpx.NewRateLimiter(300, 300, 10*time.Minute)
+	signedURLLimiter := httpx.NewRateLimiter(60, 60, 10*time.Minute)
+
+	userKey := func(req *http.Request) string {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "anonymous"
+		}
+		return "user:" + id.String()
+	}
+	uploadKey := func(req *http.Request) string {
+		if device, ok := devices.FromContext(req.Context()); ok {
+			return "device:" + device.ID.String()
+		}
+		return userKey(req)
+	}
 
 	r.Route("/api/v1", func(r chi.Router) {
+		r.With(signupLimiter.Middleware(httpx.ClientIP)).Post("/auth/signup", authHandler.Signup)
+
 		r.Group(func(r chi.Router) {
-			r.Use(authLimiter.Middleware(httpx.ClientIP))
-			r.Post("/auth/signup", authHandler.Signup)
+			r.Use(loginLimiter.Middleware(httpx.ClientIP))
 			r.Post("/auth/login", authHandler.Login)
 			r.Post("/auth/refresh", authHandler.Refresh)
 			r.Post("/auth/logout", authHandler.Logout)
@@ -264,13 +309,15 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 			r.Post("/auth/password/reset-confirm", authHandler.ConfirmPasswordReset)
 		})
 
-		// Public gallery (no auth).
+		// Public gallery (no auth). Signed URL generation is IP-limited;
+		// gallery reads are served behind the CDN with no app-level limit.
 		r.Route("/public/events/{slug}", func(r chi.Router) {
 			r.Get("/", galleryHandler.GetEvent)
 			r.Post("/unlock", galleryHandler.Unlock)
 			r.Get("/photos", galleryHandler.ListPhotos)
 			r.Get("/photos/{photoID}", galleryHandler.GetPhoto)
-			r.Get("/photos/{photoID}/url", galleryHandler.PhotoURL)
+			r.With(signedURLLimiter.Middleware(httpx.ClientIP)).
+				Get("/photos/{photoID}/url", galleryHandler.PhotoURL)
 		})
 
 		// Provider callback: unauthenticated but signature-verified.
@@ -333,7 +380,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		// Platform administration. RequireAdmin runs after RequireAuth and
 		// rejects authenticated non-admin accounts.
 		r.Group(func(r chi.Router) {
-			r.Use(authSvc.RequireAuth, adminSvc.RequireAdmin)
+			r.Use(authSvc.RequireAuth, adminSvc.RequireAdmin, adminLimiter.Middleware(userKey))
 			r.Get("/admin/stats", adminHandler.Stats)
 			r.Get("/admin/users", adminHandler.Users)
 			r.Get("/admin/subscriptions", adminHandler.Subscriptions)
@@ -343,18 +390,21 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool) http.Ha
 		// Uploads accept an operator JWT or a device key scoped to the event.
 		r.Group(func(r chi.Router) {
 			r.Use(deviceSvc.RequireDeviceOrOperator(authSvc.RequireAuth))
-			r.With(devices.RateLimit(deviceUploadLimiter)).Post("/events/{eventID}/uploads", uploadHandler.Initialize)
+			r.With(uploadInitLimiter.Middleware(uploadKey)).
+				Post("/events/{eventID}/uploads", uploadHandler.Initialize)
 			r.Get("/events/{eventID}/photos", photoHandler.List)
 			r.Route("/uploads/{photoID}", func(r chi.Router) {
 				r.Get("/", uploadHandler.Status)
 				r.Post("/url", uploadHandler.RePresign)
 				r.Post("/parts", uploadHandler.Parts)
-				r.Post("/multipart/complete", uploadHandler.CompleteMultipart)
+				r.With(uploadCompleteLimiter.Middleware(userKey)).
+					Post("/multipart/complete", uploadHandler.CompleteMultipart)
 				r.Post("/multipart/abort", uploadHandler.AbortMultipart)
-				r.Post("/complete", uploadHandler.Complete)
+				r.With(uploadCompleteLimiter.Middleware(userKey)).
+					Post("/complete", uploadHandler.Complete)
 			})
 			r.Route("/photos/{photoID}", func(r chi.Router) {
-				r.Get("/url", photoHandler.URL)
+				r.With(signedURLLimiter.Middleware(httpx.ClientIP)).Get("/url", photoHandler.URL)
 				r.Delete("/", photoHandler.Delete)
 			})
 		})

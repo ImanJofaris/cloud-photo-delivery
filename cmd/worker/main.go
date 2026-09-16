@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
@@ -15,7 +17,9 @@ import (
 	"github.com/imanjofaris/cloud-photo-delivery/internal/photos"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/config"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/logging"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/metrics"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/database"
+	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/imaging"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/r2"
 )
@@ -52,12 +56,22 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
 
-	pool, err := database.New(ctx, cfg.DatabaseURL)
+	pool, err := database.NewWithOptions(ctx, cfg.DatabaseURL, cfg.DatabaseOptions(log))
 	if err != nil {
 		log.Error("database init failed", "error", err)
 		os.Exit(1)
 	}
 	defer pool.Close()
+
+	m := metrics.New()
+	if err := metrics.RegisterDBPool(m.Registry(), func() metrics.PoolStats { return pool.Stat() }); err != nil {
+		log.Error("metrics registration failed", "error", err)
+		os.Exit(1)
+	}
+	if err := jobs.RegisterMetrics(m.Registry(), pool.Pool); err != nil {
+		log.Error("queue metrics registration failed", "error", err)
+		os.Exit(1)
+	}
 
 	store, err := r2.New(ctx, r2.Options{
 		Endpoint:  cfg.R2Endpoint,
@@ -70,12 +84,13 @@ func main() {
 		log.Error("object store init failed", "error", err)
 		os.Exit(1)
 	}
+	var instrumentedStore r2.ObjectStore = metrics.WrapStore(store, m)
 
 	photoRepo := photos.NewRepository(pool.Pool)
 	eventRepo := events.NewRepository(pool.Pool)
 	exportRepo := exports.NewRepository(pool.Pool)
 	std := imaging.New()
-	processor := photos.NewProcessor(photoRepo, store, std, std, std, log, photoRepo.EventOwner)
+	processor := photos.NewProcessor(photoRepo, instrumentedStore, std, std, std, log, photoRepo.EventOwner)
 
 	registry := jobs.NewRegistry().
 		Register(jobProcessPhoto, processor.Handle).
@@ -83,7 +98,7 @@ func main() {
 
 	// The cleanup handler removes an orphaned original when processing fails
 	// permanently. It is idempotent and tolerant of a missing object.
-	registry.Register("object.cleanup", photos.CleanupHandler(photoRepo, store, log))
+	registry.Register("object.cleanup", photos.CleanupHandler(photoRepo, instrumentedStore, log))
 
 	// Lifecycle jobs run on a worker-side ticker: expire marks events whose
 	// expires_at passed and warns owners; purge removes events past the grace
@@ -91,16 +106,18 @@ func main() {
 	registry.Register(events.JobEventExpire, events.ExpireHandler(
 		eventRepo, events.LogNotifier{Log: log}, time.Duration(cfg.ExpiryWarnDays)*24*time.Hour, time.Now, log))
 	registry.Register(events.JobEventPurge, events.PurgeHandler(
-		eventRepo, store, time.Duration(cfg.EventPurgeGraceDays)*24*time.Hour, time.Now, log))
+		eventRepo, instrumentedStore, time.Duration(cfg.EventPurgeGraceDays)*24*time.Hour, time.Now, log))
 
 	// Bulk ZIP exports: generation streams originals from storage into a
 	// temp-file archive; cleanup expires archives and fails stuck exports.
 	registry.Register(exports.JobZipGenerate, exports.GenerateHandler(
-		exportRepo, photoRepo.EventOwner, photoRepo, store, cfg.ExportTTL, log))
-	registry.Register(exports.JobExportCleanup, exports.CleanupHandler(exportRepo, store, log))
+		exportRepo, photoRepo.EventOwner, photoRepo, instrumentedStore, cfg.ExportTTL, log))
+	registry.Register(exports.JobExportCleanup, exports.CleanupHandler(exportRepo, instrumentedStore, log))
 
 	// Storage reconciliation compares the tenant storage counters with the
 	// original objects in R2 and reports drift; it never deletes objects.
+	// Reconciliation needs ListObjects, which only the concrete S3 store
+	// exposes; it is not part of r2.ObjectStore and is not metric-wrapped.
 	registry.Register(admin.JobStorageReconcile, admin.ReconcileHandler(
 		admin.NewRepository(pool.Pool), store, time.Now, admin.LogReconcileReporter{Log: log}))
 
@@ -118,10 +135,27 @@ func main() {
 	poller := jobs.NewPoller(queue, registry, log, workerID,
 		jobs.WithConcurrency(cfg.WorkerConcurrency),
 		jobs.WithPollInterval(cfg.WorkerPollEvery),
+		jobs.WithObserver(m),
 	)
+
+	metricsSrv := httpx.NewInternalServer(cfg.WorkerMetricsAddr, m.Handler())
+	if cfg.WorkerMetricsAddr != "" {
+		go func() {
+			log.Info("metrics server listening", "addr", cfg.WorkerMetricsAddr)
+			if err := metricsSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+				log.Error("metrics server error", "error", err)
+			}
+		}()
+	}
 
 	log.Info("worker started", "env", cfg.Env, "types", registry.Types())
 	poller.Run(ctx)
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), cfg.ShutdownTimeout)
+	defer cancel()
+	if err := metricsSrv.Shutdown(shutdownCtx); err != nil {
+		log.Error("metrics shutdown failed", "error", err)
+	}
 	log.Info("worker shutting down")
 }
 

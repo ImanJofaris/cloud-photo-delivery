@@ -1,0 +1,15 @@
+# Example Prometheus scrape configuration for Cloud Photo Delivery.
+# The metrics listeners are internal-only; scrape them over the private
+# network and never expose :9091/:9092 through Cloudflare.
+
+global:
+  scrape_interval: 15s
+
+scrape_configs:
+  - job_name: cpd-api
+    static_configs:
+      - targets: ["api-1.internal:9091", "api-2.internal:9091"]
+
+  - job_name: cpd-worker
+    static_configs:
+      - targets: ["worker-1.internal:9092", "worker-2.internal:9092"]

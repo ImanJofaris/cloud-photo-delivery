@@ -7,6 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/audit"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 )
 
@@ -157,5 +158,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
+	audit.Record(r.Context(), "photo.delete", "outcome", "success",
+		"actor_id", actor.UserID.String(), "photo_id", photoID.String())
 	w.WriteHeader(http.StatusNoContent)
 }

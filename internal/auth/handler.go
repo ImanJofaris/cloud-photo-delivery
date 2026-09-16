@@ -1,10 +1,9 @@
 package auth
 
 import (
-	"encoding/json"
 	"net/http"
 
-	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/audit"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 )
@@ -35,11 +34,7 @@ func NewHandler(svc *Service) *Handler {
 }
 
 func decodeJSON(r *http.Request, dst any) error {
-	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
-	if err := dec.Decode(dst); err != nil {
-		return apperr.New("VALIDATION_ERROR", "Request body is not valid JSON", 422)
-	}
-	return nil
+	return httpx.DecodeJSON(r, dst, 1<<20)
 }
 
 func (h *Handler) toAuthResponse(res *AuthResult) authResponse {
@@ -80,9 +75,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	res, err := h.svc.Login(r.Context(), in.Email, in.Password)
 	if err != nil {
+		audit.Record(r.Context(), "auth.login", "outcome", "failure", "email", in.Email)
 		httpx.Error(w, r, err)
 		return
 	}
+	audit.Record(r.Context(), "auth.login",
+		"outcome", "success", "user_id", res.User.ID.String(), "email", res.User.Email)
 	httpx.Success(w, http.StatusOK, h.toAuthResponse(res))
 }
 
@@ -143,5 +141,6 @@ func (h *Handler) ConfirmPasswordReset(w http.ResponseWriter, r *http.Request) {
 		httpx.Error(w, r, err)
 		return
 	}
+	audit.Record(r.Context(), "auth.password_reset", "outcome", "success")
 	httpx.Success(w, http.StatusOK, map[string]string{"status": "password_reset"})
 }

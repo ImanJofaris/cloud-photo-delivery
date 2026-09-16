@@ -30,7 +30,7 @@ func New(env, level string) *slog.Logger {
 	} else {
 		h = slog.NewTextHandler(os.Stdout, opts)
 	}
-	return slog.New(h)
+	return slog.New(Redact(h))
 }
 
 func With(ctx context.Context, l *slog.Logger) context.Context {

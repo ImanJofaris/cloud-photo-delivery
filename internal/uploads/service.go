@@ -80,13 +80,27 @@ type PresignResult struct {
 	ExpiresAt time.Time
 }
 
+// Observer receives upload outcome metrics. It must be safe for concurrent
+// use; nil observers are ignored.
+type Observer interface {
+	RecordUpload(outcome string)
+}
+
+// Upload outcomes reported to an Observer.
+const (
+	OutcomeInitialized = "initialized"
+	OutcomeCompleted   = "completed"
+	OutcomeFailed      = "failed"
+)
+
 type Service struct {
-	photos photos.Repository
-	repo   Repository
-	store  r2.ObjectStore
-	queue  JobQueue
-	limits limits.PlanLimits
-	now    Clock
+	photos   photos.Repository
+	repo     Repository
+	store    r2.ObjectStore
+	queue    JobQueue
+	limits   limits.PlanLimits
+	now      Clock
+	observer Observer
 }
 
 func NewService(photosRepo photos.Repository, repo Repository, store r2.ObjectStore, queue JobQueue, planLimits limits.PlanLimits) *Service {
@@ -100,6 +114,26 @@ func NewService(photosRepo photos.Repository, repo Repository, store r2.ObjectSt
 }
 
 func (s *Service) SetClock(now Clock) { s.now = now }
+
+// WithObserver attaches an upload metrics observer. Nil is a no-op.
+func (s *Service) WithObserver(obs Observer) *Service {
+	s.observer = obs
+	return s
+}
+
+func (s *Service) observeUpload(outcome string) {
+	if s.observer != nil {
+		s.observer.RecordUpload(outcome)
+	}
+}
+
+func (s *Service) observeResult(err error) {
+	if err != nil {
+		s.observeUpload(OutcomeFailed)
+		return
+	}
+	s.observeUpload(OutcomeCompleted)
+}
 
 type noopQueue struct{}
 
@@ -118,6 +152,16 @@ func conflictError(code, msg string) *apperr.Error {
 }
 
 func (s *Service) Initialize(ctx context.Context, actor Actor, p InitParams) (*InitResult, error) {
+	result, err := s.initialize(ctx, actor, p)
+	if err != nil {
+		s.observeUpload(OutcomeFailed)
+	} else {
+		s.observeUpload(OutcomeInitialized)
+	}
+	return result, err
+}
+
+func (s *Service) initialize(ctx context.Context, actor Actor, p InitParams) (*InitResult, error) {
 	owned, err := s.actorOwnsEvent(ctx, actor, p.EventID)
 	if err != nil {
 		return nil, apperr.Internal().WithCause(err)
@@ -286,6 +330,12 @@ type CompletedPart struct {
 }
 
 func (s *Service) CompleteMultipart(ctx context.Context, actor Actor, photoID uuid.UUID, parts []CompletedPart) error {
+	err := s.completeMultipart(ctx, actor, photoID, parts)
+	s.observeResult(err)
+	return err
+}
+
+func (s *Service) completeMultipart(ctx context.Context, actor Actor, photoID uuid.UUID, parts []CompletedPart) error {
 	photo, err := s.photoForActor(ctx, actor, photoID)
 	if err != nil {
 		return err
@@ -344,6 +394,12 @@ func (s *Service) AbortMultipart(ctx context.Context, actor Actor, photoID uuid.
 }
 
 func (s *Service) Complete(ctx context.Context, actor Actor, photoID uuid.UUID, idempotencyKey string) (*photos.Photo, error) {
+	photo, err := s.complete(ctx, actor, photoID, idempotencyKey)
+	s.observeResult(err)
+	return photo, err
+}
+
+func (s *Service) complete(ctx context.Context, actor Actor, photoID uuid.UUID, idempotencyKey string) (*photos.Photo, error) {
 	photo, err := s.photoForActor(ctx, actor, photoID)
 	if err != nil {
 		return nil, err

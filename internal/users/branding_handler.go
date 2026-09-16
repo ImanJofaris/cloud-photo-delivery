@@ -1,7 +1,6 @@
 package users
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
@@ -75,12 +74,7 @@ func (h *BrandingHandler) userID(r *http.Request) (uuid.UUID, error) {
 }
 
 func decodeBrandingBody(r *http.Request, dst any) error {
-	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		return brandingValidation("Request body is not valid JSON")
-	}
-	return nil
+	return httpx.DecodeJSONStrict(r, dst, 1<<20)
 }
 
 func (h *BrandingHandler) Get(w http.ResponseWriter, r *http.Request) {

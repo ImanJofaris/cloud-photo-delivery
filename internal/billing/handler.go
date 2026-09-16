@@ -1,7 +1,6 @@
 package billing
 
 import (
-	"encoding/json"
 	"errors"
 	"net/http"
 	"time"
@@ -158,12 +157,7 @@ func (h *Handler) userID(r *http.Request) (uuid.UUID, error) {
 }
 
 func decodeBody(r *http.Request, dst any) error {
-	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
-	dec.DisallowUnknownFields()
-	if err := dec.Decode(dst); err != nil {
-		return validationError("Request body is not valid JSON")
-	}
-	return nil
+	return httpx.DecodeJSONStrict(r, dst, 1<<20)
 }
 
 func (h *Handler) Plans(w http.ResponseWriter, r *http.Request) {

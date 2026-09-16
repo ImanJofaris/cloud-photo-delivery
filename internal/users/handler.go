@@ -1,7 +1,6 @@
 package users
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/google/uuid"
@@ -68,9 +67,8 @@ func (h *Handler) UpdateMe(w http.ResponseWriter, r *http.Request) {
 	var in struct {
 		BusinessName *string `json:"businessName"`
 	}
-	dec := json.NewDecoder(http.MaxBytesReader(nil, r.Body, 1<<20))
-	if err := dec.Decode(&in); err != nil {
-		httpx.Error(w, r, apperr.New("VALIDATION_ERROR", "Request body is not valid JSON", 422))
+	if err := httpx.DecodeJSON(r, &in, 1<<20); err != nil {
+		httpx.Error(w, r, err)
 		return
 	}
 

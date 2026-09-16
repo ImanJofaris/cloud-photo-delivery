@@ -1,6 +1,7 @@
 package httpx
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -42,6 +43,11 @@ func Error(w http.ResponseWriter, r *http.Request, err error) {
 	var appErr *apperr.Error
 	if errors.As(err, &appErr) {
 		Fail(w, appErr.HTTPStatus, appErr.Code, appErr.Message)
+		return
+	}
+
+	if errors.Is(err, context.DeadlineExceeded) {
+		Fail(w, http.StatusGatewayTimeout, "REQUEST_TIMEOUT", "Request timed out")
 		return
 	}
 
