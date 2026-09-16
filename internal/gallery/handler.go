@@ -31,13 +31,14 @@ type publicEventDTO struct {
 }
 
 type publicBrandingDTO struct {
-	BusinessName   *string `json:"businessName"`
-	LogoURL        *string `json:"logoUrl"`
-	PrimaryColor   *string `json:"primaryColor"`
-	SecondaryColor *string `json:"secondaryColor"`
-	ContactEmail   *string `json:"contactEmail"`
-	ContactPhone   *string `json:"contactPhone"`
-	WebsiteURL     *string `json:"websiteUrl"`
+	BusinessName    *string `json:"businessName"`
+	LogoURL         *string `json:"logoUrl"`
+	ProfileImageURL *string `json:"profileImageUrl"`
+	PrimaryColor    *string `json:"primaryColor"`
+	SecondaryColor  *string `json:"secondaryColor"`
+	ContactEmail    *string `json:"contactEmail"`
+	ContactPhone    *string `json:"contactPhone"`
+	WebsiteURL      *string `json:"websiteUrl"`
 }
 
 type publicPhotoDTO struct {
@@ -78,18 +79,19 @@ func toPublicBrandingDTO(b *users.BrandingView) *publicBrandingDTO {
 	if b == nil {
 		return nil
 	}
-	if b.BusinessName == "" && b.LogoURL == "" && b.PrimaryColor == "" && b.SecondaryColor == "" &&
+	if b.BusinessName == "" && b.LogoURL == "" && b.ProfileImageURL == "" && b.PrimaryColor == "" && b.SecondaryColor == "" &&
 		b.ContactEmail == "" && b.ContactPhone == "" && b.WebsiteURL == "" {
 		return nil
 	}
 	dto := &publicBrandingDTO{
-		BusinessName:   optionalString(b.BusinessName),
-		LogoURL:        optionalString(b.LogoURL),
-		PrimaryColor:   optionalString(b.PrimaryColor),
-		SecondaryColor: optionalString(b.SecondaryColor),
-		ContactEmail:   optionalString(b.ContactEmail),
-		ContactPhone:   optionalString(b.ContactPhone),
-		WebsiteURL:     optionalString(b.WebsiteURL),
+		BusinessName:    optionalString(b.BusinessName),
+		LogoURL:         optionalString(b.LogoURL),
+		ProfileImageURL: optionalString(b.ProfileImageURL),
+		PrimaryColor:    optionalString(b.PrimaryColor),
+		SecondaryColor:  optionalString(b.SecondaryColor),
+		ContactEmail:    optionalString(b.ContactEmail),
+		ContactPhone:    optionalString(b.ContactPhone),
+		WebsiteURL:      optionalString(b.WebsiteURL),
 	}
 	return dto
 }

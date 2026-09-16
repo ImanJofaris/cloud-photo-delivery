@@ -1,8 +1,8 @@
-import { render, screen } from "@testing-library/react"
-import { describe, expect, it } from "vitest"
+import { render, screen, waitFor } from "@testing-library/react"
+import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { GalleryHeader } from "./gallery-header"
-import { createQueryWrapper } from "../test-utils"
+import { createQueryWrapper, jsonResponse, requestUrl } from "../test-utils"
 import type { GalleryEvent } from "../types"
 
 function event(overrides: Partial<GalleryEvent> = {}): GalleryEvent {
@@ -23,6 +23,10 @@ function event(overrides: Partial<GalleryEvent> = {}): GalleryEvent {
 }
 
 describe("GalleryHeader", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals()
+  })
+
   it("renders branding when present", () => {
     render(
       <GalleryHeader
@@ -68,5 +72,60 @@ describe("GalleryHeader", () => {
     expect(screen.getByText("Kuala Lumpur")).toBeInTheDocument()
     expect(screen.getByText("Reception")).toBeInTheDocument()
     expect(screen.queryByRole("link")).toBeNull()
+  })
+
+  it("renders the profile image as the banner when there is no cover photo", () => {
+    const { container } = render(
+      <GalleryHeader
+        slug="wedding"
+        viewable
+        event={event({
+          branding: {
+            businessName: "Booth Co",
+            profileImageUrl: "https://cdn.example/profile.png",
+          },
+        })}
+      />,
+      { wrapper: createQueryWrapper() }
+    )
+
+    expect(container.querySelector("header img")).toHaveAttribute(
+      "src",
+      "https://cdn.example/profile.png"
+    )
+  })
+
+  it("prefers the cover photo over the profile image", async () => {
+    process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:18080"
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL) => {
+        const url = new URL(requestUrl(input))
+        const variant = url.searchParams.get("variant") ?? "thumbnail"
+        return jsonResponse({
+          data: { url: `https://r2.test/${variant}.jpg`, expiresIn: 300 },
+          error: null,
+        })
+      })
+    )
+
+    const { container } = render(
+      <GalleryHeader
+        slug="wedding"
+        viewable
+        event={event({
+          coverPhotoId: "p1",
+          branding: { profileImageUrl: "https://cdn.example/profile.png" },
+        })}
+      />,
+      { wrapper: createQueryWrapper() }
+    )
+
+    await waitFor(() =>
+      expect(container.querySelector("header img")).toHaveAttribute(
+        "src",
+        "https://r2.test/large.jpg"
+      )
+    )
   })
 })

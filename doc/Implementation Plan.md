@@ -27,10 +27,11 @@ This is the master plan. Each phase has its own detailed document under `doc/pha
 - [Phase F4 — Public Gallery](phases/Phase F4 - Public Gallery.md)
 - [Phase F5 — Devices, Branding & Billing](phases/Phase F5 - Devices, Branding and Billing.md)
 - [Phase F6 — Analytics, Exports & Lifecycle](phases/Phase F6 - Analytics, Exports and Lifecycle.md)
+- [Phase F7 — Admin](phases/Phase F7 - Admin.md)
 
 Frontend conventions: [`doc/frontend/Conventions.md`](frontend/Conventions.md).
 
-Ordering: F3 shipped its own owner-facing photo API prerequisites (list, owner signed URLs, re-presign, delete) and is independent of Phase 7. Phase 7 (branding) landed before F4, whose §2.1 backend prerequisite fixed gallery view/download semantics (`doc/phases/Phase F4 - Public Gallery.md` §2). F5 is the last operator surface (devices, QR/branding, billing) and consumes the Phase 6–8 APIs with no backend changes. F6 (analytics, ZIP exports, lifecycle) consumes the Phase 9 APIs with no backend changes; it was blocked until Phase 9 completed.
+Ordering: F3 shipped its own owner-facing photo API prerequisites (list, owner signed URLs, re-presign, delete) and is independent of Phase 7. Phase 7 (branding) landed before F4, whose §2.1 backend prerequisite fixed gallery view/download semantics (`doc/phases/Phase F4 - Public Gallery.md` §2). F5 is the last operator surface (devices, QR/branding, billing) and consumes the Phase 6–8 APIs with no backend changes. F6 (analytics, ZIP exports, lifecycle) consumes the Phase 9 APIs with no backend changes; it was blocked until Phase 9 completed. F7 (admin, read-only) adds one backend prerequisite (`isAdmin` on the profile, `doc/phases/Phase F7 - Admin.md` §2.1) and then consumes the Phase 9 admin API; operator promotion stays SQL-only.
 
 ## Completion Reports
 

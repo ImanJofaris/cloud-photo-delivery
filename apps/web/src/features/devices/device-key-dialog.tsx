@@ -105,7 +105,7 @@ export function DeviceKeyDialog({
           </div>
         </div>
 
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <p className="text-sm text-muted-foreground">
             Devices authenticate uploads with the{" "}
             <code className="font-mono">X-Api-Key</code> header, for example:

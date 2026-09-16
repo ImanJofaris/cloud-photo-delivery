@@ -26,15 +26,16 @@ export function GalleryHeader({
   )
 
   const hasIdentity = Boolean(branding?.logoUrl || branding?.businessName)
+  const bannerUrl = cover.data ?? branding?.profileImageUrl ?? null
 
   return (
     <header>
       <div className="relative h-40 w-full overflow-hidden bg-muted sm:h-56">
-        {cover.data ? (
+        {bannerUrl ? (
           // Signed URLs change per fetch; the Next image optimizer would add
           // latency without caching anything.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={cover.data} alt="" className="size-full object-cover" />
+          <img src={bannerUrl} alt="" className="size-full object-cover" />
         ) : (
           <div className="size-full bg-gradient-to-br from-[var(--gallery-primary)]/25 via-muted to-muted" />
         )}

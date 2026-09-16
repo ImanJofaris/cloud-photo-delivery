@@ -210,7 +210,7 @@ Note: on this Windows host a **fresh, fully parallel** integration run can inter
 ## 9. Known limitations / follow-ups
 
 - `storage.reconcile` reports drift only: it does not auto-repair counters or delete orphaned R2 objects, because both can be legitimate (in-flight uploads, FAILED originals, soft-deleted events pending purge). An alert on the `storage drift detected` log line is a Phase 10 observability follow-up.
-- Admin endpoints are read-only; there is no admin UI and no way to change `is_admin` through the API (set it with SQL).
+- Admin endpoints are read-only; there is no admin UI (`doc/phases/Phase F7 - Admin.md` now tracks the read-only UI, adding an `isAdmin` profile flag as its prerequisite) and no way to change `is_admin` through the API (set it with SQL).
 - Admin listings join `users` directly and return email/business name; keep the admin surface internal (the DoD's "no PII beyond what's needed").
 - `analytics.rollup` was intentionally skipped (per-day counter rows make it redundant).
 

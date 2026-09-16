@@ -108,16 +108,32 @@ func TestE2E_BrandingAndQRFlow(t *testing.T) {
 		`{"logoKey":"`+assetEnv.Data.StorageKey+`"}`, access)
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 
+	rec = doReq(t, h, http.MethodPost, "/api/v1/account/branding/assets",
+		`{"kind":"profileImage","contentType":"image/png"}`, access)
+	require.Equal(t, http.StatusCreated, rec.Code, "body=%s", rec.Body.String())
+	var profileAssetEnv struct {
+		Data struct {
+			StorageKey string `json:"storageKey"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &profileAssetEnv))
+	require.NotEmpty(t, profileAssetEnv.Data.StorageKey)
+
+	rec = doReq(t, h, http.MethodPatch, "/api/v1/account/branding",
+		`{"profileImageKey":"`+profileAssetEnv.Data.StorageKey+`"}`, access)
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+
 	rec = doReq(t, h, http.MethodGet, "/api/v1/public/events/"+slug, "", "")
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	require.Equal(t, "public, max-age=60", rec.Header().Get("Cache-Control"))
 	var publicEnv struct {
 		Data struct {
 			Branding *struct {
-				BusinessName *string `json:"businessName"`
-				LogoURL      *string `json:"logoUrl"`
-				PrimaryColor *string `json:"primaryColor"`
-				WebsiteURL   *string `json:"websiteUrl"`
+				BusinessName    *string `json:"businessName"`
+				LogoURL         *string `json:"logoUrl"`
+				ProfileImageURL *string `json:"profileImageUrl"`
+				PrimaryColor    *string `json:"primaryColor"`
+				WebsiteURL      *string `json:"websiteUrl"`
 			} `json:"branding"`
 		} `json:"data"`
 	}
@@ -127,6 +143,7 @@ func TestE2E_BrandingAndQRFlow(t *testing.T) {
 	require.Equal(t, "#aabbcc", *publicEnv.Data.Branding.PrimaryColor)
 	require.Equal(t, "https://booth.example.com", *publicEnv.Data.Branding.WebsiteURL)
 	require.NotEmpty(t, *publicEnv.Data.Branding.LogoURL)
+	require.NotEmpty(t, *publicEnv.Data.Branding.ProfileImageURL)
 
 	rec = doReq(t, h, http.MethodPost, "/api/v1/events", `{"name":"Other Event"}`, otherAccess)
 	require.Equal(t, http.StatusCreated, rec.Code)

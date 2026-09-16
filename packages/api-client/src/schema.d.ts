@@ -1651,12 +1651,14 @@ export interface components {
         /**
          * @description Tenant branding for the public gallery. All fields are nullable; the
          *     gallery falls back to event metadata and default theme tokens. `logoUrl`
-         *     is a short-lived signed URL that stays valid for longer than the 60 s
-         *     metadata cache.
+         *     and `profileImageUrl` are short-lived signed URLs that stay valid for
+         *     longer than the 60 s metadata cache.
          */
         PublicBranding: {
             businessName?: string | null;
             logoUrl?: string | null;
+            /** @description Short-lived signed URL for the uploaded profile image, used as the gallery banner when the event has no cover photo. */
+            profileImageUrl?: string | null;
             /** @description Lowercase `#rrggbb` hex color. */
             primaryColor?: string | null;
             /** @description Lowercase `#rrggbb` hex color. */

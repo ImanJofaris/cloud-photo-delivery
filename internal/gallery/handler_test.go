@@ -197,9 +197,11 @@ func TestHandler_GetEvent_Branding(t *testing.T) {
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
 	branding.view = &users.BrandingView{
-		BusinessName: "Booth Co",
-		PrimaryColor: "#112233",
-		ContactEmail: "hello@example.com",
+		BusinessName:    "Booth Co",
+		LogoURL:         "https://cdn.example/logo.png",
+		ProfileImageURL: "https://cdn.example/profile.png",
+		PrimaryColor:    "#112233",
+		ContactEmail:    "hello@example.com",
 	}
 	h := NewHandler(svc)
 
@@ -211,9 +213,10 @@ func TestHandler_GetEvent_Branding(t *testing.T) {
 	data := decodeEnvelope(t, rec)["data"].(map[string]any)
 	b := data["branding"].(map[string]any)
 	require.Equal(t, "Booth Co", b["businessName"])
+	require.Equal(t, "https://cdn.example/logo.png", b["logoUrl"])
+	require.Equal(t, "https://cdn.example/profile.png", b["profileImageUrl"])
 	require.Equal(t, "#112233", b["primaryColor"])
 	require.Equal(t, "hello@example.com", b["contactEmail"])
-	require.Nil(t, b["logoUrl"])
 }
 
 func TestHandler_GetEvent_BrandingNullWhenUnset(t *testing.T) {
@@ -228,6 +231,25 @@ func TestHandler_GetEvent_BrandingNullWhenUnset(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	data := decodeEnvelope(t, rec)["data"].(map[string]any)
 	require.Nil(t, data["branding"])
+}
+
+func TestHandler_GetEvent_BrandingProfileImageOnly(t *testing.T) {
+	svc, repo, _, branding := newTestServiceFull()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	branding.view = &users.BrandingView{ProfileImageURL: "https://cdn.example/profile.png"}
+	h := NewHandler(svc)
+
+	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding", nil), map[string]string{"slug": "wedding"})
+	rec := httptest.NewRecorder()
+	h.GetEvent(rec, r)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	data := decodeEnvelope(t, rec)["data"].(map[string]any)
+	b := data["branding"].(map[string]any)
+	require.Equal(t, "https://cdn.example/profile.png", b["profileImageUrl"])
+	require.Nil(t, b["logoUrl"])
+	require.Nil(t, b["businessName"])
 }
 
 func TestHandler_ListPhotos_IncludesBranding(t *testing.T) {
