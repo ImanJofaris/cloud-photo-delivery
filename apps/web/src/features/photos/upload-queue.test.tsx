@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
@@ -48,6 +48,56 @@ describe("UploadQueueList", () => {
       />
     )
     expect(container).toBeEmptyDOMElement()
+  })
+
+  it("hides rows once their photo is ready", () => {
+    setup([
+      item({ status: "ready", progress: 100 }),
+      item({ key: "k2", filename: "b.jpg", status: "uploading" }),
+    ])
+
+    expect(screen.queryByText("a.jpg")).toBeNull()
+    expect(screen.getByText("b.jpg")).toBeInTheDocument()
+  })
+
+  it("renders nothing when every item is ready", () => {
+    const { container } = render(
+      <UploadQueueList
+        items={[item({ status: "ready", progress: 100 })]}
+        onRetry={vi.fn()}
+        onCancel={vi.fn()}
+        onDiscard={vi.fn()}
+      />
+    )
+    expect(container).toBeEmptyDOMElement()
+  })
+
+  it("tracks the batch progress by photos the worker marked ready", () => {
+    setup([
+      item({ status: "ready", progress: 100 }),
+      item({ key: "k2", filename: "b.jpg", status: "uploading", progress: 50 }),
+    ])
+
+    const batch = within(screen.getByTestId("upload-batch-progress"))
+    expect(batch.getByText("1 of 2 ready")).toBeInTheDocument()
+    expect(batch.getByText("50%")).toBeInTheDocument()
+  })
+
+  it("waits for READY before counting a photo in the batch progress", () => {
+    setup([
+      item({ status: "processing", progress: 100 }),
+      item({ key: "k2", filename: "b.jpg", status: "uploading", progress: 100 }),
+    ])
+
+    const batch = within(screen.getByTestId("upload-batch-progress"))
+    expect(batch.getByText("0 of 2 ready")).toBeInTheDocument()
+    expect(batch.getByText("0%")).toBeInTheDocument()
+  })
+
+  it("hides the batch progress for a single file", () => {
+    setup([item({ status: "uploading", progress: 10 })])
+
+    expect(screen.queryByTestId("upload-batch-progress")).toBeNull()
   })
 
   it("shows progress and a cancel action while uploading", async () => {

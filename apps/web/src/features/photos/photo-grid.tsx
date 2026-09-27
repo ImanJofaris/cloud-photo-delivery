@@ -60,7 +60,8 @@ export function PhotoGrid({
           <ImageOff className="size-6 text-muted-foreground" />
           <p className="text-sm font-medium">No photos yet</p>
           <p className="text-xs text-muted-foreground">
-            Upload files above; they appear here as they upload and process.
+            Use the Upload photos button; they appear here as they upload and
+            process.
           </p>
         </CardContent>
       </Card>

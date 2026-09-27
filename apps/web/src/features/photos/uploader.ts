@@ -152,6 +152,12 @@ export class UploadQueue {
 
   addFiles(files: File[]): { filename: string; reason: string }[] {
     const rejected: { filename: string; reason: string }[] = []
+    for (const [key, item] of this.items) {
+      if (item.status === "ready") {
+        this.items.delete(key)
+        this.deps.registry?.remove(key)
+      }
+    }
     for (const file of files) {
       const reason = validateFile(file)
       if (reason) {

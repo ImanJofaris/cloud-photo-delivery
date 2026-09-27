@@ -302,4 +302,25 @@ describe("UploadQueue", () => {
     expect(queue.getItems()).toHaveLength(0)
     expect(registry.entries).toHaveLength(0)
   })
+
+  it("clears ready items when a new batch is added", async () => {
+    const deps = makeDeps()
+    const queue = new UploadQueue("event-1", deps)
+    queue.addFiles([makeFile("a.jpg", "image/jpeg", 1024)])
+    await waitForTerminal(queue)
+
+    queue.applyPhotoStatuses([
+      { id: "photo-1", status: "READY", errorMessage: null },
+    ])
+    expect(queue.getItems()).toHaveLength(1)
+    expect(queue.getItems()[0].status).toBe("ready")
+
+    queue.addFiles([makeFile("b.jpg", "image/jpeg", 1024)])
+
+    expect(queue.getItems()).toHaveLength(1)
+    expect(queue.getItems()[0].filename).toBe("b.jpg")
+    expect(
+      deps.registry?.list("event-1").some((entry) => entry.filename === "a.jpg")
+    ).toBe(false)
+  })
 })

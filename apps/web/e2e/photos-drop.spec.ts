@@ -34,6 +34,7 @@ async function openPhotosTab(page: Page) {
   await expect(page).toHaveURL(/\/events\/[0-9a-f-]+/, { timeout: 15_000 })
 
   await page.getByRole("tab", { name: "Photos" }).click()
+  await page.getByRole("button", { name: "Upload photos" }).click()
   await expect(page.getByTestId("upload-dropzone")).toBeVisible()
 }
 

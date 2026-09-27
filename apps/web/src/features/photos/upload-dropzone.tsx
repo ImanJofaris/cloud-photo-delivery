@@ -71,10 +71,12 @@ export function UploadDropzone({
   onFiles,
   disabled,
   onDropError,
+  className,
 }: {
   onFiles: (files: File[]) => void
   disabled?: boolean
   onDropError?: (message: string) => void
+  className?: string
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null)
   const dragDepth = React.useRef(0)
@@ -160,7 +162,8 @@ export function UploadDropzone({
       onDrop={(event) => void handleDrop(event)}
       className={cn(
         "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center transition-colors",
-        dragging && "border-primary bg-primary/5"
+        dragging && "border-primary bg-primary/5",
+        className
       )}
     >
       <ImagePlus className="size-6 text-muted-foreground" />

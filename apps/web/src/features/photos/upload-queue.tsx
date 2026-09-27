@@ -99,6 +99,41 @@ function UploadQueueRow({
   )
 }
 
+export function visibleUploadItems(items: UploadItem[]): UploadItem[] {
+  return items.filter((item) => item.status !== "ready")
+}
+
+export function batchProgress(items: UploadItem[]): {
+  total: number
+  ready: number
+  percent: number
+} {
+  if (items.length === 0) return { total: 0, ready: 0, percent: 0 }
+  const ready = items.filter((item) => item.status === "ready").length
+  return {
+    total: items.length,
+    ready,
+    percent: Math.round((ready / items.length) * 100),
+  }
+}
+
+function UploadBatchProgress({ items }: { items: UploadItem[] }) {
+  const { total, ready, percent } = batchProgress(items)
+  return (
+    <div className="space-y-1.5" data-testid="upload-batch-progress">
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="text-sm font-medium">
+          {ready} of {total} ready
+        </p>
+        <span className="text-xs text-muted-foreground tabular-nums">
+          {percent}%
+        </span>
+      </div>
+      <Progress value={percent} className="gap-0" />
+    </div>
+  )
+}
+
 export function UploadQueueList({
   items,
   onRetry,
@@ -110,18 +145,22 @@ export function UploadQueueList({
   onCancel: (key: string) => void
   onDiscard: (key: string) => void
 }) {
-  if (items.length === 0) return null
+  const visible = visibleUploadItems(items)
+  if (visible.length === 0) return null
   return (
-    <ul className="space-y-2" data-testid="upload-queue">
-      {items.map((item) => (
-        <UploadQueueRow
-          key={item.key}
-          item={item}
-          onRetry={onRetry}
-          onCancel={onCancel}
-          onDiscard={onDiscard}
-        />
-      ))}
-    </ul>
+    <div className="space-y-3">
+      {items.length > 1 && <UploadBatchProgress items={items} />}
+      <ul className="space-y-2" data-testid="upload-queue">
+        {visible.map((item) => (
+          <UploadQueueRow
+            key={item.key}
+            item={item}
+            onRetry={onRetry}
+            onCancel={onCancel}
+            onDiscard={onDiscard}
+          />
+        ))}
+      </ul>
+    </div>
   )
 }

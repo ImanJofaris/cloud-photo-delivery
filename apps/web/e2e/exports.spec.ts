@@ -70,6 +70,7 @@ test("zip export: request, poll to ready, download the signed URL", async ({
   const eventId = await createEvent(page, `E2E Export ${Date.now()}`)
 
   await page.getByRole("tab", { name: "Photos" }).click()
+  await page.getByRole("button", { name: "Upload photos" }).click()
   await page.setInputFiles('input[type="file"]', {
     name: "e2e-export.jpg",
     mimeType: "image/jpeg",

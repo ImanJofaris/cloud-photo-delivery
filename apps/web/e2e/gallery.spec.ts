@@ -46,6 +46,7 @@ async function galleryHref(page: Page) {
 
 async function uploadPhoto(page: Page, filename: string) {
   await page.getByRole("tab", { name: "Photos" }).click()
+  await page.getByRole("button", { name: "Upload photos" }).click()
   await page.setInputFiles('input[type="file"]', {
     name: filename,
     mimeType: "image/jpeg",
