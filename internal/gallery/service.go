@@ -69,6 +69,13 @@ func (s *Service) recordDownload(ctx context.Context, eventID uuid.UUID) {
 	_ = s.analytics.RecordDownload(ctx, eventID)
 }
 
+func (s *Service) recordDownloads(ctx context.Context, eventID uuid.UUID, count int) {
+	if s.analytics == nil || count <= 0 {
+		return
+	}
+	_ = s.analytics.RecordDownloads(ctx, eventID, count)
+}
+
 func notFound() *apperr.Error {
 	return apperr.New("EVENT_NOT_FOUND", "Event not found", 404)
 }
@@ -282,4 +289,78 @@ func (s *Service) PhotoURL(ctx context.Context, slug, unlockToken, photoID, vari
 		s.recordDownload(ctx, ve.Event.ID)
 	}
 	return result, nil
+}
+
+// BatchPhotoURLs signs one variant for many photos in a single call. The
+// visibility and download policy checks are identical to PhotoURL; IDs that
+// are foreign, unknown, not READY, or lack the variant are omitted.
+func (s *Service) BatchPhotoURLs(ctx context.Context, slug, unlockToken, variant string, photoIDs []string) (*PhotoURLBatch, error) {
+	ve, err := s.visibleEvent(ctx, slug, unlockToken)
+	if err != nil {
+		return nil, err
+	}
+	v := Variant(strings.ToLower(strings.TrimSpace(variant)))
+	if !v.Valid() {
+		return nil, validationError("Invalid variant")
+	}
+	if len(photoIDs) == 0 {
+		return nil, validationError("At least one photo ID is required")
+	}
+	if len(photoIDs) > MaxPhotoURLBatch {
+		return nil, validationError("Too many photo IDs")
+	}
+	if v.IsOriginal() {
+		if !ve.Settings.AllowDownload {
+			return nil, forbidden("DOWNLOAD_DISABLED", "Downloads are disabled for this event")
+		}
+		if !ve.Settings.AllowOriginalDownload {
+			return nil, forbidden("ORIGINAL_DOWNLOAD_DISABLED", "Original downloads are disabled for this event")
+		}
+	}
+
+	ids := make([]uuid.UUID, 0, len(photoIDs))
+	seen := make(map[uuid.UUID]struct{}, len(photoIDs))
+	for _, raw := range photoIDs {
+		id, err := uuid.Parse(strings.TrimSpace(raw))
+		if err != nil {
+			return nil, validationError("Invalid photo ID")
+		}
+		if _, dup := seen[id]; dup {
+			continue
+		}
+		seen[id] = struct{}{}
+		ids = append(ids, id)
+	}
+
+	found, err := s.repo.ReadyPhotos(ctx, ve.Event.ID, ids)
+	if err != nil {
+		return nil, apperr.Internal().WithCause(err)
+	}
+
+	batch := &PhotoURLBatch{
+		URLs:      make(map[string]*photos.URLResult, len(found)),
+		ExpiresIn: int(s.urls.TTL().Seconds()),
+	}
+	downloads := 0
+	for _, id := range ids {
+		photo, ok := found[id]
+		if !ok {
+			continue
+		}
+		result, err := s.urls.URL(ctx, photo, string(v))
+		if err != nil {
+			if errors.Is(err, photos.ErrVariantUnavailable) {
+				continue
+			}
+			return nil, apperr.Internal().WithCause(err)
+		}
+		batch.URLs[id.String()] = result
+		if v.IsOriginal() {
+			downloads++
+		}
+	}
+	if downloads > 0 {
+		s.recordDownloads(ctx, ve.Event.ID, downloads)
+	}
+	return batch, nil
 }

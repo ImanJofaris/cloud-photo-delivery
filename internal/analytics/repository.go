@@ -66,13 +66,16 @@ func (r *PostgresRepository) RecordView(ctx context.Context, eventID uuid.UUID, 
 	return tx.Commit(ctx)
 }
 
-func (r *PostgresRepository) RecordDownload(ctx context.Context, eventID uuid.UUID, day time.Time) error {
+func (r *PostgresRepository) RecordDownload(ctx context.Context, eventID uuid.UUID, day time.Time, count int) error {
+	if count < 1 {
+		count = 1
+	}
 	_, err := r.pool.Exec(ctx,
 		`INSERT INTO event_analytics (event_id, day, downloads)
-		 VALUES ($1, $2, 1)
+		 VALUES ($1, $2, $3)
 		 ON CONFLICT (event_id, day) DO UPDATE SET
-			downloads = event_analytics.downloads + 1`,
-		eventID, day)
+			downloads = event_analytics.downloads + $3`,
+		eventID, day, count)
 	return err
 }
 

@@ -147,13 +147,14 @@ func TestAnalyticsRepository_RecordDownload(t *testing.T) {
 	eventID := insertEvent(t, pool, userA, "party", "party", 0)
 	today := day(t, "2026-09-13")
 
-	require.NoError(t, repo.RecordDownload(ctx, eventID, today))
-	require.NoError(t, repo.RecordDownload(ctx, eventID, today))
-	require.NoError(t, repo.RecordDownload(ctx, eventID, day(t, "2026-09-14")))
+	require.NoError(t, repo.RecordDownload(ctx, eventID, today, 1))
+	require.NoError(t, repo.RecordDownload(ctx, eventID, today, 1))
+	require.NoError(t, repo.RecordDownload(ctx, eventID, day(t, "2026-09-14"), 1))
+	require.NoError(t, repo.RecordDownload(ctx, eventID, day(t, "2026-09-14"), 4))
 
 	summary, err := repo.EventSummary(ctx, eventID)
 	require.NoError(t, err)
-	require.EqualValues(t, 3, summary.Totals.Downloads)
+	require.EqualValues(t, 7, summary.Totals.Downloads)
 	require.EqualValues(t, 0, summary.Totals.GalleryViews)
 }
 

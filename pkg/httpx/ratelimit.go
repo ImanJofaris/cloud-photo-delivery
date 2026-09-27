@@ -37,6 +37,16 @@ func NewRateLimiter(perMinute int, burst int, ttl time.Duration) *RateLimiter {
 }
 
 func (rl *RateLimiter) Allow(key string) bool {
+	return rl.AllowN(key, 1)
+}
+
+// AllowN reports whether n units may proceed for key, charging n tokens. A
+// cost above the burst size can never be admitted. Costs below 1 are treated
+// as 1 so a request is never free.
+func (rl *RateLimiter) AllowN(key string, n int) bool {
+	if n < 1 {
+		n = 1
+	}
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
 
@@ -51,7 +61,7 @@ func (rl *RateLimiter) Allow(key string) bool {
 	if rl.ttl > 0 {
 		rl.cleanup(now)
 	}
-	return v.limiter.AllowN(now, 1)
+	return v.limiter.AllowN(now, n)
 }
 
 func (rl *RateLimiter) cleanup(now time.Time) {
@@ -63,9 +73,20 @@ func (rl *RateLimiter) cleanup(now time.Time) {
 }
 
 func (rl *RateLimiter) Middleware(keyFn func(*http.Request) string) func(http.Handler) http.Handler {
+	return rl.MiddlewareN(keyFn, nil)
+}
+
+// MiddlewareN is Middleware with a per-request cost. A nil costFn costs 1.
+// Use it for endpoints whose cost varies with the payload (for example batch
+// signing, where one request signs many URLs).
+func (rl *RateLimiter) MiddlewareN(keyFn func(*http.Request) string, costFn func(*http.Request) int) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if !rl.Allow(keyFn(r)) {
+			cost := 1
+			if costFn != nil {
+				cost = costFn(r)
+			}
+			if !rl.AllowN(keyFn(r), cost) {
 				w.Header().Set("Retry-After", "60")
 				Fail(w, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please try again later")
 				return

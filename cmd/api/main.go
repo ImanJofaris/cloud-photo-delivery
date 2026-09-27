@@ -275,13 +275,16 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 		return id.String(), true
 	})
 
-	// Phase 10 starting values (doc/phases/Phase 10 - Hardening and Deploy.md §2).
+	// Phase 10 starting values (doc/phases/Phase 10 - Hardening and Deploy.md
+	// §2), with signed URL generation re-sized for batched gallery reads: the
+	// limiter charges one token per URL signed, not per request, so a
+	// 120-photo page needs ~120 tokens instead of 120 requests.
 	loginLimiter := httpx.NewRateLimiter(10, 10, 10*time.Minute)
 	signupLimiter := httpx.NewRateLimiter(5, 5, 10*time.Minute)
 	adminLimiter := httpx.NewRateLimiter(30, 30, 10*time.Minute)
 	uploadInitLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
 	uploadCompleteLimiter := httpx.NewRateLimiter(300, 300, 10*time.Minute)
-	signedURLLimiter := httpx.NewRateLimiter(60, 60, 10*time.Minute)
+	signedURLLimiter := httpx.NewRateLimiter(600, 300, 10*time.Minute)
 
 	userKey := func(req *http.Request) string {
 		id, ok := auth.UserID(req.Context())
@@ -309,14 +312,17 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 			r.Post("/auth/password/reset-confirm", authHandler.ConfirmPasswordReset)
 		})
 
-		// Public gallery (no auth). Signed URL generation is IP-limited;
-		// gallery reads are served behind the CDN with no app-level limit.
+		// Public gallery (no auth). Signed URL generation is rate limited by
+		// client IP per event, charging one token per URL signed so batched
+		// requests share the same budget as single-photo requests.
 		r.Route("/public/events/{slug}", func(r chi.Router) {
 			r.Get("/", galleryHandler.GetEvent)
 			r.Post("/unlock", galleryHandler.Unlock)
 			r.Get("/photos", galleryHandler.ListPhotos)
+			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey, gallery.BatchURLCost)).
+				Post("/photos/urls", galleryHandler.BatchPhotoURLs)
 			r.Get("/photos/{photoID}", galleryHandler.GetPhoto)
-			r.With(signedURLLimiter.Middleware(httpx.ClientIP)).
+			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey, nil)).
 				Get("/photos/{photoID}/url", galleryHandler.PhotoURL)
 		})
 

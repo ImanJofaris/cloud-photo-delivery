@@ -43,7 +43,13 @@ func (s *Service) RecordView(ctx context.Context, eventID uuid.UUID, ip, userAge
 }
 
 func (s *Service) RecordDownload(ctx context.Context, eventID uuid.UUID) error {
-	err := s.repo.RecordDownload(ctx, eventID, s.today())
+	return s.RecordDownloads(ctx, eventID, 1)
+}
+
+// RecordDownloads records count downloads for one event in a single upsert;
+// batch signing of originals can sign many photos per request.
+func (s *Service) RecordDownloads(ctx context.Context, eventID uuid.UUID, count int) error {
+	err := s.repo.RecordDownload(ctx, eventID, s.today(), count)
 	if err != nil {
 		s.logError("analytics download record failed", eventID, err)
 	}

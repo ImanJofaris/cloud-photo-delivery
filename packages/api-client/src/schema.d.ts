@@ -1138,6 +1138,36 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/public/events/{slug}/photos/urls": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Get short-lived signed URLs for up to 100 photo variants
+         * @description Batched form of `/photos/{photoID}/url` so a gallery page needs one
+         *     request instead of one per visible tile. All photo IDs must belong to
+         *     the event; IDs that are unknown, not `READY`, or lack the requested
+         *     variant are omitted from `urls` instead of failing the whole request.
+         *     View variants (`thumbnail`, `medium`, `large`) are always served for a
+         *     visible event. `original` requires both `allow_download` and
+         *     `allow_original_download`, and every issued original URL records a
+         *     download counter for the event. Responses are never cached.
+         */
+        post: operations["batchPublicPhotoURLs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/public/events/{slug}/photos/{photoID}": {
         parameters: {
             query?: never;
@@ -1756,6 +1786,26 @@ export interface components {
         };
         SignedURLEnvelope: {
             data?: components["schemas"]["SignedURL"];
+            error?: null | components["schemas"]["Error"];
+        };
+        BatchPhotoURLRequest: {
+            variant: components["schemas"]["PhotoVariant"];
+            /** @description Photo IDs to sign, in any order. Duplicates are ignored. */
+            photoIds: string[];
+        };
+        BatchPhotoURL: {
+            /**
+             * @description Signed URL per requested photo ID. IDs that are unknown, not
+             *     `READY`, or lack the requested variant are omitted.
+             */
+            urls: {
+                [key: string]: string;
+            };
+            /** @description URL lifetime in seconds, uniform for the batch. */
+            expiresIn: number;
+        };
+        BatchPhotoURLEnvelope: {
+            data?: components["schemas"]["BatchPhotoURL"];
             error?: null | components["schemas"]["Error"];
         };
         BillingPlanLimits: {
@@ -4670,6 +4720,77 @@ export interface operations {
                 };
             };
             /** @description Invalid cursor or limit */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+        };
+    };
+    batchPublicPhotoURLs: {
+        parameters: {
+            query?: never;
+            header?: {
+                /**
+                 * @description Event-scoped unlock token returned by `/public/events/{slug}/unlock`.
+                 *     Required for `password` events; ignored for `public` events.
+                 */
+                "X-Gallery-Unlock"?: components["parameters"]["UnlockToken"];
+            };
+            path: {
+                /** @description URL slug of the event, unique per operator. */
+                slug: components["parameters"]["EventSlug"];
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchPhotoURLRequest"];
+            };
+        };
+        responses: {
+            /** @description Signed URLs keyed by photo ID (unavailable IDs omitted) */
+            200: {
+                headers: {
+                    /** @description Always `private, no-store` (URLs carry credentials). */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchPhotoURLEnvelope"];
+                };
+            };
+            /** @description Password event requires a valid unlock token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Original download disabled by event settings */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Event not found, private, deleted, or expired */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
+            /** @description Invalid variant, empty ID list, more than 100 IDs, or invalid photo ID */
             422: {
                 headers: {
                     [name: string]: unknown;

@@ -28,3 +28,22 @@ export function requestUrl(input: RequestInfo | URL): string {
   if (input instanceof URL) return input.toString()
   return input.url
 }
+
+export async function requestBody<T>(
+  input: RequestInfo | URL,
+  init?: RequestInit
+): Promise<T> {
+  if (typeof init?.body === "string") return JSON.parse(init.body) as T
+  if (input instanceof Request) return (await input.clone().json()) as T
+  return {} as T
+}
+
+export function batchUrlResponse(
+  variant: string,
+  photoIds: string[]
+): Response {
+  const urls = Object.fromEntries(
+    photoIds.map((photoId) => [photoId, `https://r2.test/${variant}.jpg`])
+  )
+  return jsonResponse({ data: { urls, expiresIn: 300 }, error: null })
+}

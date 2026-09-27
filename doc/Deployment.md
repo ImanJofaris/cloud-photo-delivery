@@ -106,10 +106,16 @@ Login / refresh / reset:   10 req/min/IP
 Signup:                     5 req/min/IP
 Upload init:              100 req/min/device or user
 Upload complete:          300 req/min/user
-Signed URL generation:     60 req/min/IP
+Signed URL generation:    600 URLs/min/IP/event (burst 300; one token per URL)
 Admin:                     30 req/min/user
 Public gallery:           no app limit — expected behind the CDN
 ```
+
+Signed URL generation is charged per URL signed, not per request: the same
+budget covers `GET /photos/{photoID}/url` (cost 1) and
+`POST /photos/urls` (cost = number of photo IDs, capped at 100). The bucket is
+keyed by client IP **per event**, so guests behind one NAT do not exhaust
+another event's budget.
 
 Exceeding a limit returns `429` with the standard envelope (`RATE_LIMITED`) and `Retry-After: 60`. If cross-instance accuracy is needed, replace the in-memory limiter with a shared store.
 

@@ -4,7 +4,13 @@ import * as React from "react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { PhotoViewer } from "./photo-viewer"
-import { createQueryWrapper, jsonResponse, requestUrl } from "../test-utils"
+import {
+  batchUrlResponse,
+  createQueryWrapper,
+  jsonResponse,
+  requestBody,
+  requestUrl,
+} from "../test-utils"
 import type { GalleryPhoto } from "../types"
 
 const photos: GalleryPhoto[] = [
@@ -43,8 +49,15 @@ describe("PhotoViewer", () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:18080"
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = new URL(requestUrl(input))
+        if (url.pathname.endsWith("/photos/urls")) {
+          const body = await requestBody<{
+            variant: string
+            photoIds: string[]
+          }>(input, init)
+          return batchUrlResponse(body.variant, body.photoIds)
+        }
         const variant = url.searchParams.get("variant") ?? "large"
         return jsonResponse({
           data: { url: `https://r2.test/${variant}.jpg`, expiresIn: 300 },

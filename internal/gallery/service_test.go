@@ -489,3 +489,128 @@ func TestService_PhotoURL_RecordsOnlyOriginalDownloads(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 1, recorderOf(svc).downloadCount(), "view variants are not downloads")
 }
+
+func TestService_BatchPhotoURLs_SignsReadyPhotos(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	p1 := readyPhoto(e.ID, time.Now())
+	p2 := readyPhoto(e.ID, time.Now().Add(-time.Minute))
+	repo.photos[e.ID] = append(repo.photos[e.ID], p1, p2)
+
+	batch, err := svc.BatchPhotoURLs(context.Background(), "wedding", "", "thumbnail", []string{p1.ID.String(), p2.ID.String()})
+	require.NoError(t, err)
+	require.Len(t, batch.URLs, 2)
+	require.Equal(t, 300, batch.ExpiresIn)
+	require.Contains(t, batch.URLs[p1.ID.String()].URL, *p1.ThumbnailKey)
+	require.Contains(t, batch.URLs[p2.ID.String()].URL, *p2.ThumbnailKey)
+}
+
+func TestService_BatchPhotoURLs_DropsUnavailableAndUnknown(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	ready := readyPhoto(e.ID, time.Now())
+	processing := &photos.Photo{ID: uuid.New(), EventID: e.ID, Status: photos.StatusProcessing}
+	repo.photos[e.ID] = append(repo.photos[e.ID], ready, processing)
+	foreign := uuid.New()
+
+	batch, err := svc.BatchPhotoURLs(context.Background(), "wedding", "", "large",
+		[]string{ready.ID.String(), processing.ID.String(), foreign.String()})
+	require.NoError(t, err)
+	require.Len(t, batch.URLs, 1)
+	require.Contains(t, batch.URLs, ready.ID.String())
+}
+
+func TestService_BatchPhotoURLs_DedupesIDs(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	p := readyPhoto(e.ID, time.Now())
+	repo.photos[e.ID] = append(repo.photos[e.ID], p)
+
+	batch, err := svc.BatchPhotoURLs(context.Background(), "wedding", "", "thumbnail",
+		[]string{p.ID.String(), p.ID.String()})
+	require.NoError(t, err)
+	require.Len(t, batch.URLs, 1)
+}
+
+func TestService_BatchPhotoURLs_OriginalGating(t *testing.T) {
+	cases := []struct {
+		name                  string
+		allowDownload         bool
+		allowOriginalDownload bool
+		wantCode              string
+	}{
+		{"downloads off", false, false, "DOWNLOAD_DISABLED"},
+		{"originals off", true, false, "ORIGINAL_DOWNLOAD_DISABLED"},
+		{"both on", true, true, ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo, _ := newTestService()
+			e, s := publicEvent("wedding")
+			s.AllowDownload = tc.allowDownload
+			s.AllowOriginalDownload = tc.allowOriginalDownload
+			repo.addEvent(e, s)
+			p := readyPhoto(e.ID, time.Now())
+			repo.photos[e.ID] = append(repo.photos[e.ID], p)
+
+			batch, err := svc.BatchPhotoURLs(context.Background(), "wedding", "", "original", []string{p.ID.String()})
+			if tc.wantCode != "" {
+				require.Equal(t, tc.wantCode, codeOf(t, err))
+				require.Equal(t, 0, recorderOf(svc).downloadCount())
+				return
+			}
+			require.NoError(t, err)
+			require.Len(t, batch.URLs, 1)
+			require.Equal(t, 1, recorderOf(svc).downloadCount(), "one download per signed original")
+		})
+	}
+}
+
+func TestService_BatchPhotoURLs_Validation(t *testing.T) {
+	cases := []struct {
+		name     string
+		variant  string
+		photoIDs []string
+	}{
+		{"empty ids", "thumbnail", nil},
+		{"invalid variant", "huge", []string{uuid.NewString()}},
+		{"invalid uuid", "thumbnail", []string{"not-a-uuid"}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			svc, repo, _ := newTestService()
+			e, s := publicEvent("wedding")
+			repo.addEvent(e, s)
+
+			_, err := svc.BatchPhotoURLs(context.Background(), "wedding", "", tc.variant, tc.photoIDs)
+			require.Equal(t, "VALIDATION_ERROR", codeOf(t, err))
+		})
+	}
+}
+
+func TestService_BatchPhotoURLs_TooManyIDs(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	ids := make([]string, MaxPhotoURLBatch+1)
+	for i := range ids {
+		ids[i] = uuid.NewString()
+	}
+
+	_, err := svc.BatchPhotoURLs(context.Background(), "wedding", "", "thumbnail", ids)
+	require.Equal(t, "VALIDATION_ERROR", codeOf(t, err))
+}
+
+func TestService_BatchPhotoURLs_PasswordRequiresUnlock(t *testing.T) {
+	svc, repo, _ := newTestService()
+	e, s := publicEvent("pw")
+	s.Visibility = events.VisibilityPassword
+	s.PasswordHash = "hash:right"
+	repo.addEvent(e, s)
+
+	_, err := svc.BatchPhotoURLs(context.Background(), "pw", "", "thumbnail", []string{uuid.NewString()})
+	require.Equal(t, "UNAUTHORIZED", codeOf(t, err))
+}

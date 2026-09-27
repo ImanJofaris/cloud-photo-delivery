@@ -78,6 +78,42 @@ describe("unwrapEnvelope", () => {
       expect((error as ApiError).status).toBe(500)
     }
   })
+
+  it("captures Retry-After on rate-limited responses", () => {
+    expect.assertions(3)
+
+    const response = new Response(JSON.stringify({}), {
+      status: 429,
+      headers: { "Content-Type": "application/json", "Retry-After": "60" },
+    })
+
+    try {
+      unwrapEnvelope({
+        data: {
+          data: null,
+          error: { code: "RATE_LIMITED", message: "Too many requests" },
+        },
+        response,
+      })
+    } catch (error) {
+      expect(error).toBeInstanceOf(ApiError)
+      expect((error as ApiError).status).toBe(429)
+      expect((error as ApiError).retryAfterSeconds).toBe(60)
+    }
+  })
+
+  it("leaves retryAfterSeconds null when the header is absent", () => {
+    expect.assertions(1)
+
+    try {
+      unwrapEnvelope({
+        data: { data: null, error: { code: "RATE_LIMITED", message: "x" } },
+        response: jsonResponse({}, 429),
+      })
+    } catch (error) {
+      expect((error as ApiError).retryAfterSeconds).toBeNull()
+    }
+  })
 })
 
 describe("createApiClient", () => {

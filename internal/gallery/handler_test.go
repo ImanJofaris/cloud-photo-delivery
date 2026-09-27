@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
 	"github.com/stretchr/testify/require"
@@ -149,6 +150,50 @@ func TestHandler_PhotoURL_InvalidVariant422(t *testing.T) {
 	h.PhotoURL(rec, r)
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestHandler_BatchPhotoURLs(t *testing.T) {
+	h, repo := newTestHandler()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	p := readyPhoto(e.ID, time.Now())
+	repo.photos[e.ID] = append(repo.photos[e.ID], p)
+
+	body := `{"variant":"thumbnail","photoIds":["` + p.ID.String() + `"]}`
+	r := withParams(httptest.NewRequest(http.MethodPost, "/public/events/wedding/photos/urls", strings.NewReader(body)), map[string]string{"slug": "wedding"})
+	rec := httptest.NewRecorder()
+	h.BatchPhotoURLs(rec, r)
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Equal(t, cachePrivate, rec.Header().Get("Cache-Control"))
+	data := decodeEnvelope(t, rec)["data"].(map[string]any)
+	urls := data["urls"].(map[string]any)
+	require.Contains(t, urls, p.ID.String())
+	require.Contains(t, urls[p.ID.String()], *p.ThumbnailKey)
+	require.Equal(t, float64(300), data["expiresIn"])
+}
+
+func TestHandler_BatchPhotoURLs_InvalidVariant422(t *testing.T) {
+	h, repo := newTestHandler()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+
+	body := `{"variant":"bogus","photoIds":["` + uuid.NewString() + `"]}`
+	r := withParams(httptest.NewRequest(http.MethodPost, "/public/events/wedding/photos/urls", strings.NewReader(body)), map[string]string{"slug": "wedding"})
+	rec := httptest.NewRecorder()
+	h.BatchPhotoURLs(rec, r)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestHandler_BatchPhotoURLs_InvalidJSON422(t *testing.T) {
+	h, _ := newTestHandler()
+	r := withParams(httptest.NewRequest(http.MethodPost, "/public/events/wedding/photos/urls", strings.NewReader("{bad")), map[string]string{"slug": "wedding"})
+	rec := httptest.NewRecorder()
+	h.BatchPhotoURLs(rec, r)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	require.Equal(t, "VALIDATION_ERROR", decodeEnvelope(t, rec)["error"].(map[string]any)["code"])
 }
 
 func TestHandler_GetPhoto_MetadataOnly(t *testing.T) {

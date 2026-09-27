@@ -2,7 +2,13 @@ import { render, screen, waitFor } from "@testing-library/react"
 import { afterEach, describe, expect, it, vi } from "vitest"
 
 import { GalleryHeader } from "./gallery-header"
-import { createQueryWrapper, jsonResponse, requestUrl } from "../test-utils"
+import {
+  batchUrlResponse,
+  createQueryWrapper,
+  jsonResponse,
+  requestBody,
+  requestUrl,
+} from "../test-utils"
 import type { GalleryEvent } from "../types"
 
 function event(overrides: Partial<GalleryEvent> = {}): GalleryEvent {
@@ -52,13 +58,13 @@ describe("GalleryHeader", () => {
     expect(
       screen.getByRole("link", { name: /hello@example\.com/ })
     ).toHaveAttribute("href", "mailto:hello@example.com")
-    expect(
-      screen.getByRole("link", { name: /\+60123456789/ })
-    ).toHaveAttribute("href", "tel:+60123456789")
-    expect(screen.getByRole("link", { name: /booth\.example/ })).toHaveAttribute(
+    expect(screen.getByRole("link", { name: /\+60123456789/ })).toHaveAttribute(
       "href",
-      "https://booth.example"
+      "tel:+60123456789"
     )
+    expect(
+      screen.getByRole("link", { name: /booth\.example/ })
+    ).toHaveAttribute("href", "https://booth.example")
   })
 
   it("falls back to event metadata when branding is null", () => {
@@ -99,8 +105,15 @@ describe("GalleryHeader", () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:18080"
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = new URL(requestUrl(input))
+        if (url.pathname.endsWith("/photos/urls")) {
+          const body = await requestBody<{
+            variant: string
+            photoIds: string[]
+          }>(input, init)
+          return batchUrlResponse(body.variant, body.photoIds)
+        }
         const variant = url.searchParams.get("variant") ?? "thumbnail"
         return jsonResponse({
           data: { url: `https://r2.test/${variant}.jpg`, expiresIn: 300 },

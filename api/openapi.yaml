@@ -2173,6 +2173,68 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
 
+  /public/events/{slug}/photos/urls:
+    parameters:
+      - $ref: "#/components/parameters/EventSlug"
+    post:
+      tags: [Public Gallery]
+      operationId: batchPublicPhotoURLs
+      summary: Get short-lived signed URLs for up to 100 photo variants
+      description: |
+        Batched form of `/photos/{photoID}/url` so a gallery page needs one
+        request instead of one per visible tile. All photo IDs must belong to
+        the event; IDs that are unknown, not `READY`, or lack the requested
+        variant are omitted from `urls` instead of failing the whole request.
+        View variants (`thumbnail`, `medium`, `large`) are always served for a
+        visible event. `original` requires both `allow_download` and
+        `allow_original_download`, and every issued original URL records a
+        download counter for the event. Responses are never cached.
+      security: []
+      parameters:
+        - $ref: "#/components/parameters/UnlockToken"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/BatchPhotoURLRequest"
+      responses:
+        "200":
+          description: Signed URLs keyed by photo ID (unavailable IDs omitted)
+          headers:
+            Cache-Control:
+              description: Always `private, no-store` (URLs carry credentials).
+              schema:
+                type: string
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BatchPhotoURLEnvelope"
+        "401":
+          description: Password event requires a valid unlock token
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "403":
+          description: Original download disabled by event settings
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "404":
+          description: Event not found, private, deleted, or expired
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+        "422":
+          description: Invalid variant, empty ID list, more than 100 IDs, or invalid photo ID
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
+
   /public/events/{slug}/photos/{photoID}:
     parameters:
       - $ref: "#/components/parameters/EventSlug"
@@ -3414,6 +3476,43 @@ components:
       properties:
         data:
           $ref: "#/components/schemas/SignedURL"
+        error:
+          oneOf:
+            - type: "null"
+            - $ref: "#/components/schemas/Error"
+    BatchPhotoURLRequest:
+      type: object
+      required: [variant, photoIds]
+      properties:
+        variant:
+          $ref: "#/components/schemas/PhotoVariant"
+        photoIds:
+          type: array
+          minItems: 1
+          maxItems: 100
+          description: Photo IDs to sign, in any order. Duplicates are ignored.
+          items:
+            type: string
+            format: uuid
+    BatchPhotoURL:
+      type: object
+      required: [urls, expiresIn]
+      properties:
+        urls:
+          type: object
+          description: |
+            Signed URL per requested photo ID. IDs that are unknown, not
+            `READY`, or lack the requested variant are omitted.
+          additionalProperties:
+            type: string
+        expiresIn:
+          type: integer
+          description: URL lifetime in seconds, uniform for the batch.
+    BatchPhotoURLEnvelope:
+      type: object
+      properties:
+        data:
+          $ref: "#/components/schemas/BatchPhotoURL"
         error:
           oneOf:
             - type: "null"

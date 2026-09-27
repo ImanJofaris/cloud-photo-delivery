@@ -6,8 +6,8 @@
 //
 // The gallery is designed to sit behind Cloudflare, so run this against the
 // CDN hostname for the real 1,000-viewer target. Signed URL generation is
-// limited to 60/min/IP by the API; use a proxy/CDN or raise the limit for the
-// URL step when driving it from a single host.
+// limited per client IP and event (600 URLs/min, burst 300); the limiter
+// charges one token per URL, so this script batches like the web client does.
 import http from 'k6/http';
 import { check, fail, sleep } from 'k6';
 
@@ -52,7 +52,7 @@ export default function (data) {
   });
   check(list, { 'list 200': (r) => r.status === 200 });
 
-  const photos = list.json('data.items') || [];
+  const photos = list.json('data.photos.items') || [];
   if (photos.length === 0) {
     sleep(1);
     return;
@@ -60,14 +60,15 @@ export default function (data) {
 
   if (Math.random() < 0.2) {
     const photo = photos[Math.floor(Math.random() * photos.length)];
-    const urlRes = http.get(
-      `${BASE}/api/v1/public/events/${data.slug}/photos/${photo.id}/url`,
-      { tags: { step: 'url' } }
+    const urlRes = http.post(
+      `${BASE}/api/v1/public/events/${data.slug}/photos/urls`,
+      JSON.stringify({ variant: 'thumbnail', photoIds: [photo.id] }),
+      { headers: { 'Content-Type': 'application/json' }, tags: { step: 'url' } }
     );
     check(urlRes, { 'url 200': (r) => r.status === 200 });
 
     if (FETCH_IMAGES) {
-      const signedUrl = urlRes.json('data.url');
+      const signedUrl = urlRes.json(`data.urls.${photo.id}`);
       if (signedUrl) {
         const image = http.get(signedUrl, { tags: { step: 'image' } });
         check(image, { 'image 2xx': (r) => r.status >= 200 && r.status < 300 });

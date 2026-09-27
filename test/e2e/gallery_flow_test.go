@@ -206,6 +206,7 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 			r.Get("/", galleryHandler.GetEvent)
 			r.Post("/unlock", galleryHandler.Unlock)
 			r.Get("/photos", galleryHandler.ListPhotos)
+			r.Post("/photos/urls", galleryHandler.BatchPhotoURLs)
 			r.Get("/photos/{photoID}", galleryHandler.GetPhoto)
 			r.Get("/photos/{photoID}/url", galleryHandler.PhotoURL)
 		})
@@ -292,6 +293,34 @@ func TestE2E_PublicGalleryFlow(t *testing.T) {
 	got, _ := io.ReadAll(resp.Body)
 	require.Equal(t, "derivative", string(got))
 
+	// Guest signs many photos at once; unknown IDs are omitted, not fatal.
+	batchBody := `{"variant":"large","photoIds":["` + photoID.String() + `","` + uuid.NewString() + `","` + photoID.String() + `"]}`
+	rec = doReq(t, h, http.MethodPost, "/api/v1/public/events/"+slug+"/photos/urls", batchBody, "")
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Equal(t, "private, no-store", rec.Header().Get("Cache-Control"))
+
+	var batchEnv struct {
+		Data struct {
+			URLs      map[string]string `json:"urls"`
+			ExpiresIn int               `json:"expiresIn"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &batchEnv))
+	require.Len(t, batchEnv.Data.URLs, 1, "duplicates collapse and unknown IDs are omitted")
+	require.Equal(t, 300, batchEnv.Data.ExpiresIn)
+	require.NotEmpty(t, batchEnv.Data.URLs[photoID.String()])
+
+	batchResp, err := http.Get(batchEnv.Data.URLs[photoID.String()])
+	require.NoError(t, err)
+	defer batchResp.Body.Close()
+	require.Equal(t, http.StatusOK, batchResp.StatusCode)
+
+	// Batch original signing obeys the same download gates.
+	rec = doReq(t, h, http.MethodPost, "/api/v1/public/events/"+slug+"/photos/urls",
+		`{"variant":"original","photoIds":["`+photoID.String()+`"]}`, "")
+	require.Equal(t, http.StatusForbidden, rec.Code)
+	require.Contains(t, rec.Body.String(), "ORIGINAL_DOWNLOAD_DISABLED")
+
 	// Original download disabled by default.
 	rec = doReq(t, h, http.MethodGet, "/api/v1/public/events/"+slug+"/photos/"+photoID.String()+"/url?variant=original", "", "")
 	require.Equal(t, http.StatusForbidden, rec.Code)
@@ -327,10 +356,13 @@ func TestE2E_PasswordGalleryFlow(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 
 	slug := eventSlug(t, pool, eventID)
-	seedReadyPhoto(t, pool, store, slug)
+	photoID, _ := seedReadyPhoto(t, pool, store, slug)
 
 	// Without unlock -> 401.
 	rec = doReq(t, h, http.MethodGet, "/api/v1/public/events/"+slug+"/photos", "", "")
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+	rec = doReq(t, h, http.MethodPost, "/api/v1/public/events/"+slug+"/photos/urls",
+		`{"variant":"large","photoIds":["`+photoID.String()+`"]}`, "")
 	require.Equal(t, http.StatusUnauthorized, rec.Code)
 
 	// Wrong password -> 401.
@@ -353,6 +385,11 @@ func TestE2E_PasswordGalleryFlow(t *testing.T) {
 		"", map[string]string{"X-Gallery-Unlock": unlockEnv.Data.Token})
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	require.Equal(t, "private, no-store", rec.Header().Get("Cache-Control"))
+
+	rec = doReqHeaders(t, h, http.MethodPost, "/api/v1/public/events/"+slug+"/photos/urls",
+		`{"variant":"large","photoIds":["`+photoID.String()+`"]}`,
+		"", map[string]string{"X-Gallery-Unlock": unlockEnv.Data.Token})
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 }
 
 func eventSlug(t *testing.T, pool *pgxpool.Pool, eventID string) string {

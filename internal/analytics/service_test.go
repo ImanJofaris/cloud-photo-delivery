@@ -44,7 +44,15 @@ func TestService_RecordDownload(t *testing.T) {
 	svc, repo, _ := testService()
 	require.NoError(t, svc.RecordDownload(context.Background(), uuid.New()))
 	require.Len(t, repo.downloads, 1)
-	require.Equal(t, time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC), repo.downloads[0])
+	require.Equal(t, 1, repo.downloads[0].count)
+	require.Equal(t, time.Date(2026, 9, 13, 0, 0, 0, 0, time.UTC), repo.downloads[0].day)
+}
+
+func TestService_RecordDownloads(t *testing.T) {
+	svc, repo, _ := testService()
+	require.NoError(t, svc.RecordDownloads(context.Background(), uuid.New(), 12))
+	require.Len(t, repo.downloads, 1)
+	require.Equal(t, 12, repo.downloads[0].count)
 }
 
 func TestService_RecordView_ErrorIsReturned(t *testing.T) {

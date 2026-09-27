@@ -238,6 +238,35 @@ func TestRepository_ReadyPhoto_ScopesEventAndStatus(t *testing.T) {
 	require.ErrorIs(t, err, gallery.ErrNotFound)
 }
 
+func TestRepository_ReadyPhotos_ScopesEventAndStatus(t *testing.T) {
+	pool, userID := setupDB(t)
+	repo := gallery.NewRepository(pool)
+	ctx := context.Background()
+
+	eventA := seedEvent(t, pool, userID, "event-a", "public", nil)
+	eventB := seedEvent(t, pool, userID, "event-b", "public", nil)
+	readyA1 := insertPhoto(t, pool, eventA, "READY", time.Now())
+	readyA2 := insertPhoto(t, pool, eventA, "READY", time.Now())
+	processing := insertPhoto(t, pool, eventA, "PROCESSING", time.Now())
+
+	got, err := repo.ReadyPhotos(ctx, eventA, []uuid.UUID{readyA1, readyA2, processing, uuid.New()})
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	require.Contains(t, got, readyA1)
+	require.Contains(t, got, readyA2)
+	require.NotContains(t, got, processing)
+
+	// A READY photo from another event stays invisible.
+	foreign := insertPhoto(t, pool, eventB, "READY", time.Now())
+	got, err = repo.ReadyPhotos(ctx, eventA, []uuid.UUID{foreign})
+	require.NoError(t, err)
+	require.Empty(t, got)
+
+	got, err = repo.ReadyPhotos(ctx, eventA, nil)
+	require.NoError(t, err)
+	require.Empty(t, got)
+}
+
 func TestRepository_GetSettingsByEventID(t *testing.T) {
 	pool, userID := setupDB(t)
 	repo := gallery.NewRepository(pool)

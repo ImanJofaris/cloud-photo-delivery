@@ -83,8 +83,10 @@ Browser                     Next route handlers              Go API
 
 - The API returns **no image URLs** in metadata; each variant URL is fetched per photo and expires in `SIGNED_URL_TTL` (default 5 min).
 - Fetch signed URLs only for photos that are visible or about to be visible (`IntersectionObserver`), never for a whole page at once.
+- Requests are **batched**: `createBatchedUrlFetcher` groups per-photo lookups into `POST /public/events/{slug}/photos/urls` (one token per URL against the rate limit), and `createSignedUrlCache` keeps the in-memory per-photo cache. Do not add a second per-photo signing path.
 - Do **not** use `next/image` optimization for signed R2 URLs. The URL changes on every fetch, so the optimizer caches nothing and adds latency. Use plain `<img loading="lazy" decoding="async">` with explicit dimensions.
 - Never log, persist, or embed signed URLs in HTML that outlives their TTL. Cache them only in memory with an expiry shorter than the TTL.
+- Retry `429` responses with the server's `Retry-After` (`ApiError.retryAfterSeconds`); never leave a failed tile as a permanent placeholder without a retry path.
 
 ---
 

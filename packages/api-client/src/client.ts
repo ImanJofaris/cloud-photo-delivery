@@ -10,13 +10,35 @@ export type ApiErrorBody = {
 export class ApiError extends Error {
   readonly code: string
   readonly status: number
+  readonly retryAfterSeconds: number | null
 
-  constructor(code: string, message: string, status: number) {
+  constructor(
+    code: string,
+    message: string,
+    status: number,
+    retryAfterSeconds: number | null = null
+  ) {
     super(message)
     this.name = "ApiError"
     this.code = code
     this.status = status
+    this.retryAfterSeconds = retryAfterSeconds
   }
+}
+
+function parseRetryAfter(response: Response): number | null {
+  const raw = response.headers.get("Retry-After")
+  if (!raw) return null
+  const seconds = Number.parseInt(raw, 10)
+  return Number.isFinite(seconds) && seconds >= 0 ? seconds : null
+}
+
+function toApiError(
+  code: string,
+  message: string,
+  response: Response
+): ApiError {
+  return new ApiError(code, message, response.status, parseRetryAfter(response))
 }
 
 export type TokenProvider = () => string | null | undefined
@@ -65,11 +87,11 @@ export function unwrapEnvelope<T>(result: ClientResult): T {
         ? (raw as RawEnvelope).error
         : raw
     const { code, message } = normalizeError(errorBody)
-    throw new ApiError(code, message, response.status)
+    throw toApiError(code, message, response)
   }
 
   if (body?.error) {
-    throw new ApiError(body.error.code, body.error.message, response.status)
+    throw toApiError(body.error.code, body.error.message, response)
   }
 
   if (!response.ok) {

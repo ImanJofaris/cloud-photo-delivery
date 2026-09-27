@@ -14,9 +14,14 @@ type recordedView struct {
 	qrScan  bool
 }
 
+type recordedDownload struct {
+	day   time.Time
+	count int
+}
+
 type fakeRepo struct {
 	views     []recordedView
-	downloads []time.Time
+	downloads []recordedDownload
 
 	summary      EventReport
 	daily        []DayCounters
@@ -42,11 +47,11 @@ func (f *fakeRepo) RecordView(_ context.Context, eventID uuid.UUID, day time.Tim
 	return nil
 }
 
-func (f *fakeRepo) RecordDownload(_ context.Context, _ uuid.UUID, day time.Time) error {
+func (f *fakeRepo) RecordDownload(_ context.Context, _ uuid.UUID, day time.Time, count int) error {
 	if f.recordErr != nil {
 		return f.recordErr
 	}
-	f.downloads = append(f.downloads, day)
+	f.downloads = append(f.downloads, recordedDownload{day: day, count: count})
 	return nil
 }
 

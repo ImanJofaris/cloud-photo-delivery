@@ -5,7 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { GalleryEmpty } from "./gallery-empty"
 import { PhotoGrid } from "./photo-grid"
-import { createQueryWrapper, jsonResponse, requestUrl } from "../test-utils"
+import {
+  batchUrlResponse,
+  createQueryWrapper,
+  jsonResponse,
+  requestBody,
+  requestUrl,
+} from "../test-utils"
 import type { GalleryPhoto } from "../types"
 
 function photo(overrides: Partial<GalleryPhoto> = {}): GalleryPhoto {
@@ -45,8 +51,15 @@ describe("PhotoGrid", () => {
     process.env.NEXT_PUBLIC_API_BASE_URL = "http://localhost:18080"
     vi.stubGlobal(
       "fetch",
-      vi.fn(async (input: RequestInfo | URL) => {
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
         const url = new URL(requestUrl(input))
+        if (url.pathname.endsWith("/photos/urls")) {
+          const body = await requestBody<{
+            variant: string
+            photoIds: string[]
+          }>(input, init)
+          return batchUrlResponse(body.variant, body.photoIds)
+        }
         const variant = url.searchParams.get("variant") ?? "thumbnail"
         return jsonResponse({
           data: { url: `https://r2.test/${variant}.jpg`, expiresIn: 300 },
@@ -62,10 +75,7 @@ describe("PhotoGrid", () => {
 
   it("renders tiles with aspect ratios from the photo dimensions", async () => {
     renderGrid({
-      photos: [
-        photo(),
-        photo({ id: "p2", width: 400, height: 500 }),
-      ],
+      photos: [photo(), photo({ id: "p2", width: 400, height: 500 })],
     })
 
     const first = screen.getByRole("button", {

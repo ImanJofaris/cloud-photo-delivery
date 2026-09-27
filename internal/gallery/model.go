@@ -21,6 +21,17 @@ type PhotoPage struct {
 	NextCursor string
 }
 
+// MaxPhotoURLBatch bounds one batch signing request. It matches the API max
+// page size so a full gallery page can be signed in one call.
+const MaxPhotoURLBatch = 100
+
+// PhotoURLBatch is the result of signing one variant for many photos. IDs that
+// are unknown, not READY, or lack the variant are absent from URLs.
+type PhotoURLBatch struct {
+	URLs      map[string]*photos.URLResult
+	ExpiresIn int
+}
+
 type Variant string
 
 const (
@@ -74,6 +85,7 @@ type Visitor struct {
 type AnalyticsRecorder interface {
 	RecordView(ctx context.Context, eventID uuid.UUID, ip, userAgent string, qrScan bool) error
 	RecordDownload(ctx context.Context, eventID uuid.UUID) error
+	RecordDownloads(ctx context.Context, eventID uuid.UUID, count int) error
 }
 
 // Repository is the read-only gallery data access layer.
@@ -82,6 +94,7 @@ type Repository interface {
 	GetSettingsByEventID(ctx context.Context, eventID uuid.UUID) (*events.Settings, error)
 	ListReadyPhotos(ctx context.Context, eventID uuid.UUID, cursor *Cursor, limit int) ([]*photos.Photo, error)
 	ReadyPhoto(ctx context.Context, eventID, photoID uuid.UUID) (*photos.Photo, error)
+	ReadyPhotos(ctx context.Context, eventID uuid.UUID, photoIDs []uuid.UUID) (map[uuid.UUID]*photos.Photo, error)
 }
 
 // BrandingProvider resolves an operator's branding for the gallery DTO. A

@@ -52,6 +52,11 @@ type unlockRequest struct {
 	Password string `json:"password"`
 }
 
+type batchPhotoURLRequest struct {
+	Variant  string   `json:"variant"`
+	PhotoIDs []string `json:"photoIds"`
+}
+
 func toPublicEventDTO(e *events.Event, s *events.Settings, requiresUnlock bool, branding *users.BrandingView) publicEventDTO {
 	dto := publicEventDTO{
 		Name:                  e.Name,
@@ -237,5 +242,27 @@ func (h *Handler) PhotoURL(w http.ResponseWriter, r *http.Request) {
 	httpx.Success(w, http.StatusOK, map[string]any{
 		"url":       result.URL,
 		"expiresIn": result.ExpiresIn,
+	})
+}
+
+func (h *Handler) BatchPhotoURLs(w http.ResponseWriter, r *http.Request) {
+	var req batchPhotoURLRequest
+	if err := decodeBody(r, &req); err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	batch, err := h.svc.BatchPhotoURLs(r.Context(), slugParam(r), unlockHeader(r), req.Variant, req.PhotoIDs)
+	if err != nil {
+		httpx.Error(w, r, err)
+		return
+	}
+	urls := make(map[string]string, len(batch.URLs))
+	for id, result := range batch.URLs {
+		urls[id] = result.URL
+	}
+	w.Header().Set("Cache-Control", cachePrivate)
+	httpx.Success(w, http.StatusOK, map[string]any{
+		"urls":      urls,
+		"expiresIn": batch.ExpiresIn,
 	})
 }

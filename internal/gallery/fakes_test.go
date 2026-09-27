@@ -110,6 +110,30 @@ func (f *fakeRepo) ReadyPhoto(_ context.Context, eventID, photoID uuid.UUID) (*p
 	return nil, ErrNotFound
 }
 
+func (f *fakeRepo) ReadyPhotos(_ context.Context, eventID uuid.UUID, photoIDs []uuid.UUID) (map[uuid.UUID]*photos.Photo, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.err != nil {
+		return nil, f.err
+	}
+	want := make(map[uuid.UUID]struct{}, len(photoIDs))
+	for _, id := range photoIDs {
+		want[id] = struct{}{}
+	}
+	out := map[uuid.UUID]*photos.Photo{}
+	for _, p := range f.photos[eventID] {
+		if p.Status != photos.StatusReady {
+			continue
+		}
+		if _, ok := want[p.ID]; !ok {
+			continue
+		}
+		cp := *p
+		out[p.ID] = &cp
+	}
+	return out, nil
+}
+
 type fakePresigner struct {
 	url string
 	err error
@@ -194,6 +218,15 @@ func (f *fakeRecorder) RecordDownload(_ context.Context, eventID uuid.UUID) erro
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.downloads = append(f.downloads, eventID)
+	return f.err
+}
+
+func (f *fakeRecorder) RecordDownloads(_ context.Context, eventID uuid.UUID, count int) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	for i := 0; i < count; i++ {
+		f.downloads = append(f.downloads, eventID)
+	}
 	return f.err
 }
 

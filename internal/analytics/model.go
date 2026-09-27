@@ -40,7 +40,7 @@ type AccountReport struct {
 // gallery hits never race on a missing row.
 type Repository interface {
 	RecordView(ctx context.Context, eventID uuid.UUID, day time.Time, visitorHash string, qrScan bool) error
-	RecordDownload(ctx context.Context, eventID uuid.UUID, day time.Time) error
+	RecordDownload(ctx context.Context, eventID uuid.UUID, day time.Time, count int) error
 	EventSummary(ctx context.Context, eventID uuid.UUID) (EventReport, error)
 	EventDaily(ctx context.Context, eventID uuid.UUID, since time.Time) ([]DayCounters, error)
 	AccountSummary(ctx context.Context, userID uuid.UUID) (AccountReport, error)

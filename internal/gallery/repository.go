@@ -136,6 +136,36 @@ func (r *PostgresRepository) ReadyPhoto(ctx context.Context, eventID, photoID uu
 	return scanPhoto(row)
 }
 
+// ReadyPhotos returns the subset of photoIDs that are READY and belong to the
+// event, keyed by ID. Unknown, foreign, and non-READY IDs are simply absent.
+func (r *PostgresRepository) ReadyPhotos(ctx context.Context, eventID uuid.UUID, photoIDs []uuid.UUID) (map[uuid.UUID]*photos.Photo, error) {
+	if len(photoIDs) == 0 {
+		return map[uuid.UUID]*photos.Photo{}, nil
+	}
+	ids := make([]string, 0, len(photoIDs))
+	for _, id := range photoIDs {
+		ids = append(ids, id.String())
+	}
+	rows, err := r.pool.Query(ctx,
+		`SELECT `+photoColumns+` FROM photos
+		 WHERE event_id = $1 AND status = $2 AND id = ANY($3::uuid[])`,
+		eventID, photos.StatusReady, ids)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	out := make(map[uuid.UUID]*photos.Photo, len(photoIDs))
+	for rows.Next() {
+		p, err := scanPhoto(rows)
+		if err != nil {
+			return nil, err
+		}
+		out[p.ID] = p
+	}
+	return out, rows.Err()
+}
+
 func itoa(n int) string {
 	if n == 0 {
 		return "0"

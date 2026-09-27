@@ -39,6 +39,56 @@ func TestRateLimiter_SeparateKeys(t *testing.T) {
 	}
 }
 
+func TestRateLimiter_AllowNChargesCost(t *testing.T) {
+	rl := NewRateLimiter(60, 10, time.Minute)
+	if !rl.AllowN("key", 7) {
+		t.Fatal("cost 7 within burst 10 should be allowed")
+	}
+	if !rl.AllowN("key", 3) {
+		t.Fatal("cost 3 exactly draining the burst should be allowed")
+	}
+	if rl.AllowN("key", 1) {
+		t.Fatal("bucket should be exhausted")
+	}
+}
+
+func TestRateLimiter_CostAboveBurstAlwaysDenied(t *testing.T) {
+	rl := NewRateLimiter(60, 5, time.Minute)
+	if rl.AllowN("key", 6) {
+		t.Fatal("a cost above the burst can never be admitted")
+	}
+}
+
+func TestRateLimiter_AllowNTreatsZeroAsOne(t *testing.T) {
+	rl := NewRateLimiter(60, 1, time.Minute)
+	if !rl.AllowN("key", 0) {
+		t.Fatal("first request should be allowed")
+	}
+	if rl.AllowN("key", 0) {
+		t.Fatal("zero cost must still charge one token")
+	}
+}
+
+func TestRateLimiter_MiddlewareNChargesPayloadCost(t *testing.T) {
+	rl := NewRateLimiter(60, 3, time.Minute)
+	h := rl.MiddlewareN(
+		func(r *http.Request) string { return "ip" },
+		func(r *http.Request) int { return 2 },
+	)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/photos/urls", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("first request got %d", rec.Code)
+	}
+
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/photos/urls", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("second request got %d, want 429 (2+2 > burst 3)", rec.Code)
+	}
+}
+
 func TestRateLimiter_Middleware(t *testing.T) {
 	rl := NewRateLimiter(60, 1, time.Minute)
 	h := rl.Middleware(func(r *http.Request) string { return "ip" })(

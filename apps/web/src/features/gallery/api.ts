@@ -16,18 +16,37 @@ import {
 
 import { apiVersionedBaseUrl } from "@/lib/env"
 
+import { createBatchedUrlFetcher } from "./batch-url-fetcher"
 import { galleryKeys } from "./keys"
 import { clearUnlockToken, readUnlockToken, storeUnlockToken } from "./unlock"
 import { createSignedUrlCache, type UrlVariant } from "./url-cache"
 
 type PublicPhotoList = components["schemas"]["PublicPhotoList"]
 type SignedURL = components["schemas"]["SignedURL"]
+type BatchPhotoURL = components["schemas"]["BatchPhotoURL"]
 type UnlockResult = components["schemas"]["UnlockResult"]
 
 type Client = ReturnType<typeof createApiClient>
 type ClientResult = { data?: unknown; error?: unknown; response: Response }
 
 export const PHOTO_PAGE_SIZE = 50
+
+const URL_RETRY_LIMIT = 4
+const URL_RETRY_MAX_DELAY_MS = 60_000
+
+function retryUrls(failureCount: number, error: unknown) {
+  if (error instanceof ApiError && error.status === 429) {
+    return failureCount < URL_RETRY_LIMIT
+  }
+  return failureCount < 1
+}
+
+function retryUrlsDelay(failureCount: number, error: unknown) {
+  if (error instanceof ApiError && error.retryAfterSeconds !== null) {
+    return Math.min(error.retryAfterSeconds * 1000, URL_RETRY_MAX_DELAY_MS)
+  }
+  return Math.min(500 * 2 ** failureCount, 8_000)
+}
 
 const clients = new Map<string, Client>()
 
@@ -69,15 +88,20 @@ const urlCaches = new Map<string, ReturnType<typeof createSignedUrlCache>>()
 function urlCache(slug: string) {
   let cache = urlCaches.get(slug)
   if (!cache) {
-    cache = createSignedUrlCache((photoId, variant) =>
-      publicCall<SignedURL>(slug, (client) =>
-        client.GET("/public/events/{slug}/photos/{photoID}/url", {
-          params: {
-            path: { slug, photoID: photoId },
-            query: { variant },
-          },
-        })
-      )
+    cache = createSignedUrlCache(
+      createBatchedUrlFetcher(async (variant, photoIds) => {
+        const batch = await publicCall<BatchPhotoURL>(slug, (client) =>
+          client.POST("/public/events/{slug}/photos/urls", {
+            params: { path: { slug } },
+            body: { variant, photoIds },
+          })
+        )
+        const urls: Record<string, SignedURL> = {}
+        for (const [photoId, url] of Object.entries(batch.urls ?? {})) {
+          urls[photoId] = { url, expiresIn: batch.expiresIn }
+        }
+        return urls
+      })
     )
     urlCaches.set(slug, cache)
   }
@@ -149,7 +173,8 @@ export function usePhotoUrl(
     enabled,
     staleTime: 4 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
-    retry: 1,
+    retry: retryUrls,
+    retryDelay: retryUrlsDelay,
   })
 }
 
@@ -182,6 +207,7 @@ export function usePhotoUrlWithFallback(
     enabled,
     staleTime: 4 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
-    retry: 1,
+    retry: retryUrls,
+    retryDelay: retryUrlsDelay,
   })
 }
