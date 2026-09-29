@@ -178,6 +178,12 @@ func TestRepository_EventBySlug_ExcludesDeletedAndExpired(t *testing.T) {
 	require.NoError(t, err)
 	_, _, err = repo.EventBySlug(ctx, "expired")
 	require.ErrorIs(t, err, gallery.ErrNotFound)
+
+	seedEvent(t, pool, userID, "expired-status", "public", nil)
+	_, err = pool.Exec(ctx, `UPDATE events SET status = 'expired', expires_at = NOW() + INTERVAL '1 day' WHERE slug = 'expired-status'`)
+	require.NoError(t, err)
+	_, _, err = repo.EventBySlug(ctx, "expired-status")
+	require.ErrorIs(t, err, gallery.ErrNotFound)
 }
 
 func TestRepository_ListReadyPhotos_KeysetStable(t *testing.T) {

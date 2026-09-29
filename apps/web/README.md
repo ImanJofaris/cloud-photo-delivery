@@ -19,7 +19,7 @@ pnpm typecheck            # tsc
 pnpm test                 # vitest
 pnpm build                # production build
 pnpm gen:api              # regenerate packages/api-client from api/openapi.yaml
-pnpm test:e2e             # Playwright; expects the API on :18081
+pnpm test:e2e             # Playwright; API on :18081 with TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128
 ```
 
 Run these from the repo root or with `pnpm --filter web <script>`.

@@ -441,7 +441,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
         "402":
-          description: Active event limit reached
+          description: Live event limit reached (upcoming, active, and completed count)
           content:
             application/json:
               schema:
@@ -559,6 +559,12 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Envelope"
+        "409":
+          description: The event is expired or archived, so its expiry cannot change
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Envelope"
         "422":
           description: Validation error
           content:
@@ -620,8 +626,10 @@ paths:
       description: |
         Applies the status lifecycle: `upcoming → active|archived`,
         `active → completed|archived`, `completed → archived`, `archived`
-        (terminal), `expired → active`. Activating enforces the plan's
-        active-event limit.
+        (terminal), `expired → active`. Clients cannot set `expired`; the
+        expiry job owns that state and a request for it returns `409`.
+        Reactivating an expired event enforces the plan's live-event limit;
+        live events already occupy their slot.
       security:
         - bearerAuth: []
       requestBody:
@@ -644,7 +652,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
         "402":
-          description: Active event limit reached
+          description: Live event limit reached (upcoming, active, and completed count)
           content:
             application/json:
               schema:
@@ -656,7 +664,7 @@ paths:
               schema:
                 $ref: "#/components/schemas/Envelope"
         "409":
-          description: Invalid status transition
+          description: Invalid status transition (including a client request for `expired`)
           content:
             application/json:
               schema:
@@ -2746,7 +2754,10 @@ components:
           description: |
             Empty string resets the expiry to the plan's retention window
             (clears it on unlimited plans). Values later than the retention
-            window are rejected with `PLAN_LIMIT_REACHED`.
+            window are rejected with `PLAN_LIMIT_REACHED`. Expired and
+            archived events reject expiry changes with
+            `INVALID_STATUS_TRANSITION`; extend an expired event to
+            reactivate it.
     UpdateEventStatusRequest:
       type: object
       required: [status]

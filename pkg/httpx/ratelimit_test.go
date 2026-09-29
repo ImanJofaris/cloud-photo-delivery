@@ -108,19 +108,6 @@ func TestRateLimiter_Middleware(t *testing.T) {
 	}
 }
 
-func TestClientIP(t *testing.T) {
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	req.RemoteAddr = "9.9.9.9:1234"
-	if got := ClientIP(req); got != "9.9.9.9" {
-		t.Fatalf("got %q", got)
-	}
-
-	req.Header.Set("X-Forwarded-For", "1.1.1.1, 2.2.2.2")
-	if got := ClientIP(req); got != "1.1.1.1" {
-		t.Fatalf("got %q", got)
-	}
-}
-
 func TestRateLimiter_RefillsOverTime(t *testing.T) {
 	rl := NewRateLimiter(60, 1, time.Minute)
 	base := time.Now()

@@ -216,7 +216,7 @@ describe("UploadQueue", () => {
       })
     const deps = makeDeps({
       initialize: vi.fn(async () => multipartInit()),
-      put: hangingPut,
+      put: vi.fn(hangingPut),
     })
     const queue = new UploadQueue("event-1", deps)
     queue.addFiles([makeFile("big.jpg", "image/jpeg", 25 * 1024 * 1024)])
@@ -225,11 +225,64 @@ describe("UploadQueue", () => {
       expect(queue.getItems()[0]?.status).toBe("uploading")
     })
     await queue.cancel(queue.getItems()[0].key)
+    await new Promise((resolve) => setTimeout(resolve, 10))
 
     expect(deps.abortMultipart).toHaveBeenCalledWith("photo-1")
     expect(deps.deletePhoto).toHaveBeenCalledWith("photo-1")
+    expect(deps.initialize).toHaveBeenCalledTimes(1)
+    expect(deps.put).toHaveBeenCalledTimes(3)
     expect(queue.getItems()).toHaveLength(0)
     expect(deps.registry?.list("event-1")).toHaveLength(0)
+  })
+
+  it("stops uploads on abortAll without restarting them", async () => {
+    const hangingPut: PutTransport = ({ signal }) =>
+      new Promise((_resolve, reject) => {
+        signal?.addEventListener("abort", () =>
+          reject(new DOMException("Aborted", "AbortError"))
+        )
+      })
+    const deps = makeDeps({ put: vi.fn(hangingPut) })
+    const queue = new UploadQueue("event-1", deps)
+    queue.addFiles([makeFile("a.jpg", "image/jpeg", 1024)])
+
+    await vi.waitFor(() => {
+      expect(queue.getItems()[0]?.status).toBe("uploading")
+    })
+    queue.abortAll()
+    expect(queue.getItems()[0]?.status).toBe("queued")
+
+    await new Promise((resolve) => setTimeout(resolve, 10))
+    expect(deps.put).toHaveBeenCalledTimes(1)
+    expect(deps.initialize).toHaveBeenCalledTimes(1)
+    expect(queue.getItems()[0]?.status).toBe("queued")
+  })
+
+  it("does not restart a cancelled upload after retry backoff", async () => {
+    let resolveSleep = () => {}
+    const put: PutTransport = async () => {
+      throw new UploadTransportError(500)
+    }
+    const sleep = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          resolveSleep = resolve
+        })
+    )
+    const deps = makeDeps({ put: vi.fn(put), sleep })
+    const queue = new UploadQueue("event-1", deps)
+    queue.addFiles([makeFile("a.jpg", "image/jpeg", 1024)])
+
+    await vi.waitFor(() => {
+      expect(sleep).toHaveBeenCalledOnce()
+    })
+    const cancelPromise = queue.cancel(queue.getItems()[0].key)
+    resolveSleep()
+    await cancelPromise
+    await new Promise((resolve) => setTimeout(resolve, 10))
+
+    expect(deps.put).toHaveBeenCalledTimes(1)
+    expect(queue.getItems()).toHaveLength(0)
   })
 
   it("marks an interrupted registry entry for discard after reload", async () => {

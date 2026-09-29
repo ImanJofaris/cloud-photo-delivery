@@ -329,3 +329,24 @@ func TestLoad_InvalidBodyAndTimeout(t *testing.T) {
 		t.Fatal("expected error for non-positive body limit and timeout")
 	}
 }
+
+func TestLoad_TrustedProxyCIDRs(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("TRUSTED_PROXY_CIDRS", "127.0.0.1/32, ::1")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(cfg.TrustedProxyCIDRs) != 2 || cfg.TrustedProxyCIDRs[0] != "127.0.0.1/32" || cfg.TrustedProxyCIDRs[1] != "::1" {
+		t.Fatalf("unexpected trusted proxies: %+v", cfg.TrustedProxyCIDRs)
+	}
+}
+
+func TestLoad_InvalidTrustedProxy(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("TRUSTED_PROXY_CIDRS", "not-an-ip")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for invalid TRUSTED_PROXY_CIDRS entry")
+	}
+}

@@ -49,7 +49,7 @@ func RequestTimeout(d time.Duration) func(http.Handler) http.Handler {
 			ctx, cancel := context.WithTimeout(r.Context(), d)
 			defer cancel()
 
-			tw := &timeoutWriter{w: w, ctx: ctx}
+			tw := &timeoutWriter{w: w, header: make(http.Header), ctx: ctx}
 			done := make(chan struct{})
 			panicChan := make(chan any, 1)
 
@@ -76,18 +76,32 @@ func RequestTimeout(d time.Duration) func(http.Handler) http.Handler {
 	}
 }
 
+// timeoutWriter buffers headers in its own map. The timeout path writes the
+// 504 through the underlying writer without the lock, so sharing the
+// underlying header map would let the handler and the timeout goroutine write
+// it concurrently, which is a fatal runtime error in Go.
 type timeoutWriter struct {
 	mu          sync.Mutex
 	w           http.ResponseWriter
+	header      http.Header
 	ctx         context.Context
 	timedOut    bool
 	wroteHeader bool
 }
 
-func (tw *timeoutWriter) Header() http.Header { return tw.w.Header() }
+func (tw *timeoutWriter) Header() http.Header { return tw.header }
 
 func (tw *timeoutWriter) expired() bool {
 	return tw.timedOut || errors.Is(tw.ctx.Err(), context.DeadlineExceeded)
+}
+
+func (tw *timeoutWriter) writeHeaderLocked(status int) {
+	dst := tw.w.Header()
+	for key, values := range tw.header {
+		dst[key] = append([]string(nil), values...)
+	}
+	tw.wroteHeader = true
+	tw.w.WriteHeader(status)
 }
 
 func (tw *timeoutWriter) WriteHeader(status int) {
@@ -97,8 +111,7 @@ func (tw *timeoutWriter) WriteHeader(status int) {
 		tw.timedOut = true
 		return
 	}
-	tw.wroteHeader = true
-	tw.w.WriteHeader(status)
+	tw.writeHeaderLocked(status)
 }
 
 func (tw *timeoutWriter) Write(b []byte) (int, error) {
@@ -109,8 +122,7 @@ func (tw *timeoutWriter) Write(b []byte) (int, error) {
 		return 0, http.ErrHandlerTimeout
 	}
 	if !tw.wroteHeader {
-		tw.wroteHeader = true
-		tw.w.WriteHeader(http.StatusOK)
+		tw.writeHeaderLocked(http.StatusOK)
 	}
 	return tw.w.Write(b)
 }

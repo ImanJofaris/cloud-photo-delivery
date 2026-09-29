@@ -73,6 +73,7 @@ Every setting is read from the environment (`os.Getenv`); `.env` is **not** auto
 | Variable | Default | Notes |
 |---|---|---|
 | `CORS_ALLOWED_ORIGINS` | `*` | Comma-separated allowlist. **Must not be `*` in prod** (config fails to load). |
+| `TRUSTED_PROXY_CIDRS` | (empty) | Comma-separated proxy IPs or CIDRs. `X-Forwarded-For` is only read when the direct peer is on this list; otherwise rate-limit keys use the peer address. Set it to the load balancer or Cloudflare ranges in production. |
 | `MAX_BODY_BYTES` | `1048576` | Middleware body cap; JSON handlers cap at 1 MiB regardless. |
 | `HTTP_REQUEST_TIMEOUT` | `30s` | Per-request deadline; late writes are discarded and the client gets a `504 REQUEST_TIMEOUT` envelope. |
 | `METRICS_ADDR` | `:9091` | API metrics listener. Empty disables. Bind to a private interface; **never expose publicly.** |
@@ -116,6 +117,8 @@ budget covers `GET /photos/{photoID}/url` (cost 1) and
 `POST /photos/urls` (cost = number of photo IDs, capped at 100). The bucket is
 keyed by client IP **per event**, so guests behind one NAT do not exhaust
 another event's budget.
+
+IP-keyed limits use the direct peer address unless the peer is listed in `TRUSTED_PROXY_CIDRS`, in which case the rightmost untrusted `X-Forwarded-For` hop is used. A caller cannot mint a fresh bucket by rotating the header, provided the origin only accepts traffic from the proxy.
 
 Exceeding a limit returns `429` with the standard envelope (`RATE_LIMITED`) and `Retry-After: 60`. If cross-instance accuracy is needed, replace the in-memory limiter with a shared store.
 

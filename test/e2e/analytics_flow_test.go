@@ -191,7 +191,9 @@ func setupAnalyticsAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) 
 		nil,
 		analyticsSvc,
 		nil)
-	galleryHandler := gallery.NewHandler(gallerySvc)
+	galleryHandler := gallery.NewHandler(gallerySvc, func(r *http.Request) string {
+		return r.Header.Get("X-Forwarded-For")
+	})
 
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(r chi.Router) {

@@ -197,7 +197,7 @@ func setupGalleryAPI(t *testing.T) (http.Handler, *pgxpool.Pool, *r2.S3Store) {
 		brandingSvc,
 		nil,
 		nil)
-	galleryHandler := gallery.NewHandler(gallerySvc)
+	galleryHandler := gallery.NewHandler(gallerySvc, nil)
 
 	r := chi.NewRouter()
 	r.Route("/api/v1", func(r chi.Router) {

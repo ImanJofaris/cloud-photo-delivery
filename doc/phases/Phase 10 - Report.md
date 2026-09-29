@@ -259,3 +259,13 @@ bash scripts/restore.sh backups/cpd-<stamp>.dump
 # Load smoke (needs k6 and a running API)
 k6 run -e BASE_URL=http://localhost:18080 test/load/upload_flow.js
 ```
+
+---
+
+## 11. Post-report fixes (2026-09-29)
+
+Code review closed three hardening gaps after this report:
+
+- Rate-limit keys no longer trust `X-Forwarded-For` from arbitrary peers. `pkg/httpx/clientip.go` resolves the client address through `TRUSTED_PROXY_CIDRS`, and only walks the forwarded chain from the rightmost untrusted hop when the direct peer is a configured proxy. Wired through the auth, signed-URL, photo-URL, and gallery batch limiters plus gallery visitor analytics. Documented in `doc/Deployment.md` and `.env.example`; the Playwright suite must start the API with `TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128`.
+- `RequestTimeout`'s writer buffers headers in its own map and copies them on the first write, so the handler goroutine and the timeout goroutine never mutate the same `http.Header` (concurrent map writes are a fatal runtime error, not a recoverable panic). Covered by `TestRequestTimeout_ForwardsHandlerHeaders` and `TestRequestTimeout_ConcurrentLateHeaderWrites`.
+- The upload queue's `abortAll` and `cancel` no longer requeue and restart in-flight uploads. The queue stops permanently on abort, and cancel removes the item before its first await, so an aborted attempt cannot be pumped back into a new upload (`apps/web/src/features/photos/uploader.ts`). Covered by updated and new `uploader.test.ts` cases.

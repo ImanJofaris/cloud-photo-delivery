@@ -93,8 +93,8 @@ func forbidden(code, msg string) *apperr.Error {
 }
 
 // visibleEvent resolves a slug to an accessible event, applying visibility
-// rules. Private, deleted, and expired events are reported as not found so
-// existence is never revealed.
+// rules. Private, deleted, archived, and expired events are reported as not
+// found so existence is never revealed.
 func (s *Service) visibleEvent(ctx context.Context, slug, unlockToken string) (*VisibleEvent, error) {
 	slug = strings.TrimSpace(slug)
 	if slug == "" {

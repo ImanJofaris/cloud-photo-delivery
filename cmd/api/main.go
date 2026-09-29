@@ -124,6 +124,9 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 		httpx.Success(w, http.StatusOK, map[string]string{"status": "ready"})
 	})
 
+	// Rate-limit keys trust X-Forwarded-For only from configured proxies.
+	clientIP := httpx.NewClientIPResolver(cfg.TrustedProxyCIDRs)
+
 	// Domain wiring.
 	userRepo := users.NewRepository(pool.Pool)
 	userSvc := users.NewService(userRepo)
@@ -245,7 +248,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 	galleryURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	galleryTokens := gallery.NewUnlockTokens(cfg.JWTSecret, cfg.GalleryUnlockTTL)
 	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword, brandingSvc, analyticsSvc, entitlements)
-	galleryHandler := gallery.NewHandler(gallerySvc)
+	galleryHandler := gallery.NewHandler(gallerySvc, clientIP.Resolve)
 
 	photoURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	photoSvc := photos.NewService(photoRepo, photoURLs, store, photos.NewPostgresQueue(pool.Pool))
@@ -301,10 +304,10 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 	}
 
 	r.Route("/api/v1", func(r chi.Router) {
-		r.With(signupLimiter.Middleware(httpx.ClientIP)).Post("/auth/signup", authHandler.Signup)
+		r.With(signupLimiter.Middleware(clientIP.Resolve)).Post("/auth/signup", authHandler.Signup)
 
 		r.Group(func(r chi.Router) {
-			r.Use(loginLimiter.Middleware(httpx.ClientIP))
+			r.Use(loginLimiter.Middleware(clientIP.Resolve))
 			r.Post("/auth/login", authHandler.Login)
 			r.Post("/auth/refresh", authHandler.Refresh)
 			r.Post("/auth/logout", authHandler.Logout)
@@ -319,10 +322,10 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 			r.Get("/", galleryHandler.GetEvent)
 			r.Post("/unlock", galleryHandler.Unlock)
 			r.Get("/photos", galleryHandler.ListPhotos)
-			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey, gallery.BatchURLCost)).
+			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey(clientIP.Resolve), gallery.BatchURLCost)).
 				Post("/photos/urls", galleryHandler.BatchPhotoURLs)
 			r.Get("/photos/{photoID}", galleryHandler.GetPhoto)
-			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey, nil)).
+			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey(clientIP.Resolve), nil)).
 				Get("/photos/{photoID}/url", galleryHandler.PhotoURL)
 		})
 
@@ -411,7 +414,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 					Post("/complete", uploadHandler.Complete)
 			})
 			r.Route("/photos/{photoID}", func(r chi.Router) {
-				r.With(signedURLLimiter.Middleware(httpx.ClientIP)).Get("/url", photoHandler.URL)
+				r.With(signedURLLimiter.Middleware(clientIP.Resolve)).Get("/url", photoHandler.URL)
 				r.Delete("/", photoHandler.Delete)
 			})
 		})

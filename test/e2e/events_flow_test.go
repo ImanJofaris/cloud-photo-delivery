@@ -228,6 +228,12 @@ func TestE2E_EventsLifecycle(t *testing.T) {
 	require.Equal(t, http.StatusConflict, rec.Code)
 	require.Contains(t, rec.Body.String(), "INVALID_STATUS_TRANSITION")
 
+	// the expiry job owns the expired state; clients cannot set it
+	rec = doReq(t, h, http.MethodPost, "/api/v1/events/"+ids[2]+"/status",
+		`{"status":"expired"}`, access)
+	require.Equal(t, http.StatusConflict, rec.Code)
+	require.Contains(t, rec.Body.String(), "INVALID_STATUS_TRANSITION")
+
 	// update one
 	rec = doReq(t, h, http.MethodPatch, "/api/v1/events/"+ids[0],
 		`{"name":"Summer Party 2026"}`, access)

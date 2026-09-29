@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net"
 	"os"
 	"strconv"
 	"strings"
@@ -49,6 +50,7 @@ type Config struct {
 	WorkerPollEvery   time.Duration
 
 	CORSAllowedOrigins []string
+	TrustedProxyCIDRs  []string
 	MaxBodyBytes       int64
 	RequestTimeout     time.Duration
 
@@ -114,6 +116,7 @@ func Load() (Config, error) {
 		ExportTTL:           getDuration("EXPORT_TTL", 24*time.Hour),
 
 		CORSAllowedOrigins: getList("CORS_ALLOWED_ORIGINS", []string{"*"}),
+		TrustedProxyCIDRs:  getList("TRUSTED_PROXY_CIDRS", nil),
 		MaxBodyBytes:       getInt64("MAX_BODY_BYTES", 1<<20),
 		RequestTimeout:     getDuration("HTTP_REQUEST_TIMEOUT", 30*time.Second),
 
@@ -196,6 +199,11 @@ func (c Config) validate() error {
 				errs = append(errs, "CORS_ALLOWED_ORIGINS must not contain * in prod")
 				break
 			}
+		}
+	}
+	for _, entry := range c.TrustedProxyCIDRs {
+		if _, _, err := net.ParseCIDR(entry); err != nil && net.ParseIP(entry) == nil {
+			errs = append(errs, fmt.Sprintf("TRUSTED_PROXY_CIDRS entry %q is not a valid IP or CIDR", entry))
 		}
 	}
 	if len(errs) > 0 {

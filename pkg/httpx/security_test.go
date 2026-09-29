@@ -128,6 +128,51 @@ func TestRequestTimeout_KeepsEarlyResponse(t *testing.T) {
 	}
 }
 
+func TestRequestTimeout_ForwardsHandlerHeaders(t *testing.T) {
+	handler := RequestTimeout(50 * time.Millisecond)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Custom", "yes")
+		Success(w, http.StatusOK, nil)
+	}))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if got := rec.Header().Get("X-Custom"); got != "yes" {
+		t.Fatalf("handler header lost: %q", got)
+	}
+}
+
+// The handler keeps writing headers after the deadline while timeout() writes
+// the 504. Regression guard for the shared-header-map data race (CI runs -race).
+func TestRequestTimeout_ConcurrentLateHeaderWrites(t *testing.T) {
+	handler := RequestTimeout(5 * time.Millisecond)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for {
+			select {
+			case <-r.Context().Done():
+				w.Header().Set("X-Late", "1")
+				_, _ = w.Write([]byte("late"))
+				return
+			default:
+				w.Header().Set("X-Churn", "1")
+			}
+		}
+	}))
+
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodGet, "/", nil))
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504, got %d", rec.Code)
+	}
+	env := decode(t, rec.Body.Bytes())
+	if env.Error == nil || env.Error.Code != "REQUEST_TIMEOUT" {
+		t.Fatalf("unexpected error body: %+v", env.Error)
+	}
+}
+
 func TestError_MapsDeadlineExceededTo504(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	rec := httptest.NewRecorder()

@@ -235,6 +235,17 @@ func (s *Service) Update(ctx context.Context, userID, id uuid.UUID, p UpdatePara
 		return nil, validationError("Client email is invalid")
 	}
 	if p.ExpiresAt != nil || p.ClearExpiry {
+		current, err := s.repo.GetByID(ctx, userID, id)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return nil, notFound()
+			}
+			return nil, apperr.Internal().WithCause(err)
+		}
+		if current.Status == StatusExpired || current.Status == StatusArchived {
+			return nil, apperr.New("INVALID_STATUS_TRANSITION",
+				"Cannot change the expiry of an "+string(current.Status)+" event", 409)
+		}
 		days, err := s.limits.RetentionDays(ctx, userID.String())
 		if err != nil {
 			return nil, apperr.Internal().WithCause(err)
@@ -343,7 +354,10 @@ func (s *Service) transition(ctx context.Context, userID, id uuid.UUID, to Statu
 		return nil, apperr.New("INVALID_STATUS_TRANSITION",
 			"Cannot transition event from "+string(current.Status)+" to "+string(to), 409)
 	}
-	if to == StatusActive {
+	// Only reactivating an expired event adds a live event; a live status
+	// already occupies its slot, so counting it again would reject the
+	// event's own activation.
+	if to == StatusActive && current.Status == StatusExpired {
 		if err := s.enforceEventLimit(ctx, userID); err != nil {
 			return nil, err
 		}

@@ -33,7 +33,7 @@ func decodeEnvelope(t *testing.T, rec *httptest.ResponseRecorder) map[string]any
 
 func newTestHandler() (*Handler, *fakeRepo) {
 	svc, repo, _ := newTestService()
-	return NewHandler(svc), repo
+	return NewHandler(svc, nil), repo
 }
 
 func TestHandler_GetEvent_PublicCacheHeader(t *testing.T) {
@@ -248,7 +248,7 @@ func TestHandler_GetEvent_Branding(t *testing.T) {
 		PrimaryColor:    "#112233",
 		ContactEmail:    "hello@example.com",
 	}
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil)
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding", nil), map[string]string{"slug": "wedding"})
 	rec := httptest.NewRecorder()
@@ -283,7 +283,7 @@ func TestHandler_GetEvent_BrandingProfileImageOnly(t *testing.T) {
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
 	branding.view = &users.BrandingView{ProfileImageURL: "https://cdn.example/profile.png"}
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil)
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding", nil), map[string]string{"slug": "wedding"})
 	rec := httptest.NewRecorder()
@@ -302,7 +302,7 @@ func TestHandler_ListPhotos_IncludesBranding(t *testing.T) {
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
 	branding.view = &users.BrandingView{BusinessName: "Booth Co"}
-	h := NewHandler(svc)
+	h := NewHandler(svc, nil)
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding/photos", nil), map[string]string{"slug": "wedding"})
 	rec := httptest.NewRecorder()
@@ -318,7 +318,9 @@ func TestHandler_GetEvent_RecordsVisitorFromRequest(t *testing.T) {
 	svc, repo, _, _ := newTestServiceFull()
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
-	h := NewHandler(svc)
+	h := NewHandler(svc, func(r *http.Request) string {
+		return r.Header.Get("X-Forwarded-For")
+	})
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding?src=qr", nil), map[string]string{"slug": "wedding"})
 	r.Header.Set("X-Forwarded-For", "203.0.113.7")

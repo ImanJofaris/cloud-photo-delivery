@@ -65,10 +65,14 @@ func (s Status) Valid() bool {
 	}
 }
 
+// allowedTransitions covers client-driven transitions only. StatusExpired is
+// system-managed: the expiry job sets it, and clients reactivate through
+// StatusExpired -> StatusActive or /extend. Letting a live event expire early
+// would free its plan slot while it stayed reachable.
 var allowedTransitions = map[Status][]Status{
-	StatusUpcoming:  {StatusActive, StatusArchived, StatusExpired},
-	StatusActive:    {StatusCompleted, StatusArchived, StatusExpired},
-	StatusCompleted: {StatusArchived, StatusExpired},
+	StatusUpcoming:  {StatusActive, StatusArchived},
+	StatusActive:    {StatusCompleted, StatusArchived},
+	StatusCompleted: {StatusArchived},
 	StatusArchived:  {},
 	StatusExpired:   {StatusActive},
 }

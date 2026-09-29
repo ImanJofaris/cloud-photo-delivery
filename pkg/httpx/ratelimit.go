@@ -1,7 +1,6 @@
 package httpx
 
 import (
-	"net"
 	"net/http"
 	"sync"
 	"time"
@@ -94,38 +93,4 @@ func (rl *RateLimiter) MiddlewareN(keyFn func(*http.Request) string, costFn func
 			next.ServeHTTP(w, r)
 		})
 	}
-}
-
-func ClientIP(r *http.Request) string {
-	if xff := r.Header.Get("X-Forwarded-For"); xff != "" {
-		if i := indexByte(xff, ','); i >= 0 {
-			return trimSpace(xff[:i])
-		}
-		return trimSpace(xff)
-	}
-	host, _, err := net.SplitHostPort(r.RemoteAddr)
-	if err != nil {
-		return r.RemoteAddr
-	}
-	return host
-}
-
-func indexByte(s string, b byte) int {
-	for i := 0; i < len(s); i++ {
-		if s[i] == b {
-			return i
-		}
-	}
-	return -1
-}
-
-func trimSpace(s string) string {
-	start, end := 0, len(s)
-	for start < end && (s[start] == ' ' || s[start] == '\t') {
-		start++
-	}
-	for end > start && (s[end-1] == ' ' || s[end-1] == '\t') {
-		end--
-	}
-	return s[start:end]
 }

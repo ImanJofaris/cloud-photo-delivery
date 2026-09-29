@@ -855,6 +855,88 @@ func TestMigrations_AdminUpDownRoundTrip(t *testing.T) {
 	require.False(t, exists, "idx_users_is_admin should be dropped by down")
 }
 
+func TestMigrations_EntitlementsUpDownRoundTrip(t *testing.T) {
+	ctx := context.Background()
+
+	pg, err := postgres.Run(ctx, "postgres:16-alpine",
+		postgres.WithDatabase("cpd"),
+		postgres.WithUsername("cpd"),
+		postgres.WithPassword("cpd"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(60*time.Second),
+		),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = pg.Terminate(ctx) })
+
+	dsn, err := pg.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	pool, err := pgxpool.New(ctx, dsn)
+	require.NoError(t, err)
+	t.Cleanup(pool.Close)
+
+	for _, file := range []string{
+		"0001_init.sql", "0002_auth.sql", "0003_events.sql",
+		"0004_photos.sql", "0005_jobs.sql", "0006_gallery.sql", "0007_devices.sql",
+		"0008_branding.sql", "0009_billing.sql", "0010_lifecycle.sql", "0011_exports.sql",
+		"0012_analytics.sql", "0013_admin.sql",
+	} {
+		sql, err := os.ReadFile(file)
+		require.NoError(t, err)
+		_, err = pool.Exec(ctx, extractSection(string(sql), "-- +goose Up", "-- +goose Down"))
+		require.NoError(t, err)
+	}
+
+	entitlementsSQL, err := os.ReadFile("0014_entitlements.sql")
+	require.NoError(t, err)
+	up := extractSection(string(entitlementsSQL), "-- +goose Up", "-- +goose Down")
+	down := extractSection(string(entitlementsSQL), "-- +goose Down", "__never__")
+	require.NotEmpty(t, up)
+	require.NotEmpty(t, down)
+
+	limitsOf := func(id string) string {
+		t.Helper()
+		var limits string
+		require.NoError(t, pool.QueryRow(ctx,
+			`SELECT limits::text FROM plans WHERE id = $1`, id).Scan(&limits))
+		return limits
+	}
+
+	freeBefore := `{"activeEvents":1,"photosPerEvent":500,"storageBytes":5368709120,"retentionDays":7,"apiAccess":false}`
+	require.JSONEq(t, freeBefore, limitsOf("free"))
+
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+	require.JSONEq(t,
+		`{"events":1,"photosPerEvent":500,"storageBytes":5368709120,"retentionDays":7,"apiAccess":false,"branding":false,"originalDownloads":false}`,
+		limitsOf("free"))
+	require.JSONEq(t,
+		`{"events":5,"photosPerEvent":5000,"storageBytes":53687091200,"retentionDays":30,"apiAccess":false,"branding":true,"originalDownloads":true}`,
+		limitsOf("starter"))
+	require.JSONEq(t,
+		`{"events":0,"photosPerEvent":20000,"storageBytes":536870912000,"retentionDays":90,"apiAccess":true,"branding":true,"originalDownloads":true}`,
+		limitsOf("pro"))
+
+	// A second up must not reset events to 0 (which the service reads as unlimited).
+	_, err = pool.Exec(ctx, up)
+	require.NoError(t, err)
+	require.JSONEq(t,
+		`{"events":1,"photosPerEvent":500,"storageBytes":5368709120,"retentionDays":7,"apiAccess":false,"branding":false,"originalDownloads":false}`,
+		limitsOf("free"))
+
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+	require.JSONEq(t, freeBefore, limitsOf("free"))
+
+	// A second down is a no-op.
+	_, err = pool.Exec(ctx, down)
+	require.NoError(t, err)
+	require.JSONEq(t, freeBefore, limitsOf("free"))
+}
+
 func extractSection(s, start, end string) string {
 	i := indexOf(s, start)
 	if i < 0 {

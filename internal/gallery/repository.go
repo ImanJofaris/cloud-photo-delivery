@@ -56,12 +56,12 @@ func scanSettings(row pgx.Row) (*events.Settings, error) {
 	return &s, nil
 }
 
-// EventBySlug looks up a visible (not archived, not soft-deleted, not expired)
-// event by slug.
+// EventBySlug looks up a visible event by slug. Archived and expired statuses
+// hide the gallery as soon as they are set, even before expires_at passes.
 func (r *PostgresRepository) EventBySlug(ctx context.Context, slug string) (*events.Event, *events.Settings, error) {
 	row := r.pool.QueryRow(ctx,
 		`SELECT `+eventColumns+` FROM events
-		 WHERE slug = $1 AND deleted_at IS NULL AND status <> 'archived'
+		 WHERE slug = $1 AND deleted_at IS NULL AND status NOT IN ('archived', 'expired')
 		   AND (expires_at IS NULL OR expires_at > NOW())`, slug)
 	event, err := scanEvent(row)
 	if err != nil {

@@ -86,10 +86,30 @@ func scanPlan(row pgx.Row) (*Plan, error) {
 		}
 		return nil, err
 	}
-	if err := json.Unmarshal(raw, &p.Limits); err != nil {
+	limits, err := parsePlanLimits(raw)
+	if err != nil {
 		return nil, err
 	}
+	p.Limits = limits
 	return &p, nil
+}
+
+// parsePlanLimits decodes a plan's limits document. A missing events key fails
+// closed: unmarshalling it as 0 would grant unlimited events, and the zero
+// value is also the legitimate "unlimited" encoding for paid plans.
+func parsePlanLimits(raw []byte) (PlanLimits, error) {
+	var keys map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &keys); err != nil {
+		return PlanLimits{}, err
+	}
+	if _, ok := keys["events"]; !ok {
+		return PlanLimits{}, errors.New("billing: plan limits missing events")
+	}
+	var limits PlanLimits
+	if err := json.Unmarshal(raw, &limits); err != nil {
+		return PlanLimits{}, err
+	}
+	return limits, nil
 }
 
 func (r *PostgresRepository) ListPlans(ctx context.Context) ([]*Plan, error) {

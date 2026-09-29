@@ -220,3 +220,20 @@ curl.exe -s -X POST http://localhost:18080/api/v1/events -H "Authorization: Bear
 
 # Free: branding / devices / original downloads blocked; subscribe Starter/Pro to unlock
 ```
+
+---
+
+## 11. Post-report fix: the `expired` bypass (2026-09-29)
+
+Code review found a hole in the live-event accounting this report claimed was closed. A client could transition a served event to `expired` early (`POST /events/{id}/status`), which freed its plan slot because `CountLiveEvents` excludes `expired`, while the gallery kept serving it because it only checked `expires_at`. `PATCH /events/{id}` could also push `expiresAt` forward on an expired event, keeping it reachable outside the slot count. Both paths closed:
+
+- `EventBySlug` now filters `status NOT IN ('archived', 'expired')`, so the `expired` status hides the gallery immediately, not only once `expires_at` passes (`internal/gallery/repository.go`).
+- `allowedTransitions` no longer accepts `expired` as a target from `upcoming`, `active`, or `completed`; the expiry job owns that state, and a client request returns `409 INVALID_STATUS_TRANSITION` (`internal/events/model.go`).
+- `Update` rejects `expiresAt` and empty-expiry writes on `expired` and `archived` events with `409 INVALID_STATUS_TRANSITION`, so reactivation must go through `POST /extend`, which re-checks retention and the event limit (`internal/events/service.go`).
+
+Contract and tests: status and PATCH descriptions updated in `api/openapi.yaml`; new `TestTransition_CannotExpire`, `TestUpdate_ExpiryRejectedForClosedStatuses`, an `expired` status case in `TestRepository_EventBySlug_ExcludesDeletedAndExpired`, and a 409 assertion in `test/e2e/events_flow_test.go`.
+
+Two related fixes landed in the same pass:
+
+- `Transition` now enforces the live-event limit only when reactivating an `expired` event (`internal/events/service.go`). A live event already occupies its slot, so the previous check rejected a tenant at its limit from activating its own `upcoming` event with `402`. Covered by `TestTransition_UpcomingToActiveAtLimit`.
+- `migrations/0014_entitlements.sql` guards its `UPDATE` with `WHERE limits ? 'activeEvents'` (and `? 'events'` on the down path), so a re-run cannot overwrite `events` with `0`, which `enforceEventLimit` reads as unlimited. `parsePlanLimits` in `internal/billing/repository.go` now fails closed when a limits document lacks `events`. Covered by `TestParsePlanLimits` and `TestMigrations_EntitlementsUpDownRoundTrip`.

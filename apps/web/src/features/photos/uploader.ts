@@ -131,6 +131,7 @@ export class UploadQueue {
   private controllers = new Map<string, AbortController>()
   private active = 0
   private cached: UploadItem[] = []
+  private stopped = false
 
   constructor(
     private readonly eventId: string,
@@ -201,27 +202,34 @@ export class UploadQueue {
   }
 
   async cancel(key: string): Promise<void> {
-    this.controllers.get(key)?.abort()
     const item = this.items.get(key)
     if (!item) return
-    if (item.photoId && item.uploadKind === "multipart") {
-      try {
-        await this.deps.abortMultipart(item.photoId)
-      } catch {
-        // The multipart upload may already have completed; deletion below
-        // still removes the row and any stored objects.
-      }
-    }
-    if (item.photoId) {
-      try {
-        await this.deps.deletePhoto(item.photoId)
-      } catch (error) {
-        if (!isNotFound(error)) throw error
-      }
-    }
-    this.deps.registry?.remove(key)
+    // Remove the item before the first await so the aborted attempt cannot be
+    // requeued and pumped back into a new upload.
+    this.controllers.get(key)?.abort()
+    this.controllers.delete(key)
     this.items.delete(key)
+    this.deps.registry?.remove(key)
     this.notify()
+    try {
+      if (item.photoId && item.uploadKind === "multipart") {
+        try {
+          await this.deps.abortMultipart(item.photoId)
+        } catch {
+          // The multipart upload may already have completed; deletion below
+          // still removes the row and any stored objects.
+        }
+      }
+      if (item.photoId) {
+        try {
+          await this.deps.deletePhoto(item.photoId)
+        } catch (error) {
+          if (!isNotFound(error)) throw error
+        }
+      }
+    } finally {
+      this.pump()
+    }
   }
 
   async discard(key: string): Promise<void> {
@@ -240,6 +248,7 @@ export class UploadQueue {
   }
 
   abortAll() {
+    this.stopped = true
     for (const controller of this.controllers.values()) {
       controller.abort()
     }
@@ -333,6 +342,7 @@ export class UploadQueue {
   }
 
   private pump() {
+    if (this.stopped) return
     const limit = this.deps.concurrency ?? DEFAULT_CONCURRENCY
     for (const item of this.items.values()) {
       if (this.active >= limit) break
@@ -360,6 +370,9 @@ export class UploadQueue {
     item.progress = 0
 
     while (true) {
+      // The item is the process's lease: cancel and discard remove it from
+      // the map, and abortAll stops the queue outright.
+      if (this.stopped || this.items.get(item.key) !== item) return
       const controller = new AbortController()
       this.controllers.set(item.key, controller)
       try {
@@ -375,6 +388,7 @@ export class UploadQueue {
       } catch (error) {
         this.controllers.delete(item.key)
         if (isAbortError(error)) {
+          if (this.stopped || this.items.get(item.key) !== item) return
           item.status = "queued"
           this.notify()
           return
@@ -385,6 +399,7 @@ export class UploadQueue {
           item.error = "Connection problem. Retrying..."
           this.notify()
           await this.sleep(backoffMs(item.attempts))
+          if (this.stopped || this.items.get(item.key) !== item) return
           item.status = "uploading"
           this.notify()
           continue

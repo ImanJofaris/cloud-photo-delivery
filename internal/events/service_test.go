@@ -782,6 +782,73 @@ func TestTransition_ActiveLimitReached(t *testing.T) {
 	}
 }
 
+func TestTransition_UpcomingToActiveAtLimit(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{max: 1})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Only"})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	active, err := svc.Transition(context.Background(), owner, e.ID, StatusActive)
+	if err != nil {
+		t.Fatalf("upcoming -> active at the limit: %v", err)
+	}
+	if active.Status != StatusActive {
+		t.Fatalf("status = %q, want active", active.Status)
+	}
+}
+
+func TestTransition_CannotExpire(t *testing.T) {
+	for _, from := range []Status{StatusUpcoming, StatusActive, StatusCompleted} {
+		t.Run(string(from), func(t *testing.T) {
+			repo := newFakeRepo()
+			svc := newTestService(repo, fixedLimits{})
+			owner := uuid.New()
+			e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			repo.events[e.ID].Status = from
+			_, err = svc.Transition(context.Background(), owner, e.ID, StatusExpired)
+			if got := appErrCode(t, err); got != "INVALID_STATUS_TRANSITION" {
+				t.Fatalf("from %s: got %s", from, got)
+			}
+		})
+	}
+}
+
+func TestUpdate_ExpiryRejectedForClosedStatuses(t *testing.T) {
+	for _, status := range []Status{StatusExpired, StatusArchived} {
+		t.Run(string(status), func(t *testing.T) {
+			repo := newFakeRepo()
+			svc := newTestService(repo, fixedLimits{retention: 7})
+			owner := uuid.New()
+			e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			repo.events[e.ID].Status = status
+
+			future := svc.now().UTC().AddDate(0, 0, 3)
+			_, err = svc.Update(context.Background(), owner, e.ID, UpdateParams{ExpiresAt: &future})
+			if got := appErrCode(t, err); got != "INVALID_STATUS_TRANSITION" {
+				t.Fatalf("expiresAt: got %s", got)
+			}
+			_, err = svc.Update(context.Background(), owner, e.ID, UpdateParams{ClearExpiry: true})
+			if got := appErrCode(t, err); got != "INVALID_STATUS_TRANSITION" {
+				t.Fatalf("clearExpiry: got %s", got)
+			}
+
+			name := "Renamed"
+			if _, err := svc.Update(context.Background(), owner, e.ID, UpdateParams{Name: &name}); err != nil {
+				t.Fatalf("name-only update: %v", err)
+			}
+		})
+	}
+}
+
 func TestCreate_DerivesExpiryFromPlan(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo, fixedLimits{retention: 7})
@@ -914,13 +981,7 @@ func TestExtend_ReactivatesExpired(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	expired, err := svc.Transition(context.Background(), owner, e.ID, StatusExpired)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if expired.Status != StatusExpired {
-		t.Fatalf("status = %q", expired.Status)
-	}
+	repo.events[e.ID].Status = StatusExpired
 
 	updated, err := svc.Extend(context.Background(), owner, e.ID, 7)
 	if err != nil {
@@ -942,9 +1003,7 @@ func TestExtend_ReactivationEnforcesActiveLimit(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := svc.Transition(context.Background(), owner, a.ID, StatusExpired); err != nil {
-		t.Fatal(err)
-	}
+	repo.events[a.ID].Status = StatusExpired
 	if _, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "B"}); err != nil {
 		t.Fatal(err)
 	}

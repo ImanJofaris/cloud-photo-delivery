@@ -26,7 +26,8 @@ export default defineConfig({
     {
       // The suite shares 127.0.0.1 and exhausts the API's per-IP auth rate
       // limit. The proxy injects a unique X-Forwarded-For per request; run the
-      // Go API on :18081 for E2E (`HTTP_ADDR=:18081`).
+      // Go API on :18081 for E2E (`HTTP_ADDR=:18081`) with the loopback proxy
+      // trusted (`TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128`).
       command: "node e2e/api-proxy.mjs",
       port: 18080,
       reuseExistingServer: true,

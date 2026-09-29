@@ -306,8 +306,10 @@ export interface paths {
          * Transition an event's status
          * @description Applies the status lifecycle: `upcoming → active|archived`,
          *     `active → completed|archived`, `completed → archived`, `archived`
-         *     (terminal), `expired → active`. Activating enforces the plan's
-         *     active-event limit.
+         *     (terminal), `expired → active`. Clients cannot set `expired`; the
+         *     expiry job owns that state and a request for it returns `409`.
+         *     Reactivating an expired event enforces the plan's live-event limit;
+         *     live events already occupy their slot.
          */
         post: operations["updateEventStatus"];
         delete?: never;
@@ -1403,7 +1405,10 @@ export interface components {
              * Format: date-time
              * @description Empty string resets the expiry to the plan's retention window
              *     (clears it on unlimited plans). Values later than the retention
-             *     window are rejected with `PLAN_LIMIT_REACHED`.
+             *     window are rejected with `PLAN_LIMIT_REACHED`. Expired and
+             *     archived events reject expiry changes with
+             *     `INVALID_STATUS_TRANSITION`; extend an expired event to
+             *     reactivate it.
              */
             expiresAt?: string;
         };
@@ -2652,7 +2657,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description Active event limit reached */
+            /** @description Live event limit reached (upcoming, active, and completed count) */
             402: {
                 headers: {
                     [name: string]: unknown;
@@ -2783,6 +2788,15 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
+            /** @description The event is expired or archived, so its expiry cannot change */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Envelope"];
+                };
+            };
             /** @description Validation error */
             422: {
                 headers: {
@@ -2867,7 +2881,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description Active event limit reached */
+            /** @description Live event limit reached (upcoming, active, and completed count) */
             402: {
                 headers: {
                     [name: string]: unknown;
@@ -2885,7 +2899,7 @@ export interface operations {
                     "application/json": components["schemas"]["Envelope"];
                 };
             };
-            /** @description Invalid status transition */
+            /** @description Invalid status transition (including a client request for `expired`) */
             409: {
                 headers: {
                     [name: string]: unknown;

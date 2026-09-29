@@ -131,18 +131,26 @@ func cacheHeader(w http.ResponseWriter, s *events.Settings) {
 }
 
 type Handler struct {
-	svc *Service
+	svc      *Service
+	clientIP func(*http.Request) string
 }
 
-func NewHandler(svc *Service) *Handler { return &Handler{svc: svc} }
+// NewHandler builds the public gallery handler. clientIP resolves the visitor
+// address for analytics; nil falls back to the direct peer.
+func NewHandler(svc *Service, clientIP func(*http.Request) string) *Handler {
+	if clientIP == nil {
+		clientIP = httpx.RemoteIP
+	}
+	return &Handler{svc: svc, clientIP: clientIP}
+}
 
 func slugParam(r *http.Request) string { return chi.URLParam(r, "slug") }
 
 func unlockHeader(r *http.Request) string { return r.Header.Get("X-Gallery-Unlock") }
 
-func visitorFrom(r *http.Request) Visitor {
+func (h *Handler) visitorFrom(r *http.Request) Visitor {
 	return Visitor{
-		IP:        httpx.ClientIP(r),
+		IP:        h.clientIP(r),
 		UserAgent: r.UserAgent(),
 		QRScan:    strings.EqualFold(r.URL.Query().Get("src"), "qr"),
 	}
@@ -170,7 +178,7 @@ func parseLimit(raw string) int {
 }
 
 func (h *Handler) GetEvent(w http.ResponseWriter, r *http.Request) {
-	ve, requiresUnlock, err := h.svc.GetEvent(r.Context(), slugParam(r), unlockHeader(r), visitorFrom(r))
+	ve, requiresUnlock, err := h.svc.GetEvent(r.Context(), slugParam(r), unlockHeader(r), h.visitorFrom(r))
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
