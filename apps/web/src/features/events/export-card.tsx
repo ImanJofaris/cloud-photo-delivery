@@ -63,6 +63,17 @@ function subscribeExportId(listener: () => void) {
   }
 }
 
+// The card can sit open past the export's expiry; a local clock flips it to
+// the expired state without waiting for the cleanup job to change the status.
+function useNow(intervalMs = 30_000): number {
+  const [now, setNow] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(timer)
+  }, [intervalMs])
+  return now
+}
+
 export function ExportCard({
   eventId,
   photoCount,
@@ -95,12 +106,35 @@ export function ExportCard({
     }
   }
 
+  // Refetch before navigating so the signed URL is fresh and an archive the
+  // cleanup job already removed reports as expired instead of 403ing.
+  async function handleDownload() {
+    try {
+      const result = await exportQuery.refetch()
+      const url = result.data?.downloadUrl
+      if (!url) {
+        toast.error("This export is no longer available.")
+        return
+      }
+      window.location.assign(url)
+    } catch (error) {
+      toast.error(exportErrorMessage(error))
+    }
+  }
+
+  const now = useNow()
   const notFound = exportId !== null && isExportNotFound(exportQuery.error)
   const activeExportId = notFound ? null : exportId
   const status = exportJob?.status
   const isWorking = status === "pending" || status === "processing"
   const remaining = exportJob ? formatTimeUntil(exportJob.expiresAt) : null
   const noPhotos = photoCount === 0
+  const expiredByClock =
+    status === "ready" &&
+    exportJob?.expiresAt != null &&
+    Date.parse(exportJob.expiresAt) <= now
+  const showReady = status === "ready" && exportJob != null && !expiredByClock
+  const showExpired = status === "expired" || expiredByClock
 
   return (
     <Card>
@@ -139,7 +173,7 @@ export function ExportCard({
           </p>
         )}
 
-        {status === "ready" && exportJob && (
+        {showReady && exportJob && (
           <div className="space-y-3">
             <p className="text-sm">
               Ready
@@ -154,20 +188,13 @@ export function ExportCard({
               ) : null}
             </p>
             <div className="flex flex-wrap gap-2">
-              {exportJob.downloadUrl ? (
-                <Button
-                  render={<a href={exportJob.downloadUrl} />}
-                  nativeButton={false}
-                >
-                  <Download />
-                  Download ZIP
-                </Button>
-              ) : (
-                <Button disabled>
-                  <Download />
-                  Download ZIP
-                </Button>
-              )}
+              <Button
+                onClick={() => void handleDownload()}
+                disabled={exportQuery.isFetching}
+              >
+                <Download />
+                Download ZIP
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => void handleCreate()}
@@ -194,7 +221,7 @@ export function ExportCard({
           </div>
         )}
 
-        {status === "expired" && (
+        {showExpired && (
           <div className="space-y-3">
             <p className="text-sm text-muted-foreground">
               This export has expired. Generate a new one to download it again.

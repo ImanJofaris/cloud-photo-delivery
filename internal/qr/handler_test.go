@@ -38,7 +38,7 @@ func TestHandler_PNG(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, PNGContentType, rec.Header().Get("Content-Type"))
 	require.Equal(t, cacheQR, rec.Header().Get("Cache-Control"))
-	require.Equal(t, "https://photos.example.com/e/iman-wedding", decodePNG(t, rec.Body.Bytes()))
+	require.Equal(t, "https://photos.example.com/e/iman-wedding?src=qr", decodePNG(t, rec.Body.Bytes()))
 }
 
 func TestHandler_SVG(t *testing.T) {

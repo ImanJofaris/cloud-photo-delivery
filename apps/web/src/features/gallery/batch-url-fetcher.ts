@@ -12,11 +12,15 @@ export type BatchUrlFetcher = (
 export const URL_BATCH_DELAY_MS = 50
 export const URL_BATCH_MAX_SIZE = 100
 
+type UrlWaiter = {
+  resolve: (value: SignedURL) => void
+  reject: (error: unknown) => void
+}
+
 type PendingEntry = {
   photoId: string
   variant: UrlVariant
-  resolve: (value: SignedURL) => void
-  reject: (error: unknown) => void
+  waiters: UrlWaiter[]
 }
 
 function keyOf(photoId: string, variant: UrlVariant) {
@@ -48,15 +52,20 @@ export function createBatchedUrlFetcher(
       for (const entry of entries) {
         const result = urls[entry.photoId]
         if (result) {
-          entry.resolve(result)
+          for (const waiter of entry.waiters) waiter.resolve(result)
         } else {
-          entry.reject(
-            new ApiError("VARIANT_UNAVAILABLE", "Variant unavailable", 404)
+          const error = new ApiError(
+            "VARIANT_UNAVAILABLE",
+            "Variant unavailable",
+            404
           )
+          for (const waiter of entry.waiters) waiter.reject(error)
         }
       }
     } catch (error) {
-      for (const entry of entries) entry.reject(error)
+      for (const entry of entries) {
+        for (const waiter of entry.waiters) waiter.reject(error)
+      }
     }
   }
 
@@ -91,12 +100,16 @@ export function createBatchedUrlFetcher(
 
   return function fetch(photoId: string, variant: UrlVariant) {
     return new Promise<SignedURL>((resolve, reject) => {
-      pending.set(keyOf(photoId, variant), {
-        photoId,
-        variant,
-        resolve,
-        reject,
-      })
+      const key = keyOf(photoId, variant)
+      const waiter = { resolve, reject }
+      const existing = pending.get(key)
+      if (existing) {
+        // Keep every caller waiting on the same key; settling a new promise
+        // with a map overwrite would strand the earlier one forever.
+        existing.waiters.push(waiter)
+      } else {
+        pending.set(key, { photoId, variant, waiters: [waiter] })
+      }
       schedule()
     })
   }

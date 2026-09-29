@@ -469,8 +469,9 @@ export interface paths {
         };
         /**
          * Get the event's canonical public gallery URL
-         * @description Returns the URL encoded into the event's QR codes:
-         *     `<PUBLIC_BASE_URL>/e/{slug}`. Never a signed URL.
+         * @description Returns the canonical public gallery URL, `<PUBLIC_BASE_URL>/e/{slug}`.
+         *     Never a signed URL. QR images encode the same URL with `?src=qr` so
+         *     gallery opens from a scan are attributed.
          */
         get: operations["getEventPublicURL"];
         put?: never;
@@ -492,9 +493,10 @@ export interface paths {
         };
         /**
          * Download the event's QR code as a PNG
-         * @description Encodes the canonical public gallery URL. `size` is the image width and
-         *     height in pixels; values are clamped to 64–2048 (default 512). Only the
-         *     owning operator can fetch an event's QR code.
+         * @description Encodes the gallery URL with `?src=qr` so scanned opens are attributed.
+         *     `size` is the image width and height in pixels; values are clamped to
+         *     64-2048 (default 512). Only the owning operator can fetch an event's QR
+         *     code.
          */
         get: operations["getEventQRPNG"];
         put?: never;
@@ -516,7 +518,7 @@ export interface paths {
         };
         /**
          * Download the event's QR code as an SVG
-         * @description Encodes the canonical public gallery URL as vector graphics. Only the
+         * @description Encodes the gallery URL with `?src=qr` as vector graphics. Only the
          *     owning operator can fetch an event's QR code.
          */
         get: operations["getEventQRSVG"];
@@ -2069,7 +2071,46 @@ export interface components {
             error?: null | components["schemas"]["Error"];
         };
     };
-    responses: never;
+    responses: {
+        /**
+         * @description Too many requests. The `Retry-After` header reports the refill delay in
+         *     seconds. Applied to auth, admin, upload-complete, and signed-URL routes.
+         */
+        RateLimited: {
+            headers: {
+                /** @description Seconds to wait before retrying. */
+                "Retry-After"?: number;
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Envelope"];
+            };
+        };
+        /**
+         * @description The request body exceeded `MAX_BODY_BYTES` (default 1 MiB). Applied to
+         *     every route that reads a body.
+         */
+        PayloadTooLarge: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Envelope"];
+            };
+        };
+        /**
+         * @description The request exceeded `HTTP_REQUEST_TIMEOUT` (default 30s). Applied to
+         *     every route; late handler writes are discarded.
+         */
+        RequestTimeout: {
+            headers: {
+                [name: string]: unknown;
+            };
+            content: {
+                "application/json": components["schemas"]["Envelope"];
+            };
+        };
+    };
     parameters: {
         EventID: string;
         ExportID: string;

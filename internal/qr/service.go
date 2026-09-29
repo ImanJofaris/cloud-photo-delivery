@@ -33,8 +33,17 @@ func NewService(events EventLookup, baseURL string) *Service {
 	return &Service{events: events, baseURL: strings.TrimRight(strings.TrimSpace(baseURL), "/")}
 }
 
+const scanQuery = "?src=qr"
+
 func (s *Service) GalleryURL(slug string) string {
 	return s.baseURL + "/e/" + url.PathEscape(slug)
+}
+
+// QRURL is the URL encoded into QR images. The src=qr parameter lets the
+// public API attribute the open as a scan; the plain gallery URL stays
+// available for copy/paste sharing.
+func (s *Service) QRURL(slug string) string {
+	return s.GalleryURL(slug) + scanQuery
 }
 
 func (s *Service) EventURL(ctx context.Context, userID, eventID uuid.UUID) (string, error) {
@@ -45,8 +54,16 @@ func (s *Service) EventURL(ctx context.Context, userID, eventID uuid.UUID) (stri
 	return s.GalleryURL(event.Slug), nil
 }
 
+func (s *Service) qrEventURL(ctx context.Context, userID, eventID uuid.UUID) (string, error) {
+	event, err := s.events.Get(ctx, userID, eventID)
+	if err != nil {
+		return "", err
+	}
+	return s.QRURL(event.Slug), nil
+}
+
 func (s *Service) PNG(ctx context.Context, userID, eventID uuid.UUID, size int) ([]byte, error) {
-	target, err := s.EventURL(ctx, userID, eventID)
+	target, err := s.qrEventURL(ctx, userID, eventID)
 	if err != nil {
 		return nil, err
 	}
@@ -58,7 +75,7 @@ func (s *Service) PNG(ctx context.Context, userID, eventID uuid.UUID, size int) 
 }
 
 func (s *Service) SVG(ctx context.Context, userID, eventID uuid.UUID) ([]byte, error) {
-	target, err := s.EventURL(ctx, userID, eventID)
+	target, err := s.qrEventURL(ctx, userID, eventID)
 	if err != nil {
 		return nil, err
 	}

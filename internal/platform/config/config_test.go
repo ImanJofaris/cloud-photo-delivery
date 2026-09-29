@@ -362,3 +362,34 @@ func TestLoad_InvalidTrustedProxy(t *testing.T) {
 		t.Fatal("expected error for invalid TRUSTED_PROXY_CIDRS entry")
 	}
 }
+
+func TestLoad_InvalidIntegerFails(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("DB_MAX_CONNS", "abc")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for non-integer DB_MAX_CONNS")
+	}
+}
+
+func TestLoad_InvalidDurationFails(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("HTTP_REQUEST_TIMEOUT", "30seconds")
+
+	if _, err := Load(); err == nil {
+		t.Fatal("expected error for invalid HTTP_REQUEST_TIMEOUT")
+	}
+}
+
+func TestLoad_BareSecondsDurationAccepted(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("ACCESS_TOKEN_TTL", "60")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.AccessTokenTTL != time.Minute {
+		t.Fatalf("AccessTokenTTL = %v, want 1m", cfg.AccessTokenTTL)
+	}
+}

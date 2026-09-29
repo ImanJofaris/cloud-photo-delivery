@@ -34,9 +34,16 @@ export const PHOTO_PAGE_SIZE = 50
 const URL_RETRY_LIMIT = 4
 const URL_RETRY_MAX_DELAY_MS = 60_000
 
-function retryUrls(failureCount: number, error: unknown) {
-  if (error instanceof ApiError && error.status === 429) {
-    return failureCount < URL_RETRY_LIMIT
+export function retryUrls(failureCount: number, error: unknown) {
+  if (error instanceof ApiError) {
+    if (error.status === 429) {
+      return failureCount < URL_RETRY_LIMIT
+    }
+    if (error.status >= 400 && error.status < 500) {
+      // Permanent client errors (including VARIANT_UNAVAILABLE) cannot
+      // succeed on retry.
+      return false
+    }
   }
   return failureCount < 1
 }

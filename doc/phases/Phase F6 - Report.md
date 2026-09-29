@@ -169,7 +169,7 @@ pnpm gen:api && git diff --exit-code schema.d.ts  -> no diff
 
 ## 9. Known limitations / follow-ups
 
-- The QR PNG/SVG encode the plain gallery URL (`/e/{slug}`, no `src=qr`), so printed codes do not count as scans unless the URL carries the parameter. A backend change (OpenAPI first) would append `src=qr` to the encoded URL.
+- ~~The QR PNG/SVG encode the plain gallery URL (`/e/{slug}`, no `src=qr`), so printed codes do not count as scans unless the URL carries the parameter. A backend change (OpenAPI first) would append `src=qr` to the encoded URL.~~ **Closed (2026-09-29):** `qr.Service.QRURL` encodes `?src=qr` and `PNG`/`SVG` use it; the `/events/{eventID}/url` endpoint still returns the plain share URL. Contract text updated in `api/openapi.yaml`.
 - Next caches gallery metadata for 60 s (`revalidate: 60`, mirroring the API's `Cache-Control: max-age=60`), so repeated opens within the window are not counted; counters remain best-effort per Phase 9.
 - The 7-day warning threshold mirrors `EXPIRY_WARN_DAYS`' default in the client; no endpoint exposes the configured value.
 - Export polling is a fixed 5 s with no backoff; exports have no list endpoint (by design), so the sessionStorage id is the only resume mechanism.

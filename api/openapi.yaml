@@ -2,7 +2,18 @@ openapi: 3.1.0
 info:
   title: Cloud Photo Delivery API
   version: 0.12.0
-  description: API-first backend for the Cloud Photo Delivery SaaS.
+  description: |
+    API-first backend for the Cloud Photo Delivery SaaS.
+
+    All endpoints run behind shared middleware and can return these responses
+    in addition to the ones listed per operation:
+
+    - `429` RateLimited with a `Retry-After` header, on routes with a rate limit
+    - `413` PayloadTooLarge when a request body exceeds `MAX_BODY_BYTES`
+    - `504` RequestTimeout when a request exceeds `HTTP_REQUEST_TIMEOUT`
+
+    They are defined once under `components/responses` and not repeated on
+    every operation.
 servers:
   - url: http://localhost:8080/api/v1
     description: Local development
@@ -942,8 +953,9 @@ paths:
       operationId: getEventPublicURL
       summary: Get the event's canonical public gallery URL
       description: |
-        Returns the URL encoded into the event's QR codes:
-        `<PUBLIC_BASE_URL>/e/{slug}`. Never a signed URL.
+        Returns the canonical public gallery URL, `<PUBLIC_BASE_URL>/e/{slug}`.
+        Never a signed URL. QR images encode the same URL with `?src=qr` so
+        gallery opens from a scan are attributed.
       security:
         - bearerAuth: []
       responses:
@@ -974,9 +986,10 @@ paths:
       operationId: getEventQRPNG
       summary: Download the event's QR code as a PNG
       description: |
-        Encodes the canonical public gallery URL. `size` is the image width and
-        height in pixels; values are clamped to 64–2048 (default 512). Only the
-        owning operator can fetch an event's QR code.
+        Encodes the gallery URL with `?src=qr` so scanned opens are attributed.
+        `size` is the image width and height in pixels; values are clamped to
+        64-2048 (default 512). Only the owning operator can fetch an event's QR
+        code.
       security:
         - bearerAuth: []
       parameters:
@@ -1021,7 +1034,7 @@ paths:
       operationId: getEventQRSVG
       summary: Download the event's QR code as an SVG
       description: |
-        Encodes the canonical public gallery URL as vector graphics. Only the
+        Encodes the gallery URL with `?src=qr` as vector graphics. Only the
         owning operator can fetch an event's QR code.
       security:
         - bearerAuth: []
@@ -2337,6 +2350,36 @@ paths:
                 $ref: "#/components/schemas/Envelope"
 
 components:
+  responses:
+    RateLimited:
+      description: |
+        Too many requests. The `Retry-After` header reports the refill delay in
+        seconds. Applied to auth, admin, upload-complete, and signed-URL routes.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: integer
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Envelope"
+    PayloadTooLarge:
+      description: |
+        The request body exceeded `MAX_BODY_BYTES` (default 1 MiB). Applied to
+        every route that reads a body.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Envelope"
+    RequestTimeout:
+      description: |
+        The request exceeded `HTTP_REQUEST_TIMEOUT` (default 30s). Applied to
+        every route; late handler writes are discarded.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Envelope"
   securitySchemes:
     bearerAuth:
       type: http

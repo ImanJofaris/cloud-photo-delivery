@@ -256,7 +256,9 @@ func (s *Service) Update(ctx context.Context, userID, id uuid.UUID, p UpdatePara
 			}
 		}
 		if p.ClearExpiry {
-			p.ClearExpiry = false
+			// A plan with retention resets the expiry to the end of its
+			// window; an unlimited plan clears it outright.
+			p.ClearExpiry = days <= 0
 			if days > 0 {
 				t := s.now().UTC().AddDate(0, 0, days)
 				p.ExpiresAt = &t
@@ -423,8 +425,13 @@ func (s *Service) UpdateSettings(ctx context.Context, userID, id uuid.UUID, in S
 	if err != nil {
 		return nil, err
 	}
-	if err := s.enforceOriginalDownloadLimit(ctx, userID, next); err != nil {
-		return nil, err
+	// Only a write that newly grants originals violates the plan. A stored
+	// grandfathered value stays so a downgraded tenant can still edit
+	// unrelated settings; the gallery read path degrades it.
+	if next.AllowOriginalDownload && !current.AllowOriginalDownload {
+		if err := s.enforceOriginalDownloadLimit(ctx, userID, next); err != nil {
+			return nil, err
+		}
 	}
 	updated, err := s.repo.UpdateSettings(ctx, userID, id, next)
 	if err != nil {

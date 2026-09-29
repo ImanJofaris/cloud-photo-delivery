@@ -36,6 +36,31 @@ describe("batched URL fetcher", () => {
     }
   })
 
+  it("settles every caller when the same key is requested twice", async () => {
+    vi.useFakeTimers()
+    try {
+      const fetchBatch = vi.fn(async (variant: string, photoIds: string[]) =>
+        Object.fromEntries(
+          photoIds.map((id) => [id, signed(`https://r2.test/${id}-${variant}`)])
+        )
+      )
+      const fetcher = createBatchedUrlFetcher(fetchBatch)
+
+      const first = fetcher("p1", "thumbnail")
+      const second = fetcher("p1", "thumbnail")
+      vi.advanceTimersByTime(URL_BATCH_DELAY_MS)
+
+      await expect(Promise.all([first, second])).resolves.toEqual([
+        signed("https://r2.test/p1-thumbnail"),
+        signed("https://r2.test/p1-thumbnail"),
+      ])
+      expect(fetchBatch).toHaveBeenCalledTimes(1)
+      expect(fetchBatch).toHaveBeenCalledWith("thumbnail", ["p1"])
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it("keeps variants in separate batch requests", async () => {
     vi.useFakeTimers()
     try {

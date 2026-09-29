@@ -82,12 +82,17 @@ func TestService_EventURL_OtherTenant(t *testing.T) {
 	require.Equal(t, "EVENT_NOT_FOUND", codeOf(t, err))
 }
 
-func TestService_PNG_DecodesBackToURL(t *testing.T) {
+func TestService_QRURL_AddsScanSource(t *testing.T) {
+	svc, _ := newTestService()
+	require.Equal(t, "https://photos.example.com/e/iman-wedding?src=qr", svc.QRURL("iman-wedding"))
+}
+
+func TestService_PNG_DecodesBackToQRURL(t *testing.T) {
 	svc, lookup := newTestService()
 	data, err := svc.PNG(context.Background(), lookup.userID, lookup.event.ID, 512)
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
-	require.Equal(t, "https://photos.example.com/e/iman-wedding", decodePNG(t, data))
+	require.Equal(t, "https://photos.example.com/e/iman-wedding?src=qr", decodePNG(t, data))
 }
 
 func TestService_PNG_SizeClamped(t *testing.T) {

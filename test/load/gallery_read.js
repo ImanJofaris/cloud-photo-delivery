@@ -58,21 +58,27 @@ export default function (data) {
     return;
   }
 
-  if (Math.random() < 0.2) {
-    const photo = photos[Math.floor(Math.random() * photos.length)];
-    const urlRes = http.post(
-      `${BASE}/api/v1/public/events/${data.slug}/photos/urls`,
-      JSON.stringify({ variant: 'thumbnail', photoIds: [photo.id] }),
-      { headers: { 'Content-Type': 'application/json' }, tags: { step: 'url' } }
-    );
-    check(urlRes, { 'url 200': (r) => r.status === 200 });
+  // Sign the visible row in one batch, exactly like the gallery client. The
+  // per-URL limiter sees one token per signed URL plus the request token.
+  const batch = photos.slice(0, 20).map((photo) => photo.id);
+  const urlRes = http.post(
+    `${BASE}/api/v1/public/events/${data.slug}/photos/urls`,
+    JSON.stringify({ variant: 'thumbnail', photoIds: batch }),
+    { headers: { 'Content-Type': 'application/json' }, tags: { step: 'url' } }
+  );
+  check(urlRes, {
+    'url 200': (r) => r.status === 200,
+    'url batch signs the row': (r) => {
+      const urls = r.json('data.urls') || {};
+      return batch.every((id) => urls[id]);
+    },
+  });
 
-    if (FETCH_IMAGES) {
-      const signedUrl = urlRes.json(`data.urls.${photo.id}`);
-      if (signedUrl) {
-        const image = http.get(signedUrl, { tags: { step: 'image' } });
-        check(image, { 'image 2xx': (r) => r.status >= 200 && r.status < 300 });
-      }
+  if (FETCH_IMAGES) {
+    const signedUrl = urlRes.json(`data.urls.${batch[0]}`);
+    if (signedUrl) {
+      const image = http.get(signedUrl, { tags: { step: 'image' } });
+      check(image, { 'image 2xx': (r) => r.status >= 200 && r.status < 300 });
     }
   }
 

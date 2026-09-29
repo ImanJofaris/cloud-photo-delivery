@@ -52,7 +52,7 @@ func TestE2E_BrandingAndQRFlow(t *testing.T) {
 	rec = doReq(t, h, http.MethodGet, "/api/v1/events/"+eventID+"/qr.png?size=512", "", access)
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Equal(t, "image/png", rec.Header().Get("Content-Type"))
-	require.Equal(t, wantURL, decodeQRPNG(t, rec.Body.Bytes()))
+	require.Equal(t, wantURL+"?src=qr", decodeQRPNG(t, rec.Body.Bytes()))
 
 	rec = doReq(t, h, http.MethodGet, "/api/v1/events/"+eventID+"/qr.svg", "", access)
 	require.Equal(t, http.StatusOK, rec.Code)

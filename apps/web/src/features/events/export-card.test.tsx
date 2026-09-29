@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import { ApiError, type components } from "@workspace/api-client"
 
@@ -42,10 +42,12 @@ function mockExportQuery(overrides: Record<string, unknown> = {}) {
 
 describe("ExportCard", () => {
   const mutateAsync = vi.fn()
+  const assign = vi.fn()
 
   beforeEach(() => {
     vi.clearAllMocks()
     window.sessionStorage.clear()
+    vi.stubGlobal("location", { assign })
     mutateAsync.mockResolvedValue(
       exportJob({ status: "pending", fileSize: null, downloadUrl: null })
     )
@@ -54,6 +56,10 @@ describe("ExportCard", () => {
       isPending: false,
     } as unknown as ReturnType<typeof useCreateEventExport>)
     mockExportQuery()
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it("disables the action when the event has no photos", () => {
@@ -90,20 +96,40 @@ describe("ExportCard", () => {
     expect(useEventExport).toHaveBeenCalledWith("event-1", "exp-stored")
     expect(
       screen.getByRole("button", { name: /download zip/i })
-    ).toHaveAttribute("href", "https://r2.example/signed.zip")
+    ).toBeInTheDocument()
   })
 
-  it("shows size and a download link when ready", () => {
+  it("shows size and downloads with a fresh URL when ready", async () => {
     window.sessionStorage.setItem("cpd:export:event-1", EXPORT_ID)
-    mockExportQuery({ data: exportJob() })
+    const refetch = vi.fn().mockResolvedValue({ data: exportJob() })
+    mockExportQuery({ data: exportJob(), refetch })
 
     render(<ExportCard eventId="event-1" photoCount={5} />)
 
     expect(screen.getByText(/ready/i)).toBeInTheDocument()
     expect(screen.getByText(/1\.0 MB/)).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole("button", { name: /download zip/i }))
+    await waitFor(() =>
+      expect(assign).toHaveBeenCalledWith("https://r2.example/signed.zip")
+    )
+    expect(refetch).toHaveBeenCalledTimes(1)
+  })
+
+  it("treats a ready export past its expiry as expired", () => {
+    window.sessionStorage.setItem("cpd:export:event-1", EXPORT_ID)
+    mockExportQuery({
+      data: exportJob({
+        expiresAt: new Date(Date.now() - 1000).toISOString(),
+      }),
+    })
+
+    render(<ExportCard eventId="event-1" photoCount={5} />)
+
+    expect(screen.getByText(/has expired/i)).toBeInTheDocument()
     expect(
-      screen.getByRole("button", { name: /download zip/i })
-    ).toHaveAttribute("href", "https://r2.example/signed.zip")
+      screen.queryByRole("button", { name: /download zip/i })
+    ).not.toBeInTheDocument()
   })
 
   it("offers a fresh export after a failure", () => {

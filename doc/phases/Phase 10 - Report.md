@@ -277,6 +277,9 @@ Security and correctness:
 - `Retry-After` is computed from the limiter's refill delay and exposed through CORS; `devices.RateLimit` uses the same `Charge` path. `apps/web` retry logic now sees the hint.
 - Batch signed-URL requests charge one probe token in middleware plus one token per URL actually signed (`internal/gallery/handler.go`), so junk IDs cannot drain a venue's shared bucket.
 - `METRICS_ADDR=` (empty) now disables the metrics listener as documented.
+- Malformed numeric and duration environment values fail startup instead of silently falling back to defaults (`envParser` in `internal/platform/config/config.go`).
+- The OpenAPI contract documents the shared `413 PayloadTooLarge`, `429 RateLimited` (with `Retry-After`), and `504 RequestTimeout` responses from middleware under `components/responses` and `info.description`.
+- QR PNG/SVG images now encode the gallery URL with `?src=qr`, so printed codes count as scans. The `/events/{eventID}/url` endpoint still returns the plain share URL.
 - Stale uploads are swept by the worker (`photos.JobStaleUploadSweep`, `UPLOAD_STALE_AFTER`, default 1h), so rows abandoned mid-upload stop the operator UI from polling forever.
 - `.github/workflows/release.yml` runs a build/vet/test verify job before publishing and passes the tag through `env` with `jq` instead of interpolating it into the shell.
 
@@ -286,3 +289,5 @@ Web:
 - The XHR upload transport sets a 15-minute default timeout and rejects timeouts as retryable transport errors (`transport.ts`).
 - The public gallery metadata fetch uses `no-store` so each visit and QR scan reaches the API and is counted (`app/e/[slug]/page.tsx`).
 - `/admin` redirects anonymous sessions to `/login?next=/admin` instead of showing skeletons forever.
+- Batch URL lookups keep every waiter for a key, so a repeated request no longer strands the earlier promise, and signed-URL retries skip permanent 4xx responses (`batch-url-fetcher.ts`, `api.ts`).
+- The export card refetches before downloading so the signed URL is fresh, and flips to the expired state from the local clock when `expiresAt` passes, even if the cleanup job has not updated the status yet (`export-card.tsx`).

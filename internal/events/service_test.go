@@ -555,6 +555,23 @@ func TestUpdate_ClearExpiryUnlimitedPlanStaysNull(t *testing.T) {
 	}
 }
 
+func TestUpdate_ClearExpiryUnlimitedPlanClearsStoredValue(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, _ := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	future := time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)
+	repo.events[e.ID].ExpiresAt = &future
+
+	updated, err := svc.Update(context.Background(), owner, e.ID, UpdateParams{ClearExpiry: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ExpiresAt != nil {
+		t.Fatalf("expiresAt = %v, want nil", updated.ExpiresAt)
+	}
+}
+
 func TestDelete_NotFoundForOtherTenant(t *testing.T) {
 	repo := newFakeRepo()
 	svc := newTestService(repo, fixedLimits{})
@@ -987,6 +1004,29 @@ func TestUpdateSettings_OriginalDownloadsGated(t *testing.T) {
 	_, err = svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{AllowOriginalDownload: &yes})
 	if got := appErrCode(t, err); got != "PLAN_LIMIT_REACHED" {
 		t.Fatalf("got %s", got)
+	}
+}
+
+func TestUpdateSettings_GrandfatheredOriginalsAllowUnrelatedEdits(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{noOriginalDownload: true})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	repo.settings[e.ID].AllowOriginalDownload = true
+
+	yes := true
+	updated, err := svc.UpdateSettings(context.Background(), owner, e.ID, SettingsInput{
+		AllowOriginalDownload: &yes,
+		WatermarkEnabled:      &yes,
+	})
+	if err != nil {
+		t.Fatalf("unrelated settings write blocked: %v", err)
+	}
+	if !updated.WatermarkEnabled {
+		t.Fatal("watermark setting was not saved")
 	}
 }
 

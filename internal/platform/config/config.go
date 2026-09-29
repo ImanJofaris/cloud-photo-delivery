@@ -82,6 +82,7 @@ func (c Config) DatabaseOptions(log *slog.Logger) database.Options {
 }
 
 func Load() (Config, error) {
+	p := &envParser{}
 	c := Config{
 		Env:             getEnv("APP_ENV", "dev"),
 		HTTPAddr:        getEnv("HTTP_ADDR", ":8080"),
@@ -92,47 +93,50 @@ func Load() (Config, error) {
 		R2SecretKey:     os.Getenv("R2_SECRET_KEY"),
 		R2Bucket:        os.Getenv("R2_BUCKET"),
 		R2Region:        getEnv("R2_REGION", "auto"),
-		ShutdownTimeout: getDuration("SHUTDOWN_TIMEOUT", 10*time.Second),
+		ShutdownTimeout: p.duration("SHUTDOWN_TIMEOUT", 10*time.Second),
 
-		WorkerConcurrency: getInt("WORKER_CONCURRENCY", 2),
-		WorkerPollEvery:   getDuration("WORKER_POLL_INTERVAL", time.Second),
+		WorkerConcurrency: p.int("WORKER_CONCURRENCY", 2),
+		WorkerPollEvery:   p.duration("WORKER_POLL_INTERVAL", time.Second),
 
 		JWTSecret:        os.Getenv("JWT_SECRET"),
-		AccessTokenTTL:   getDuration("ACCESS_TOKEN_TTL", 15*time.Minute),
-		RefreshTokenTTL:  getDuration("REFRESH_TOKEN_TTL", 720*time.Hour),
-		PasswordResetTTL: getDuration("PASSWORD_RESET_TTL", time.Hour),
-		LockoutMaxFailed: getInt("LOCKOUT_MAX_ATTEMPTS", 5),
-		LockoutDuration:  getDuration("LOCKOUT_DURATION", 15*time.Minute),
+		AccessTokenTTL:   p.duration("ACCESS_TOKEN_TTL", 15*time.Minute),
+		RefreshTokenTTL:  p.duration("REFRESH_TOKEN_TTL", 720*time.Hour),
+		PasswordResetTTL: p.duration("PASSWORD_RESET_TTL", time.Hour),
+		LockoutMaxFailed: p.int("LOCKOUT_MAX_ATTEMPTS", 5),
+		LockoutDuration:  p.duration("LOCKOUT_DURATION", 15*time.Minute),
 		PublicBaseURL:    getEnv("PUBLIC_BASE_URL", "http://localhost:3000"),
 
-		SignedURLTTL:     getDuration("SIGNED_URL_TTL", 5*time.Minute),
-		GalleryUnlockTTL: getDuration("GALLERY_UNLOCK_TTL", 30*time.Minute),
+		SignedURLTTL:     p.duration("SIGNED_URL_TTL", 5*time.Minute),
+		GalleryUnlockTTL: p.duration("GALLERY_UNLOCK_TTL", 30*time.Minute),
 		AnalyticsSalt:    os.Getenv("ANALYTICS_HASH_SALT"),
 
 		BillingProvider:      getEnv("BILLING_PROVIDER", "manual"),
 		BillingWebhookSecret: os.Getenv("BILLING_WEBHOOK_SECRET"),
 
-		EventPurgeGraceDays: getInt("EVENT_PURGE_GRACE_DAYS", 30),
-		ExpiryWarnDays:      getInt("EXPIRY_WARN_DAYS", 7),
-		UploadStaleAfter:    getDuration("UPLOAD_STALE_AFTER", time.Hour),
-		ExportTTL:           getDuration("EXPORT_TTL", 24*time.Hour),
+		EventPurgeGraceDays: p.int("EVENT_PURGE_GRACE_DAYS", 30),
+		ExpiryWarnDays:      p.int("EXPIRY_WARN_DAYS", 7),
+		UploadStaleAfter:    p.duration("UPLOAD_STALE_AFTER", time.Hour),
+		ExportTTL:           p.duration("EXPORT_TTL", 24*time.Hour),
 
 		CORSAllowedOrigins: getList("CORS_ALLOWED_ORIGINS", []string{"*"}),
 		TrustedProxyCIDRs:  getList("TRUSTED_PROXY_CIDRS", nil),
-		MaxBodyBytes:       getInt64("MAX_BODY_BYTES", 1<<20),
-		RequestTimeout:     getDuration("HTTP_REQUEST_TIMEOUT", 30*time.Second),
+		MaxBodyBytes:       p.int64("MAX_BODY_BYTES", 1<<20),
+		RequestTimeout:     p.duration("HTTP_REQUEST_TIMEOUT", 30*time.Second),
 
 		MetricsAddr:       lookupEnv("METRICS_ADDR", ":9091"),
 		WorkerMetricsAddr: lookupEnv("WORKER_METRICS_ADDR", ":9092"),
 
-		DBMaxConns:           getInt("DB_MAX_CONNS", 10),
-		DBMinConns:           getInt("DB_MIN_CONNS", 1),
-		DBConnMaxLifetime:    getDuration("DB_CONN_MAX_LIFETIME", time.Hour),
-		DBConnMaxIdleTime:    getDuration("DB_CONN_MAX_IDLE_TIME", 30*time.Minute),
-		DBStatementTimeout:   getDuration("DB_STATEMENT_TIMEOUT", 30*time.Second),
-		DBSlowQueryThreshold: getDuration("DB_SLOW_QUERY_THRESHOLD", 500*time.Millisecond),
+		DBMaxConns:           p.int("DB_MAX_CONNS", 10),
+		DBMinConns:           p.int("DB_MIN_CONNS", 1),
+		DBConnMaxLifetime:    p.duration("DB_CONN_MAX_LIFETIME", time.Hour),
+		DBConnMaxIdleTime:    p.duration("DB_CONN_MAX_IDLE_TIME", 30*time.Minute),
+		DBStatementTimeout:   p.duration("DB_STATEMENT_TIMEOUT", 30*time.Second),
+		DBSlowQueryThreshold: p.duration("DB_SLOW_QUERY_THRESHOLD", 500*time.Millisecond),
 	}
 
+	if len(p.errs) > 0 {
+		return Config{}, errors.New("invalid config: " + strings.Join(p.errs, "; "))
+	}
 	if err := c.validate(); err != nil {
 		return Config{}, err
 	}
@@ -140,6 +144,54 @@ func Load() (Config, error) {
 		c.AnalyticsSalt = c.JWTSecret
 	}
 	return c, nil
+}
+
+// envParser reads typed environment values and records invalid ones so Load
+// can fail startup instead of silently running with a default.
+type envParser struct {
+	errs []string
+}
+
+func (p *envParser) int(key string, fallback int) int {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	n, err := strconv.Atoi(v)
+	if err != nil {
+		p.errs = append(p.errs, key+" must be an integer")
+		return fallback
+	}
+	return n
+}
+
+func (p *envParser) int64(key string, fallback int64) int64 {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	n, err := strconv.ParseInt(v, 10, 64)
+	if err != nil {
+		p.errs = append(p.errs, key+" must be an integer")
+		return fallback
+	}
+	return n
+}
+
+func (p *envParser) duration(key string, fallback time.Duration) time.Duration {
+	v, ok := os.LookupEnv(key)
+	if !ok || v == "" {
+		return fallback
+	}
+	d, err := time.ParseDuration(v)
+	if err != nil {
+		if n, err2 := strconv.Atoi(v); err2 == nil {
+			return time.Duration(n) * time.Second
+		}
+		p.errs = append(p.errs, key+" must be a duration such as 30s")
+		return fallback
+	}
+	return d
 }
 
 func (c Config) validate() error {
@@ -240,30 +292,6 @@ func lookupEnv(key, fallback string) string {
 	return fallback
 }
 
-func getInt(key string, fallback int) int {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return fallback
-	}
-	n, err := strconv.Atoi(v)
-	if err != nil {
-		return fallback
-	}
-	return n
-}
-
-func getInt64(key string, fallback int64) int64 {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return fallback
-	}
-	n, err := strconv.ParseInt(v, 10, 64)
-	if err != nil {
-		return fallback
-	}
-	return n
-}
-
 func getList(key string, fallback []string) []string {
 	v, ok := os.LookupEnv(key)
 	if !ok || strings.TrimSpace(v) == "" {
@@ -280,21 +308,6 @@ func getList(key string, fallback []string) []string {
 		return fallback
 	}
 	return out
-}
-
-func getDuration(key string, fallback time.Duration) time.Duration {
-	v, ok := os.LookupEnv(key)
-	if !ok || v == "" {
-		return fallback
-	}
-	d, err := time.ParseDuration(v)
-	if err != nil {
-		if n, err2 := strconv.Atoi(v); err2 == nil {
-			return time.Duration(n) * time.Second
-		}
-		return fallback
-	}
-	return d
 }
 
 func (c Config) String() string {
