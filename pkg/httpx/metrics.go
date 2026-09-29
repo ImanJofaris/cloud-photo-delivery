@@ -33,8 +33,21 @@ func Metrics(obs HTTPObserver) func(http.Handler) http.Handler {
 			if status == 0 {
 				status = http.StatusOK
 			}
-			obs.ObserveHTTP(r.Method, RoutePattern(r), status, time.Since(start))
+			obs.ObserveHTTP(normalizeMethod(r.Method), RoutePattern(r), status, time.Since(start))
 		})
+	}
+}
+
+// normalizeMethod bounds the method label: the server accepts arbitrary
+// method tokens, and each unique value creates metric children that are never
+// evicted.
+func normalizeMethod(method string) string {
+	switch method {
+	case http.MethodGet, http.MethodHead, http.MethodPost, http.MethodPut,
+		http.MethodPatch, http.MethodDelete, http.MethodOptions:
+		return method
+	default:
+		return "OTHER"
 	}
 }
 

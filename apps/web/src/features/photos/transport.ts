@@ -8,11 +8,16 @@ export class UploadTransportError extends Error {
   }
 }
 
+// Sized for the 100 MB upload limit on a slow connection; a stalled transfer
+// aborts and becomes a retryable transport error.
+const DEFAULT_UPLOAD_TIMEOUT_MS = 15 * 60 * 1000
+
 export type PutInput = {
   url: string
   body: Blob
   onProgress?: (loaded: number, total: number) => void
   signal?: AbortSignal
+  timeoutMs?: number
 }
 
 export type PutResult = { etag: string | null }
@@ -25,10 +30,12 @@ export const putWithProgress: PutTransport = ({
   body,
   onProgress,
   signal,
+  timeoutMs,
 }) =>
   new Promise<PutResult>((resolve, reject) => {
     const xhr = new XMLHttpRequest()
     xhr.open("PUT", url)
+    xhr.timeout = timeoutMs ?? DEFAULT_UPLOAD_TIMEOUT_MS
     if (body.type) {
       xhr.setRequestHeader("Content-Type", body.type)
     }

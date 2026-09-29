@@ -58,6 +58,10 @@ export function AdminPanel() {
   React.useEffect(() => {
     if (status === "authenticated" && !isAdmin) {
       router.replace("/dashboard")
+      return
+    }
+    if (status === "anonymous") {
+      router.replace("/login?next=/admin")
     }
   }, [status, isAdmin, router])
 

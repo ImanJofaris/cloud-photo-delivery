@@ -114,6 +114,19 @@ func (f *fakeRepo) SetStatus(ctx context.Context, userID, id uuid.UUID, status S
 	return e, nil
 }
 
+func (f *fakeRepo) Reactivate(ctx context.Context, userID, id uuid.UUID, expiresAt *time.Time) (*Event, error) {
+	e, err := f.GetByID(ctx, userID, id)
+	if err != nil {
+		return nil, err
+	}
+	if e.Status != StatusExpired {
+		return nil, ErrNotFound
+	}
+	e.Status = StatusActive
+	e.ExpiresAt = expiresAt
+	return e, nil
+}
+
 func (f *fakeRepo) SoftDelete(ctx context.Context, userID, id uuid.UUID) error {
 	e, err := f.GetByID(ctx, userID, id)
 	if err != nil {
@@ -797,6 +810,52 @@ func TestTransition_UpcomingToActiveAtLimit(t *testing.T) {
 	}
 	if active.Status != StatusActive {
 		t.Fatalf("status = %q, want active", active.Status)
+	}
+}
+
+func TestTransition_ReactivatesExpiredWithFreshExpiry(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{retention: 7})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := svc.now().UTC().AddDate(0, 0, -1)
+	repo.events[e.ID].Status = StatusExpired
+	repo.events[e.ID].ExpiresAt = &past
+
+	updated, err := svc.Transition(context.Background(), owner, e.ID, StatusActive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.Status != StatusActive {
+		t.Fatalf("status = %q, want active", updated.Status)
+	}
+	want := svc.now().UTC().AddDate(0, 0, 7)
+	if updated.ExpiresAt == nil || !updated.ExpiresAt.Equal(want) {
+		t.Fatalf("expiresAt = %v, want %v", updated.ExpiresAt, want)
+	}
+}
+
+func TestTransition_ReactivatesExpiredOnUnlimitedPlan(t *testing.T) {
+	repo := newFakeRepo()
+	svc := newTestService(repo, fixedLimits{})
+	owner := uuid.New()
+	e, _, err := svc.Create(context.Background(), owner, CreateParams{Name: "Party"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	past := svc.now().UTC().AddDate(0, 0, -1)
+	repo.events[e.ID].Status = StatusExpired
+	repo.events[e.ID].ExpiresAt = &past
+
+	updated, err := svc.Transition(context.Background(), owner, e.ID, StatusActive)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if updated.ExpiresAt != nil {
+		t.Fatalf("expiresAt = %v, want nil on an unlimited plan", updated.ExpiresAt)
 	}
 }
 

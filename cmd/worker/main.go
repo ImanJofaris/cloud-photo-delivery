@@ -108,6 +108,11 @@ func main() {
 	registry.Register(events.JobEventPurge, events.PurgeHandler(
 		eventRepo, instrumentedStore, time.Duration(cfg.EventPurgeGraceDays)*24*time.Hour, time.Now, log))
 
+	// Uploads left in UPLOADING by a vanished client are failed so the
+	// operator UI stops polling them.
+	registry.Register(photos.JobStaleUploadSweep, photos.StaleUploadHandler(
+		photoRepo, cfg.UploadStaleAfter, time.Now, log))
+
 	// Bulk ZIP exports: generation streams originals from storage into a
 	// temp-file archive; cleanup expires archives and fails stuck exports.
 	registry.Register(exports.JobZipGenerate, exports.GenerateHandler(
@@ -127,6 +132,7 @@ func main() {
 	scheduler := jobs.NewScheduler(queue, log,
 		jobs.Schedule{Type: events.JobEventExpire, Every: lifecycleInterval},
 		jobs.Schedule{Type: events.JobEventPurge, Every: lifecycleInterval},
+		jobs.Schedule{Type: photos.JobStaleUploadSweep, Every: lifecycleInterval},
 		jobs.Schedule{Type: exports.JobExportCleanup, Every: time.Hour},
 		jobs.Schedule{Type: admin.JobStorageReconcile, Every: reconcileInterval},
 	)

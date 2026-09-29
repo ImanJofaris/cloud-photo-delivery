@@ -271,4 +271,15 @@ describe("AdminPanel", () => {
     expect(screen.queryByText("Queue depth")).not.toBeInTheDocument()
     expect(useAdminStats).toHaveBeenCalledWith(false)
   })
+
+  it("redirects anonymous sessions to login", () => {
+    mockAdmin({
+      session: { status: "anonymous", user: null, accessToken: null },
+    })
+
+    render(<AdminPanel />)
+
+    expect(replace).toHaveBeenCalledWith("/login?next=/admin")
+    expect(useAdminStats).toHaveBeenCalledWith(false)
+  })
 })

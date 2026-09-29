@@ -82,6 +82,25 @@ func TestMetrics_UnmatchedRouteLabel(t *testing.T) {
 	}
 }
 
+func TestMetrics_NormalizesUnknownMethod(t *testing.T) {
+	obs := &fakeObserver{}
+	r := chi.NewRouter()
+	r.Use(Metrics(obs))
+	r.HandleFunc("/anything", func(w http.ResponseWriter, req *http.Request) { w.WriteHeader(http.StatusOK) })
+
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodGet, "/anything", nil)
+	req.Method = "BREW"
+	r.ServeHTTP(rec, req)
+
+	if len(obs.observed) != 1 {
+		t.Fatalf("expected one observation, got %d", len(obs.observed))
+	}
+	if obs.observed[0].method != "OTHER" {
+		t.Fatalf("unexpected method label: %q", obs.observed[0].method)
+	}
+}
+
 func TestRoutePattern(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/x", nil)
 	if got := RoutePattern(req); got != "unmatched" {

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/imanjofaris/cloud-photo-delivery/internal/platform/apperr"
 )
 
 func TestSecurityHeaders_Prod(t *testing.T) {
@@ -178,6 +180,21 @@ func TestError_MapsDeadlineExceededTo504(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	Error(rec, req, context.DeadlineExceeded)
+
+	if rec.Code != http.StatusGatewayTimeout {
+		t.Fatalf("expected 504, got %d", rec.Code)
+	}
+	env := decode(t, rec.Body.Bytes())
+	if env.Error == nil || env.Error.Code != "REQUEST_TIMEOUT" {
+		t.Fatalf("unexpected error body: %+v", env.Error)
+	}
+}
+
+func TestError_MapsWrappedDeadlineExceededTo504(t *testing.T) {
+	req := httptest.NewRequest(http.MethodGet, "/x", nil)
+	rec := httptest.NewRecorder()
+
+	Error(rec, req, apperr.Internal().WithCause(context.DeadlineExceeded))
 
 	if rec.Code != http.StatusGatewayTimeout {
 		t.Fatalf("expected 504, got %d", rec.Code)

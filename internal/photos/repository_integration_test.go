@@ -159,6 +159,36 @@ func createUploadingPhoto(t *testing.T, pool *pgxpool.Pool, eventID uuid.UUID, s
 	return p
 }
 
+func TestRepository_FailStaleUploads(t *testing.T) {
+	pool, userA, _ := setupDB(t)
+	eventID := insertEvent(t, pool, userA, "wedding")
+	repo := photos.NewRepository(pool)
+	ctx := context.Background()
+
+	stale := createUploadingPhoto(t, pool, eventID, 10)
+	fresh := createUploadingPhoto(t, pool, eventID, 10)
+	ready := createUploadingPhoto(t, pool, eventID, 10)
+	mustExec(t, pool, `UPDATE photos SET status = 'READY' WHERE id = '`+ready.ID.String()+`'`)
+	mustExec(t, pool, `UPDATE photos SET updated_at = NOW() - INTERVAL '2 hours' WHERE id = '`+stale.ID.String()+`'`)
+
+	failed, err := repo.FailStaleUploads(ctx, time.Now().UTC().Add(-time.Hour))
+	require.NoError(t, err)
+	require.Equal(t, 1, failed)
+
+	staleGot, err := repo.GetByID(ctx, stale.ID)
+	require.NoError(t, err)
+	require.Equal(t, photos.StatusFailed, staleGot.Status)
+	require.Equal(t, "Upload did not complete", staleGot.ErrorMessage)
+
+	freshGot, err := repo.GetByID(ctx, fresh.ID)
+	require.NoError(t, err)
+	require.Equal(t, photos.StatusUploading, freshGot.Status)
+
+	readyGot, err := repo.GetByID(ctx, ready.ID)
+	require.NoError(t, err)
+	require.Equal(t, photos.StatusReady, readyGot.Status)
+}
+
 func TestPhotosRepository_CreateAndGet(t *testing.T) {
 	pool, userA, _ := setupDB(t)
 	eventID := insertEvent(t, pool, userA, "wedding")

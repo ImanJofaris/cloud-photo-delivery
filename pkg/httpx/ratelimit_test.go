@@ -108,6 +108,56 @@ func TestRateLimiter_Middleware(t *testing.T) {
 	}
 }
 
+func TestRateLimiter_RetryAfterReflectsRefill(t *testing.T) {
+	rl := NewRateLimiter(60, 1, time.Minute)
+	base := time.Now()
+	rl.now = func() time.Time { return base }
+
+	h := rl.Middleware(func(r *http.Request) string { return "ip" })(
+		http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) }),
+	)
+
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, "/auth/login", nil))
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/auth/login", nil))
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("got %d, want 429", rec.Code)
+	}
+	// 60/min means one token per second, not the old fixed minute.
+	if got := rec.Header().Get("Retry-After"); got != "1" {
+		t.Fatalf("Retry-After = %q, want \"1\"", got)
+	}
+}
+
+func TestRateLimiter_ChargeDeniesWithRetryAfter(t *testing.T) {
+	rl := NewRateLimiter(60, 1, time.Minute)
+	base := time.Now()
+	rl.now = func() time.Time { return base }
+
+	rec := httptest.NewRecorder()
+	if !rl.Charge(rec, "venue", 1) {
+		t.Fatal("first charge should succeed")
+	}
+	rec = httptest.NewRecorder()
+	if rl.Charge(rec, "venue", 1) {
+		t.Fatal("second charge should be denied")
+	}
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("got %d, want 429", rec.Code)
+	}
+	if rec.Header().Get("Retry-After") == "" {
+		t.Fatal("expected Retry-After")
+	}
+	var env Envelope
+	if err := json.Unmarshal(rec.Body.Bytes(), &env); err != nil {
+		t.Fatalf("invalid envelope: %v", err)
+	}
+	if env.Error == nil || env.Error.Code != "RATE_LIMITED" {
+		t.Fatalf("unexpected error: %+v", env.Error)
+	}
+}
+
 func TestRateLimiter_RefillsOverTime(t *testing.T) {
 	rl := NewRateLimiter(60, 1, time.Minute)
 	base := time.Now()

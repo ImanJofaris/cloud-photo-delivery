@@ -69,6 +69,7 @@ type Repository interface {
 	List(ctx context.Context, userID uuid.UUID, f ListFilter) ([]*Event, error)
 	Update(ctx context.Context, userID, id uuid.UUID, in UpdateInput) (*Event, error)
 	SetStatus(ctx context.Context, userID, id uuid.UUID, status Status) (*Event, error)
+	Reactivate(ctx context.Context, userID, id uuid.UUID, expiresAt *time.Time) (*Event, error)
 	SoftDelete(ctx context.Context, userID, id uuid.UUID) error
 	CountByStatus(ctx context.Context, userID uuid.UUID, status Status) (int, error)
 	CountLiveEvents(ctx context.Context, userID uuid.UUID) (int, error)
@@ -235,6 +236,21 @@ func (r *PostgresRepository) SetStatus(ctx context.Context, userID, id uuid.UUID
 		`UPDATE events SET status = $3, updated_at = NOW()
 		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL
 		 RETURNING `+eventColumns, id, userID, status)
+	return scanEvent(row)
+}
+
+// Reactivate returns an expired event to active with a fresh expiry and clears
+// the expiry warning. The status predicate makes the update a no-op for events
+// that changed state concurrently.
+func (r *PostgresRepository) Reactivate(ctx context.Context, userID, id uuid.UUID, expiresAt *time.Time) (*Event, error) {
+	row := r.pool.QueryRow(ctx,
+		`UPDATE events SET
+			status = $3,
+			expires_at = $4,
+			expiry_warned_at = NULL,
+			updated_at = NOW()
+		 WHERE id = $1 AND user_id = $2 AND deleted_at IS NULL AND status = $5
+		 RETURNING `+eventColumns, id, userID, StatusActive, expiresAt, StatusExpired)
 	return scanEvent(row)
 }
 

@@ -45,7 +45,7 @@ func (h redactHandler) Enabled(ctx context.Context, level slog.Level) bool {
 }
 
 func (h redactHandler) Handle(ctx context.Context, r slog.Record) error {
-	clone := slog.NewRecord(r.Time, r.Level, r.Message, r.PC)
+	clone := slog.NewRecord(r.Time, r.Level, scrubString(r.Message), r.PC)
 	r.Attrs(func(a slog.Attr) bool {
 		clone.AddAttrs(redactAttr(a))
 		return true
@@ -82,6 +82,11 @@ func redactAttr(a slog.Attr) slog.Attr {
 		v := a.Value.String()
 		if scrubbed := scrubString(v); scrubbed != v {
 			return slog.String(a.Key, scrubbed)
+		}
+	}
+	if a.Value.Kind() == slog.KindAny {
+		if err, ok := a.Value.Any().(error); ok {
+			return slog.String(a.Key, scrubString(err.Error()))
 		}
 	}
 	return a

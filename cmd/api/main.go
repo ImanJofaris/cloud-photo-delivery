@@ -127,6 +127,30 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 	// Rate-limit keys trust X-Forwarded-For only from configured proxies.
 	clientIP := httpx.NewClientIPResolver(cfg.TrustedProxyCIDRs)
 
+	// Phase 10 starting values (doc/phases/Phase 10 - Hardening and Deploy.md
+	// §2). Signed URL generation charges one token per request plus one per URL
+	// actually signed, so a 120-photo page needs about 121 tokens.
+	loginLimiter := httpx.NewRateLimiter(10, 10, 10*time.Minute)
+	signupLimiter := httpx.NewRateLimiter(5, 5, 10*time.Minute)
+	adminLimiter := httpx.NewRateLimiter(30, 30, 10*time.Minute)
+	uploadInitLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
+	uploadCompleteLimiter := httpx.NewRateLimiter(300, 300, 10*time.Minute)
+	signedURLLimiter := httpx.NewRateLimiter(600, 300, 10*time.Minute)
+
+	userKey := func(req *http.Request) string {
+		id, ok := auth.UserID(req.Context())
+		if !ok {
+			return "anonymous"
+		}
+		return "user:" + id.String()
+	}
+	uploadKey := func(req *http.Request) string {
+		if device, ok := devices.FromContext(req.Context()); ok {
+			return "device:" + device.ID.String()
+		}
+		return userKey(req)
+	}
+
 	// Domain wiring.
 	userRepo := users.NewRepository(pool.Pool)
 	userSvc := users.NewService(userRepo)
@@ -248,7 +272,11 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 	galleryURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	galleryTokens := gallery.NewUnlockTokens(cfg.JWTSecret, cfg.GalleryUnlockTTL)
 	gallerySvc := gallery.NewService(galleryRepo, galleryURLs, galleryTokens, auth.VerifyPassword, brandingSvc, analyticsSvc, entitlements)
-	galleryHandler := gallery.NewHandler(gallerySvc, clientIP.Resolve)
+	galleryHandler := gallery.NewHandler(gallerySvc, gallery.HandlerOptions{
+		ClientIP:     clientIP.Resolve,
+		BatchLimiter: signedURLLimiter,
+		BatchKey:     gallery.SignedURLRateLimitKey(clientIP.Resolve),
+	})
 
 	photoURLs := photos.NewSignedURLGenerator(store, cfg.SignedURLTTL)
 	photoSvc := photos.NewService(photoRepo, photoURLs, store, photos.NewPostgresQueue(pool.Pool))
@@ -278,31 +306,6 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 		return id.String(), true
 	})
 
-	// Phase 10 starting values (doc/phases/Phase 10 - Hardening and Deploy.md
-	// §2), with signed URL generation re-sized for batched gallery reads: the
-	// limiter charges one token per URL signed, not per request, so a
-	// 120-photo page needs ~120 tokens instead of 120 requests.
-	loginLimiter := httpx.NewRateLimiter(10, 10, 10*time.Minute)
-	signupLimiter := httpx.NewRateLimiter(5, 5, 10*time.Minute)
-	adminLimiter := httpx.NewRateLimiter(30, 30, 10*time.Minute)
-	uploadInitLimiter := httpx.NewRateLimiter(100, 100, 10*time.Minute)
-	uploadCompleteLimiter := httpx.NewRateLimiter(300, 300, 10*time.Minute)
-	signedURLLimiter := httpx.NewRateLimiter(600, 300, 10*time.Minute)
-
-	userKey := func(req *http.Request) string {
-		id, ok := auth.UserID(req.Context())
-		if !ok {
-			return "anonymous"
-		}
-		return "user:" + id.String()
-	}
-	uploadKey := func(req *http.Request) string {
-		if device, ok := devices.FromContext(req.Context()); ok {
-			return "device:" + device.ID.String()
-		}
-		return userKey(req)
-	}
-
 	r.Route("/api/v1", func(r chi.Router) {
 		r.With(signupLimiter.Middleware(clientIP.Resolve)).Post("/auth/signup", authHandler.Signup)
 
@@ -322,7 +325,7 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 			r.Get("/", galleryHandler.GetEvent)
 			r.Post("/unlock", galleryHandler.Unlock)
 			r.Get("/photos", galleryHandler.ListPhotos)
-			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey(clientIP.Resolve), gallery.BatchURLCost)).
+			r.With(signedURLLimiter.Middleware(gallery.SignedURLRateLimitKey(clientIP.Resolve))).
 				Post("/photos/urls", galleryHandler.BatchPhotoURLs)
 			r.Get("/photos/{photoID}", galleryHandler.GetPhoto)
 			r.With(signedURLLimiter.MiddlewareN(gallery.SignedURLRateLimitKey(clientIP.Resolve), nil)).
@@ -407,10 +410,10 @@ func NewRouter(cfg config.Config, log *slog.Logger, pool *database.Pool, m *metr
 				r.Get("/", uploadHandler.Status)
 				r.Post("/url", uploadHandler.RePresign)
 				r.Post("/parts", uploadHandler.Parts)
-				r.With(uploadCompleteLimiter.Middleware(userKey)).
+				r.With(uploadCompleteLimiter.Middleware(uploadKey)).
 					Post("/multipart/complete", uploadHandler.CompleteMultipart)
 				r.Post("/multipart/abort", uploadHandler.AbortMultipart)
-				r.With(uploadCompleteLimiter.Middleware(userKey)).
+				r.With(uploadCompleteLimiter.Middleware(uploadKey)).
 					Post("/complete", uploadHandler.Complete)
 			})
 			r.Route("/photos/{photoID}", func(r chi.Router) {

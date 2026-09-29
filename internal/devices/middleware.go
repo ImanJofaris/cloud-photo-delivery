@@ -73,9 +73,7 @@ func RateLimit(rl *httpx.RateLimiter) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if !rl.Allow("device:" + device.ID.String()) {
-				w.Header().Set("Retry-After", "60")
-				httpx.Fail(w, http.StatusTooManyRequests, "RATE_LIMITED", "Too many requests, please try again later")
+			if !rl.Charge(w, "device:"+device.ID.String(), 1) {
 				return
 			}
 			next.ServeHTTP(w, r)

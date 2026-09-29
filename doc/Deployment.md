@@ -92,7 +92,7 @@ Every setting is read from the environment (`os.Getenv`); `.env` is **not** auto
 
 ### Auth, gallery, lifecycle, exports
 
-`ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `PASSWORD_RESET_TTL`, `LOCKOUT_MAX_ATTEMPTS`, `LOCKOUT_DURATION`, `SIGNED_URL_TTL`, `GALLERY_UNLOCK_TTL`, `ANALYTICS_HASH_SALT`, `BILLING_PROVIDER`, `EVENT_PURGE_GRACE_DAYS`, `EXPIRY_WARN_DAYS`, `EXPORT_TTL`, `WORKER_CONCURRENCY`, `WORKER_POLL_INTERVAL`, `SHUTDOWN_TIMEOUT`.
+`ACCESS_TOKEN_TTL`, `REFRESH_TOKEN_TTL`, `PASSWORD_RESET_TTL`, `LOCKOUT_MAX_ATTEMPTS`, `LOCKOUT_DURATION`, `SIGNED_URL_TTL`, `GALLERY_UNLOCK_TTL`, `ANALYTICS_HASH_SALT`, `BILLING_PROVIDER`, `EVENT_PURGE_GRACE_DAYS`, `EXPIRY_WARN_DAYS`, `UPLOAD_STALE_AFTER` (worker marks uploads stuck in `UPLOADING` past this age as failed), `EXPORT_TTL`, `WORKER_CONCURRENCY`, `WORKER_POLL_INTERVAL`, `SHUTDOWN_TIMEOUT`.
 
 Secrets live in the platform's secret store, never in the repository or image. The logger redacts `password*`, `*secret*`, `*token*`, `authorization`, `api_key`, `signature`, and signed-URL query parameters, plus JWT-shaped strings, as defense in depth.
 
@@ -114,13 +114,15 @@ Public gallery:           no app limit — expected behind the CDN
 
 Signed URL generation is charged per URL signed, not per request: the same
 budget covers `GET /photos/{photoID}/url` (cost 1) and
-`POST /photos/urls` (cost = number of photo IDs, capped at 100). The bucket is
-keyed by client IP **per event**, so guests behind one NAT do not exhaust
-another event's budget.
+`POST /photos/urls` (1 token per request plus 1 per URL actually signed, at
+most 100 IDs per request). IDs that do not resolve only cost the request
+token, so a caller cannot drain a shared venue bucket with junk batches. The
+bucket is keyed by client IP **per event**, so guests behind one NAT do not
+exhaust another event's budget.
 
 IP-keyed limits use the direct peer address unless the peer is listed in `TRUSTED_PROXY_CIDRS`, in which case the rightmost untrusted `X-Forwarded-For` hop is used. A caller cannot mint a fresh bucket by rotating the header, provided the origin only accepts traffic from the proxy.
 
-Exceeding a limit returns `429` with the standard envelope (`RATE_LIMITED`) and `Retry-After: 60`. If cross-instance accuracy is needed, replace the in-memory limiter with a shared store.
+Exceeding a limit returns `429` with the standard envelope (`RATE_LIMITED`) and a `Retry-After` that reflects the actual refill delay. The header is exposed through CORS so browser clients can honor it. If cross-instance accuracy is needed, replace the in-memory limiter with a shared store.
 
 ---
 

@@ -130,18 +130,26 @@ func cacheHeader(w http.ResponseWriter, s *events.Settings) {
 	w.Header().Set("Cache-Control", cachePublic)
 }
 
-type Handler struct {
-	svc      *Service
-	clientIP func(*http.Request) string
+// HandlerOptions carries the request-scoped dependencies of the public
+// gallery handler. ClientIP resolves the visitor address for analytics; nil
+// falls back to the direct peer. BatchLimiter and BatchKey bill batch signing
+// per URL actually signed; nil skips the post-resolution charge.
+type HandlerOptions struct {
+	ClientIP     func(*http.Request) string
+	BatchLimiter *httpx.RateLimiter
+	BatchKey     func(*http.Request) string
 }
 
-// NewHandler builds the public gallery handler. clientIP resolves the visitor
-// address for analytics; nil falls back to the direct peer.
-func NewHandler(svc *Service, clientIP func(*http.Request) string) *Handler {
-	if clientIP == nil {
-		clientIP = httpx.RemoteIP
+type Handler struct {
+	svc  *Service
+	opts HandlerOptions
+}
+
+func NewHandler(svc *Service, opts HandlerOptions) *Handler {
+	if opts.ClientIP == nil {
+		opts.ClientIP = httpx.RemoteIP
 	}
-	return &Handler{svc: svc, clientIP: clientIP}
+	return &Handler{svc: svc, opts: opts}
 }
 
 func slugParam(r *http.Request) string { return chi.URLParam(r, "slug") }
@@ -150,7 +158,7 @@ func unlockHeader(r *http.Request) string { return r.Header.Get("X-Gallery-Unloc
 
 func (h *Handler) visitorFrom(r *http.Request) Visitor {
 	return Visitor{
-		IP:        h.clientIP(r),
+		IP:        h.opts.ClientIP(r),
 		UserAgent: r.UserAgent(),
 		QRScan:    strings.EqualFold(r.URL.Query().Get("src"), "qr"),
 	}
@@ -263,6 +271,14 @@ func (h *Handler) BatchPhotoURLs(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		httpx.Error(w, r, err)
 		return
+	}
+	// Per-request rate limiting already charged a probe token in middleware;
+	// bill the signing work that was actually performed so requests full of
+	// unknown IDs cannot drain a shared bucket.
+	if h.opts.BatchLimiter != nil && h.opts.BatchKey != nil && len(batch.URLs) > 0 {
+		if !h.opts.BatchLimiter.Charge(w, h.opts.BatchKey(r), len(batch.URLs)) {
+			return
+		}
 	}
 	urls := make(map[string]string, len(batch.URLs))
 	for id, result := range batch.URLs {

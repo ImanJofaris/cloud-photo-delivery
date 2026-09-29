@@ -240,8 +240,6 @@ func TestLoad_HardeningDefaults(t *testing.T) {
 	t.Setenv("CORS_ALLOWED_ORIGINS", "")
 	t.Setenv("MAX_BODY_BYTES", "")
 	t.Setenv("HTTP_REQUEST_TIMEOUT", "")
-	t.Setenv("METRICS_ADDR", "")
-	t.Setenv("WORKER_METRICS_ADDR", "")
 	t.Setenv("DB_MAX_CONNS", "")
 	t.Setenv("DB_MIN_CONNS", "")
 	t.Setenv("DB_STATEMENT_TIMEOUT", "")
@@ -339,6 +337,20 @@ func TestLoad_TrustedProxyCIDRs(t *testing.T) {
 	}
 	if len(cfg.TrustedProxyCIDRs) != 2 || cfg.TrustedProxyCIDRs[0] != "127.0.0.1/32" || cfg.TrustedProxyCIDRs[1] != "::1" {
 		t.Fatalf("unexpected trusted proxies: %+v", cfg.TrustedProxyCIDRs)
+	}
+}
+
+func TestLoad_EmptyMetricsAddrDisablesListener(t *testing.T) {
+	setBaseEnv(t)
+	t.Setenv("METRICS_ADDR", "")
+	t.Setenv("WORKER_METRICS_ADDR", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if cfg.MetricsAddr != "" || cfg.WorkerMetricsAddr != "" {
+		t.Fatalf("expected empty metrics addresses, got %q and %q", cfg.MetricsAddr, cfg.WorkerMetricsAddr)
 	}
 }
 

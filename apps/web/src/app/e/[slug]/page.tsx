@@ -25,8 +25,9 @@ async function fetchPublicEvent(
       path: { slug },
       query: src === "qr" ? { src: "qr" } : undefined,
     },
-    cache: "force-cache",
-    next: { revalidate: 60 },
+    // The API records a view and a QR scan on this call. Caching it would
+    // collapse the counters for every visitor inside the revalidate window.
+    cache: "no-store",
   })
   return unwrapEnvelope<PublicEvent>(result)
 }

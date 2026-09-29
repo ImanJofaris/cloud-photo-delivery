@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -210,6 +211,20 @@ func (r *PostgresRepository) MarkFailed(ctx context.Context, id uuid.UUID, msg s
 		return ErrNotFound
 	}
 	return nil
+}
+
+// FailStaleUploads marks uploads that never completed as failed. A client can
+// vanish mid-upload, and without this sweep the row stays UPLOADING and the
+// operator UI polls it indefinitely.
+func (r *PostgresRepository) FailStaleUploads(ctx context.Context, cutoff time.Time) (int, error) {
+	tag, err := r.pool.Exec(ctx,
+		`UPDATE photos SET status = $2, error_message = $3, updated_at = NOW()
+		 WHERE status = $1 AND updated_at < $4`,
+		StatusUploading, StatusFailed, "Upload did not complete", cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
 }
 
 func (r *PostgresRepository) SavePartETag(ctx context.Context, photoID uuid.UUID, partNumber int, etag string) error {

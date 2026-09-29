@@ -264,8 +264,25 @@ k6 run -e BASE_URL=http://localhost:18080 test/load/upload_flow.js
 
 ## 11. Post-report fixes (2026-09-29)
 
-Code review closed three hardening gaps after this report:
+Code review closed the hardening gaps below after this report.
+
+Security and correctness:
 
 - Rate-limit keys no longer trust `X-Forwarded-For` from arbitrary peers. `pkg/httpx/clientip.go` resolves the client address through `TRUSTED_PROXY_CIDRS`, and only walks the forwarded chain from the rightmost untrusted hop when the direct peer is a configured proxy. Wired through the auth, signed-URL, photo-URL, and gallery batch limiters plus gallery visitor analytics. Documented in `doc/Deployment.md` and `.env.example`; the Playwright suite must start the API with `TRUSTED_PROXY_CIDRS=127.0.0.1/32,::1/128`.
 - `RequestTimeout`'s writer buffers headers in its own map and copies them on the first write, so the handler goroutine and the timeout goroutine never mutate the same `http.Header` (concurrent map writes are a fatal runtime error, not a recoverable panic). Covered by `TestRequestTimeout_ForwardsHandlerHeaders` and `TestRequestTimeout_ConcurrentLateHeaderWrites`.
-- The upload queue's `abortAll` and `cancel` no longer requeue and restart in-flight uploads. The queue stops permanently on abort, and cancel removes the item before its first await, so an aborted attempt cannot be pumped back into a new upload (`apps/web/src/features/photos/uploader.ts`). Covered by updated and new `uploader.test.ts` cases.
+- Upload-complete rate limits now key on the device when a device key is presented, instead of lumping every device into one anonymous bucket.
+- `httpx.Error` maps `context.DeadlineExceeded` before the `apperr` wrapper, so statement-timeout and deadline failures surface as `504` even when services wrap the cause.
+- Log redaction scrubs the message body and `error` attribute values, not only string attributes.
+- The metrics method label normalizes unknown tokens to `OTHER`, bounding registry cardinality from arbitrary methods.
+- `Retry-After` is computed from the limiter's refill delay and exposed through CORS; `devices.RateLimit` uses the same `Charge` path. `apps/web` retry logic now sees the hint.
+- Batch signed-URL requests charge one probe token in middleware plus one token per URL actually signed (`internal/gallery/handler.go`), so junk IDs cannot drain a venue's shared bucket.
+- `METRICS_ADDR=` (empty) now disables the metrics listener as documented.
+- Stale uploads are swept by the worker (`photos.JobStaleUploadSweep`, `UPLOAD_STALE_AFTER`, default 1h), so rows abandoned mid-upload stop the operator UI from polling forever.
+- `.github/workflows/release.yml` runs a build/vet/test verify job before publishing and passes the tag through `env` with `jq` instead of interpolating it into the shell.
+
+Web:
+
+- The upload queue's `abortAll` and `cancel` no longer requeue and restart in-flight uploads. The queue stops permanently on abort, and cancel removes the item before its first await (`apps/web/src/features/photos/uploader.ts`). Covered by updated and new `uploader.test.ts` cases.
+- The XHR upload transport sets a 15-minute default timeout and rejects timeouts as retryable transport errors (`transport.ts`).
+- The public gallery metadata fetch uses `no-store` so each visit and QR scan reaches the API and is counted (`app/e/[slug]/page.tsx`).
+- `/admin` redirects anonymous sessions to `/login?next=/admin` instead of showing skeletons forever.

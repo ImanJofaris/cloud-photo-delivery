@@ -42,6 +42,7 @@ type Config struct {
 
 	EventPurgeGraceDays int
 	ExpiryWarnDays      int
+	UploadStaleAfter    time.Duration
 	ExportTTL           time.Duration
 
 	ShutdownTimeout time.Duration
@@ -113,6 +114,7 @@ func Load() (Config, error) {
 
 		EventPurgeGraceDays: getInt("EVENT_PURGE_GRACE_DAYS", 30),
 		ExpiryWarnDays:      getInt("EXPIRY_WARN_DAYS", 7),
+		UploadStaleAfter:    getDuration("UPLOAD_STALE_AFTER", time.Hour),
 		ExportTTL:           getDuration("EXPORT_TTL", 24*time.Hour),
 
 		CORSAllowedOrigins: getList("CORS_ALLOWED_ORIGINS", []string{"*"}),
@@ -120,8 +122,8 @@ func Load() (Config, error) {
 		MaxBodyBytes:       getInt64("MAX_BODY_BYTES", 1<<20),
 		RequestTimeout:     getDuration("HTTP_REQUEST_TIMEOUT", 30*time.Second),
 
-		MetricsAddr:       getEnv("METRICS_ADDR", ":9091"),
-		WorkerMetricsAddr: getEnv("WORKER_METRICS_ADDR", ":9092"),
+		MetricsAddr:       lookupEnv("METRICS_ADDR", ":9091"),
+		WorkerMetricsAddr: lookupEnv("WORKER_METRICS_ADDR", ":9092"),
 
 		DBMaxConns:           getInt("DB_MAX_CONNS", 10),
 		DBMinConns:           getInt("DB_MIN_CONNS", 1),
@@ -172,6 +174,9 @@ func (c Config) validate() error {
 	if c.ExpiryWarnDays < 0 {
 		errs = append(errs, "EXPIRY_WARN_DAYS must not be negative")
 	}
+	if c.UploadStaleAfter <= 0 {
+		errs = append(errs, "UPLOAD_STALE_AFTER must be positive")
+	}
 	if c.ExportTTL <= 0 {
 		errs = append(errs, "EXPORT_TTL must be positive")
 	}
@@ -221,6 +226,15 @@ func (c Config) ValidateStorage() error {
 
 func getEnv(key, fallback string) string {
 	if v, ok := os.LookupEnv(key); ok && v != "" {
+		return v
+	}
+	return fallback
+}
+
+// lookupEnv preserves an explicitly empty value, which callers use to disable
+// an optional listener.
+func lookupEnv(key, fallback string) string {
+	if v, ok := os.LookupEnv(key); ok {
 		return v
 	}
 	return fallback

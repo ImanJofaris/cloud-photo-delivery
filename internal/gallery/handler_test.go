@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/events"
 	"github.com/imanjofaris/cloud-photo-delivery/internal/users"
+	"github.com/imanjofaris/cloud-photo-delivery/pkg/httpx"
 	"github.com/stretchr/testify/require"
 )
 
@@ -33,7 +34,7 @@ func decodeEnvelope(t *testing.T, rec *httptest.ResponseRecorder) map[string]any
 
 func newTestHandler() (*Handler, *fakeRepo) {
 	svc, repo, _ := newTestService()
-	return NewHandler(svc, nil), repo
+	return NewHandler(svc, HandlerOptions{}), repo
 }
 
 func TestHandler_GetEvent_PublicCacheHeader(t *testing.T) {
@@ -173,6 +174,31 @@ func TestHandler_BatchPhotoURLs(t *testing.T) {
 	require.Equal(t, float64(300), data["expiresIn"])
 }
 
+func TestHandler_BatchPhotoURLs_ChargesResolvedURLs(t *testing.T) {
+	h, repo := newTestHandler()
+	e, s := publicEvent("wedding")
+	repo.addEvent(e, s)
+	p := readyPhoto(e.ID, time.Now())
+	repo.photos[e.ID] = append(repo.photos[e.ID], p)
+
+	h.opts.BatchLimiter = httpx.NewRateLimiter(600, 1, time.Minute)
+	h.opts.BatchKey = func(*http.Request) string { return "venue" }
+
+	body := `{"variant":"thumbnail","photoIds":["` + p.ID.String() + `"]}`
+	call := func() *httptest.ResponseRecorder {
+		r := withParams(httptest.NewRequest(http.MethodPost, "/public/events/wedding/photos/urls", strings.NewReader(body)), map[string]string{"slug": "wedding"})
+		rec := httptest.NewRecorder()
+		h.BatchPhotoURLs(rec, r)
+		return rec
+	}
+
+	require.Equal(t, http.StatusOK, call().Code)
+	rec := call()
+	require.Equal(t, http.StatusTooManyRequests, rec.Code)
+	require.NotEmpty(t, rec.Header().Get("Retry-After"))
+	require.Equal(t, "RATE_LIMITED", decodeEnvelope(t, rec)["error"].(map[string]any)["code"])
+}
+
 func TestHandler_BatchPhotoURLs_InvalidVariant422(t *testing.T) {
 	h, repo := newTestHandler()
 	e, s := publicEvent("wedding")
@@ -248,7 +274,7 @@ func TestHandler_GetEvent_Branding(t *testing.T) {
 		PrimaryColor:    "#112233",
 		ContactEmail:    "hello@example.com",
 	}
-	h := NewHandler(svc, nil)
+	h := NewHandler(svc, HandlerOptions{})
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding", nil), map[string]string{"slug": "wedding"})
 	rec := httptest.NewRecorder()
@@ -283,7 +309,7 @@ func TestHandler_GetEvent_BrandingProfileImageOnly(t *testing.T) {
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
 	branding.view = &users.BrandingView{ProfileImageURL: "https://cdn.example/profile.png"}
-	h := NewHandler(svc, nil)
+	h := NewHandler(svc, HandlerOptions{})
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding", nil), map[string]string{"slug": "wedding"})
 	rec := httptest.NewRecorder()
@@ -302,7 +328,7 @@ func TestHandler_ListPhotos_IncludesBranding(t *testing.T) {
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
 	branding.view = &users.BrandingView{BusinessName: "Booth Co"}
-	h := NewHandler(svc, nil)
+	h := NewHandler(svc, HandlerOptions{})
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding/photos", nil), map[string]string{"slug": "wedding"})
 	rec := httptest.NewRecorder()
@@ -318,9 +344,9 @@ func TestHandler_GetEvent_RecordsVisitorFromRequest(t *testing.T) {
 	svc, repo, _, _ := newTestServiceFull()
 	e, s := publicEvent("wedding")
 	repo.addEvent(e, s)
-	h := NewHandler(svc, func(r *http.Request) string {
+	h := NewHandler(svc, HandlerOptions{ClientIP: func(r *http.Request) string {
 		return r.Header.Get("X-Forwarded-For")
-	})
+	}})
 
 	r := withParams(httptest.NewRequest(http.MethodGet, "/public/events/wedding?src=qr", nil), map[string]string{"slug": "wedding"})
 	r.Header.Set("X-Forwarded-For", "203.0.113.7")

@@ -401,6 +401,38 @@ func TestRepository_ExtendReactivatesExpiredAndClearsWarning(t *testing.T) {
 	require.Nil(t, warned, "extend must reset the expiry warning")
 }
 
+func TestRepository_Reactivate(t *testing.T) {
+	pool, userA, userB := setupDB(t)
+	repo := events.NewRepository(pool)
+	ctx := context.Background()
+
+	in := createInput(userA, "Party", "party")
+	past := time.Now().UTC().Add(-time.Hour)
+	in.ExpiresAt = &past
+	e, _, err := repo.Create(ctx, in)
+	require.NoError(t, err)
+	_, err = repo.SetStatus(ctx, userA, e.ID, events.StatusExpired)
+	require.NoError(t, err)
+	mustExec(t, pool, `UPDATE events SET expiry_warned_at = NOW() WHERE id = '`+e.ID.String()+`'`)
+
+	fresh := time.Now().UTC().AddDate(0, 0, 7).Truncate(time.Second)
+	reactivated, err := repo.Reactivate(ctx, userA, e.ID, &fresh)
+	require.NoError(t, err)
+	require.Equal(t, events.StatusActive, reactivated.Status)
+	require.NotNil(t, reactivated.ExpiresAt)
+	require.WithinDuration(t, fresh, *reactivated.ExpiresAt, time.Second)
+
+	var warned *time.Time
+	require.NoError(t, pool.QueryRow(ctx, `SELECT expiry_warned_at FROM events WHERE id = $1`, e.ID).Scan(&warned))
+	require.Nil(t, warned, "reactivate must clear the expiry warning")
+
+	_, err = repo.Reactivate(ctx, userB, e.ID, &fresh)
+	require.ErrorIs(t, err, events.ErrNotFound, "reactivate must be tenant scoped")
+
+	_, err = repo.Reactivate(ctx, userA, e.ID, &fresh)
+	require.ErrorIs(t, err, events.ErrNotFound, "only expired events can be reactivated")
+}
+
 func TestRepository_ListDueExpiry(t *testing.T) {
 	pool, userA, _ := setupDB(t)
 	repo := events.NewRepository(pool)

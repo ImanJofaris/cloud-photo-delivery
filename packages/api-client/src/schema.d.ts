@@ -308,8 +308,9 @@ export interface paths {
          *     `active → completed|archived`, `completed → archived`, `archived`
          *     (terminal), `expired → active`. Clients cannot set `expired`; the
          *     expiry job owns that state and a request for it returns `409`.
-         *     Reactivating an expired event enforces the plan's live-event limit;
-         *     live events already occupy their slot.
+         *     Reactivating an expired event enforces the plan's live-event limit and
+         *     resets its expiry to the plan's retention window; live events already
+         *     occupy their slot.
          */
         post: operations["updateEventStatus"];
         delete?: never;

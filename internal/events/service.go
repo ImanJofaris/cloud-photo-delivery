@@ -361,6 +361,23 @@ func (s *Service) transition(ctx context.Context, userID, id uuid.UUID, to Statu
 		if err := s.enforceEventLimit(ctx, userID); err != nil {
 			return nil, err
 		}
+		retention, err := s.limits.RetentionDays(ctx, userID.String())
+		if err != nil {
+			return nil, apperr.Internal().WithCause(err)
+		}
+		var expiresAt *time.Time
+		if retention > 0 {
+			t := s.now().UTC().AddDate(0, 0, retention)
+			expiresAt = &t
+		}
+		updated, err := s.repo.Reactivate(ctx, userID, id, expiresAt)
+		if err != nil {
+			if errors.Is(err, ErrNotFound) {
+				return nil, notFound()
+			}
+			return nil, apperr.Internal().WithCause(err)
+		}
+		return updated, nil
 	}
 	updated, err := s.repo.SetStatus(ctx, userID, id, to)
 	if err != nil {

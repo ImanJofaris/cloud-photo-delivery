@@ -10,7 +10,29 @@ permissions:
   packages: write
 
 jobs:
+  # A tag can point at a commit that never ran CI, so gate publishing on a
+  # fast build/vet/test pass before any image leaves the runner.
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26.x"
+          cache: true
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Unit tests
+        run: go test ./... -race
+
   image:
+    needs: verify
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -59,9 +81,12 @@ jobs:
         env:
           DEPLOY_WEBHOOK_URL: ${{ secrets.DEPLOY_WEBHOOK_URL }}
           DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
         if: env.DEPLOY_WEBHOOK_URL != ''
         run: |
+          payload="$(jq -n --arg repository "$REPOSITORY" --arg tag "$RELEASE_TAG" '{repository: $repository, tag: $tag}')"
           curl -fsS -X POST "$DEPLOY_WEBHOOK_URL" \
             -H "Authorization: Bearer $DEPLOY_TOKEN" \
             -H "Content-Type: application/json" \
-            -d '{"repository":"${{ github.repository }}","tag":"${{ github.ref_name }}"}'
+            --data-binary "$payload"

@@ -156,6 +156,9 @@ func TestCORS_Preflight(t *testing.T) {
 	if !strings.Contains(rec.Header().Get("Access-Control-Allow-Headers"), "X-Gallery-Unlock") {
 		t.Fatal("missing gallery unlock header in CORS allowlist")
 	}
+	if !strings.Contains(rec.Header().Get("Access-Control-Expose-Headers"), "Retry-After") {
+		t.Fatal("Retry-After must be readable by browser clients")
+	}
 }
 
 func TestCORS_AllowlistRejectsUnknownOrigin(t *testing.T) {

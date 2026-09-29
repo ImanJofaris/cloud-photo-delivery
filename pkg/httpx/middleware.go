@@ -114,6 +114,7 @@ func CORS(allowedOrigins []string) func(http.Handler) http.Handler {
 				}
 				w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
 				w.Header().Set("Access-Control-Allow-Headers", "Authorization, Content-Type, Idempotency-Key, X-Request-ID, X-Api-Key, X-Gallery-Unlock")
+				w.Header().Set("Access-Control-Expose-Headers", "Retry-After, X-Request-ID")
 				w.Header().Set("Access-Control-Max-Age", "600")
 			}
 			if r.Method == http.MethodOptions {
