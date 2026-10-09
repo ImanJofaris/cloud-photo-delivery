@@ -70,7 +70,7 @@ test("zip export: request, poll to ready, download the signed URL", async ({
   const eventId = await createEvent(page, `E2E Export ${Date.now()}`)
 
   await page.getByRole("tab", { name: "Photos" }).click()
-  await page.getByRole("button", { name: "Upload photos" }).click()
+  await expect(page.getByTestId("upload-dropzone")).toBeVisible()
   await page.setInputFiles('input[type="file"]', {
     name: "e2e-export.jpg",
     mimeType: "image/jpeg",
@@ -108,8 +108,6 @@ test("zip export: request, poll to ready, download the signed URL", async ({
 
   const downloadButton = page.getByRole("button", { name: /download zip/i })
   await expect(downloadButton).toBeVisible({ timeout: 90_000 })
-  const href = await downloadButton.getAttribute("href")
-  expect(href).toMatch(/^https?:\/\//)
 
   const downloadPromise = page.waitForEvent("download", { timeout: 30_000 })
   await downloadButton.click()

@@ -49,7 +49,7 @@ test("photo upload: upload a JPEG, wait for processing, delete it", async ({
   await expect(page).toHaveURL(/\/events\/[0-9a-f-]+/, { timeout: 15_000 })
 
   await page.getByRole("tab", { name: "Photos" }).click()
-  await page.getByRole("button", { name: "Upload photos" }).click()
+  await expect(page.getByTestId("upload-dropzone")).toBeVisible()
   await page.setInputFiles('input[type="file"]', {
     name: "e2e-photo.jpg",
     mimeType: "image/jpeg",
@@ -68,7 +68,8 @@ test("photo upload: upload a JPEG, wait for processing, delete it", async ({
     .catch(() => false)
   test.skip(!becameReady, "image processing worker is not running")
 
-  // The queue list hides itself once every file has finished processing.
+  // The queue keeps finished rows until they are cleared.
+  await page.getByRole("button", { name: "Clear finished" }).click()
   await expect(page.getByTestId("upload-queue")).toHaveCount(0)
 
   await page.getByRole("button", { name: "Delete e2e-photo.jpg" }).click()

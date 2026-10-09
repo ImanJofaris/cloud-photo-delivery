@@ -110,10 +110,10 @@ test("lifecycle: expired banner, extend, expiring-soon hint, expired filter", as
   })
 
   await page.goto(`/events/${expired.id}`)
-  await expect(page.getByText(/this event expired/i).first()).toBeVisible({
+  await expect(page.getByText(/gallery closed/i).first()).toBeVisible({
     timeout: 15_000,
   })
-  await expect(page.getByText(/gallery is no longer available/i)).toBeVisible()
+  await expect(page.getByText(/guests see a closed page/i)).toBeVisible()
 
   await page.getByRole("button", { name: "Extend" }).first().click()
   await page.getByRole("button", { name: "30 days" }).click()
@@ -121,7 +121,7 @@ test("lifecycle: expired banner, extend, expiring-soon hint, expired filter", as
   await expect(page.getByText(/event extended to/i)).toBeVisible({
     timeout: 15_000,
   })
-  await expect(page.getByText(/this event expired/i)).toHaveCount(0)
+  await expect(page.getByText(/gallery closed/i)).toHaveCount(0)
   await expect(page.locator('[data-slot="badge"]').first()).toHaveText("active")
 
   await page.goto("/events")
@@ -129,8 +129,7 @@ test("lifecycle: expired banner, extend, expiring-soon hint, expired filter", as
   await expect(page.getByText(soonName)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText("Expires in 3 days")).toBeVisible()
 
-  await page.getByRole("combobox").click()
-  await page.getByRole("option", { name: "Expired" }).click()
+  await page.getByRole("button", { name: "Expired", exact: true }).click()
 
   await expect(page.getByText(filteredName)).toBeVisible({ timeout: 15_000 })
   await expect(page.getByText(soonName)).toHaveCount(0)
