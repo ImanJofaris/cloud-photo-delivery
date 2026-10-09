@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest"
 
 import { toCreateEventRequest, toUpdateEventSettingsRequest } from "./api"
-import { createEventSchema, eventSettingsSchema } from "./schema"
+import {
+  createEventSettingsSchema,
+  createEventSchema,
+  eventSettingsSchema,
+} from "./schema"
 
 describe("createEventSchema", () => {
   it("requires a name", () => {
@@ -46,6 +50,46 @@ describe("eventSettingsSchema", () => {
       allowDownload: true,
       allowOriginalDownload: true,
     })
+    expect(result.success).toBe(true)
+  })
+})
+
+describe("createEventSettingsSchema", () => {
+  const base = {
+    visibility: "public" as const,
+    password: "",
+    allowDownload: false,
+    allowOriginalDownload: false,
+    watermarkEnabled: false,
+  }
+
+  it("requires a password when switching to password mode", () => {
+    const result = createEventSettingsSchema(false).safeParse({
+      ...base,
+      visibility: "password",
+    })
+    expect(result.success).toBe(false)
+  })
+
+  it("accepts a provided password", () => {
+    const result = createEventSettingsSchema(false).safeParse({
+      ...base,
+      visibility: "password",
+      password: "open-sesame",
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("accepts a blank password when the event already has one", () => {
+    const result = createEventSettingsSchema(true).safeParse({
+      ...base,
+      visibility: "password",
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it("does not require a password for public events", () => {
+    const result = createEventSettingsSchema(false).safeParse(base)
     expect(result.success).toBe(true)
   })
 })

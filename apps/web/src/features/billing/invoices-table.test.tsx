@@ -10,8 +10,8 @@ type Invoice = components["schemas"]["Invoice"]
 
 function invoice(overrides: Partial<Invoice> = {}): Invoice {
   return {
-    id: "inv-1",
-    subscriptionId: "sub-1",
+    id: "3f2a91c4-1111-4111-8111-000000000001",
+    subscriptionId: "6c1c9b02-2222-4222-8222-000000000001",
     amountCents: 2900,
     currency: "MYR",
     status: "open",
@@ -23,13 +23,20 @@ function invoice(overrides: Partial<Invoice> = {}): Invoice {
 }
 
 describe("InvoicesTable", () => {
-  it("renders amounts, statuses, and dates", () => {
+  it("renders refs, amounts, dates, and status badges", () => {
     render(
       <InvoicesTable
         invoices={[
           invoice(),
-          invoice({ id: "inv-2", status: "paid", paidAt: "2026-09-02T00:00:00Z" }),
-          invoice({ id: "inv-3", status: "void" }),
+          invoice({
+            id: "8b7d4e02-2222-4222-8222-000000000002",
+            status: "paid",
+            paidAt: "2026-09-02T00:00:00Z",
+          }),
+          invoice({
+            id: "c4a6f901-3333-4333-8333-000000000003",
+            status: "void",
+          }),
         ]}
         hasNextPage={false}
         isFetchingNextPage={false}
@@ -38,9 +45,48 @@ describe("InvoicesTable", () => {
     )
 
     expect(screen.getAllByText(/29[.,]00/)).toHaveLength(3)
-    expect(screen.getByText("open")).toBeInTheDocument()
-    expect(screen.getByText("paid")).toBeInTheDocument()
-    expect(screen.getByText("void")).toBeInTheDocument()
+    expect(screen.getByText("INV-3F2A91C4")).toBeInTheDocument()
+    expect(screen.getByText("INV-8B7D4E02")).toBeInTheDocument()
+    expect(screen.getByText("INV-C4A6F901")).toBeInTheDocument()
+    expect(screen.getByText("Open")).toBeInTheDocument()
+    expect(screen.getByText("Paid")).toBeInTheDocument()
+    expect(screen.getByText("Void")).toBeInTheDocument()
+    expect(screen.getAllByRole("cell")).toHaveLength(12)
+  })
+
+  it("shows the full invoice id on the reference cell", () => {
+    const id = "3f2a91c4-1111-4111-8111-000000000001"
+    render(
+      <InvoicesTable
+        invoices={[invoice({ id })]}
+        hasNextPage={false}
+        isFetchingNextPage={false}
+        onLoadMore={vi.fn()}
+      />
+    )
+
+    expect(screen.getByTitle(id)).toBeInTheDocument()
+  })
+
+  it("does not render a receipt download without an API url", () => {
+    render(
+      <InvoicesTable
+        invoices={[invoice()]}
+        hasNextPage={false}
+        isFetchingNextPage={false}
+        onLoadMore={vi.fn()}
+      />
+    )
+
+    expect(
+      screen.queryByRole("columnheader", { name: /receipt/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("link", { name: /receipt|download/i })
+    ).not.toBeInTheDocument()
+    expect(
+      screen.queryByRole("button", { name: /receipt|download/i })
+    ).not.toBeInTheDocument()
   })
 
   it("shows an empty state", () => {
@@ -67,7 +113,9 @@ describe("InvoicesTable", () => {
       />
     )
 
-    await userEvent.click(screen.getByRole("button", { name: "Load more" }))
+    await userEvent.click(
+      screen.getByRole("button", { name: "Load older invoices" })
+    )
 
     expect(onLoadMore).toHaveBeenCalledTimes(1)
   })

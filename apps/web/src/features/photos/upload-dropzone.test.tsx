@@ -42,6 +42,18 @@ function directoryEntry(children: FileSystemEntry[]): FileSystemEntry {
 }
 
 describe("UploadDropzone", () => {
+  it("shows the drop copy and size limit", () => {
+    render(<UploadDropzone onFiles={vi.fn()} />)
+
+    expect(
+      screen.getByText("Drag photos here, or browse files")
+    ).toBeInTheDocument()
+    expect(
+      screen.getByText(/JPEG, PNG or WebP up to 100 MB each/)
+    ).toBeInTheDocument()
+    expect(screen.getByRole("button", { name: "Choose files" })).toBeEnabled()
+  })
+
   it("calls onFiles with dropped files", () => {
     const onFiles = vi.fn()
     render(<UploadDropzone onFiles={onFiles} />)
@@ -58,7 +70,7 @@ describe("UploadDropzone", () => {
     render(<UploadDropzone onFiles={onFiles} />)
 
     const file = jpeg()
-    drop(screen.getByRole("button", { name: /choose photos/i }), {
+    drop(screen.getByRole("button", { name: /choose files/i }), {
       files: [file],
     })
 
@@ -88,7 +100,7 @@ describe("UploadDropzone", () => {
   it("keeps the highlight when the drag moves onto a child", () => {
     render(<UploadDropzone onFiles={vi.fn()} />)
     const zone = screen.getByTestId("upload-dropzone")
-    const button = screen.getByRole("button", { name: /choose photos/i })
+    const button = screen.getByRole("button", { name: /choose files/i })
 
     fireEvent.dragEnter(zone)
     fireEvent.dragEnter(button)

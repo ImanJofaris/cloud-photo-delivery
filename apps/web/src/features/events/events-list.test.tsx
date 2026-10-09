@@ -1,12 +1,18 @@
-import { render, screen } from "@testing-library/react"
+import { render, screen, waitFor } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 
 import type { components } from "@workspace/api-client"
 
 vi.mock("./api", () => ({
   useEvents: vi.fn(),
 }))
+
+vi.mock("@/features/photos/api", () => ({
+  usePhotoThumbnail: vi.fn(),
+}))
+
+import { usePhotoThumbnail } from "@/features/photos/api"
 
 import { useEvents } from "./api"
 import { EventsList, STATUS_OPTIONS } from "./events-list"
@@ -40,28 +46,79 @@ function mockEvents(events: Event[]) {
     hasNextPage: false,
     isFetchingNextPage: false,
     fetchNextPage: vi.fn(),
+    refetch: vi.fn(),
   } as unknown as ReturnType<typeof useEvents>)
+}
+
+class NoopIntersectionObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
 }
 
 describe("EventsList", () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.stubGlobal("IntersectionObserver", NoopIntersectionObserver)
+    vi.mocked(usePhotoThumbnail).mockReturnValue({
+      data: undefined,
+      isPending: false,
+    } as unknown as ReturnType<typeof usePhotoThumbnail>)
     mockEvents([])
+  })
+
+  afterEach(() => {
+    vi.unstubAllGlobals()
   })
 
   it("offers the expired status filter", () => {
     expect(STATUS_OPTIONS).toContain("expired")
   })
 
-  it("filters by expired", async () => {
+  it("filters by expired when the chip is pressed", async () => {
     render(<EventsList />)
 
-    await userEvent.click(screen.getByRole("combobox"))
-    await userEvent.click(
-      await screen.findByRole("option", { name: "Expired" })
-    )
+    await userEvent.click(screen.getByRole("button", { name: "Expired" }))
 
     expect(useEvents).toHaveBeenLastCalledWith({ q: "", status: "expired" })
+    expect(screen.getByRole("button", { name: "Expired" })).toHaveAttribute(
+      "aria-pressed",
+      "true"
+    )
+  })
+
+  it("searches by name", async () => {
+    render(<EventsList />)
+
+    await userEvent.type(
+      screen.getByPlaceholderText("Search events"),
+      "wedding"
+    )
+
+    await waitFor(() =>
+      expect(useEvents).toHaveBeenLastCalledWith({ q: "wedding", status: "all" })
+    )
+  })
+
+  it("renders client, location, and photo count in a row", () => {
+    mockEvents([
+      event({
+        id: "event-row",
+        name: "Aina & Haziq Wedding",
+        clientName: "Aina",
+        location: "Dewan Perdana Felda, KL",
+        photoCount: 12,
+        coverPhotoId: "photo-1",
+      }),
+    ])
+
+    render(<EventsList />)
+
+    expect(screen.getByText("Aina & Haziq Wedding")).toBeInTheDocument()
+    expect(screen.getByText("Aina")).toBeInTheDocument()
+    expect(screen.getByText("Dewan Perdana Felda, KL")).toBeInTheDocument()
+    expect(screen.getByText("12 photos")).toBeInTheDocument()
+    expect(usePhotoThumbnail).toHaveBeenCalledWith("photo-1", false)
   })
 
   it("hints only when an event expires within seven days", () => {

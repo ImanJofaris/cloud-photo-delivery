@@ -5,6 +5,7 @@ import * as React from "react"
 import type { components } from "@workspace/api-client"
 
 import { Button } from "@workspace/ui/components/button"
+import { cn } from "@workspace/ui/lib/utils"
 
 import {
   isUsableSubscription,
@@ -28,34 +29,47 @@ export function PlanGrid({
 }) {
   const [interval, setInterval] = React.useState<BillingInterval>("month")
   const hasUsable = isUsableSubscription(view.subscription)
+  const selectedInterval =
+    hasUsable && view.subscription ? view.subscription.interval : interval
 
   return (
-    <div className="space-y-4">
+    <section
+      id="plans"
+      aria-labelledby="plans-heading"
+      className="scroll-mt-6 space-y-4"
+    >
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold">Plans</h2>
-          <p className="text-sm text-muted-foreground">
-            {hasUsable
-              ? "Upgrades and downgrades keep your current billing interval."
-              : "Pick a plan. Yearly billing is charged for twelve months."}
-          </p>
-        </div>
+        <h2 id="plans-heading" className="text-lg font-semibold">
+          Plans
+        </h2>
         {!hasUsable && (
           <div
             role="group"
             aria-label="Billing interval"
-            className="inline-flex rounded-lg border p-1"
+            className="inline-flex items-center gap-0.5 rounded-xl bg-muted p-0.5"
           >
             <Button
               size="sm"
-              variant={interval === "month" ? "secondary" : "ghost"}
+              variant="ghost"
+              aria-pressed={interval === "month"}
+              className={cn(
+                "h-6 px-2.5 text-xs font-semibold",
+                interval === "month" &&
+                  "bg-card text-foreground shadow-xs hover:bg-card"
+              )}
               onClick={() => setInterval("month")}
             >
               Monthly
             </Button>
             <Button
               size="sm"
-              variant={interval === "year" ? "secondary" : "ghost"}
+              variant="ghost"
+              aria-pressed={interval === "year"}
+              className={cn(
+                "h-6 px-2.5 text-xs font-semibold",
+                interval === "year" &&
+                  "bg-card text-foreground shadow-xs hover:bg-card"
+              )}
               onClick={() => setInterval("year")}
             >
               Yearly
@@ -76,11 +90,7 @@ export function PlanGrid({
             <PlanCard
               key={plan.id}
               plan={plan}
-              interval={
-                hasUsable && view.subscription
-                  ? view.subscription.interval
-                  : interval
-              }
+              interval={selectedInterval}
               action={action}
               current={plan.id === view.plan.id}
               disabled={false}
@@ -89,6 +99,6 @@ export function PlanGrid({
           )
         })}
       </div>
-    </div>
+    </section>
   )
 }

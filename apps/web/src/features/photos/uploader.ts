@@ -152,6 +152,7 @@ export class UploadQueue {
   }
 
   addFiles(files: File[]): { filename: string; reason: string }[] {
+    this.resume()
     const rejected: { filename: string; reason: string }[] = []
     for (const [key, item] of this.items) {
       if (item.status === "ready") {
@@ -193,6 +194,7 @@ export class UploadQueue {
   retry(key: string) {
     const item = this.items.get(key)
     if (!item || !item.file) return
+    this.resume()
     item.status = "queued"
     item.error = null
     item.errorCode = null
@@ -245,6 +247,26 @@ export class UploadQueue {
     this.deps.registry?.remove(key)
     this.items.delete(key)
     this.notify()
+  }
+
+  // Ready items are photos that already live in the library; clearing them
+  // only drops the queue rows. discard() would delete the photo itself.
+  clearFinished() {
+    let changed = false
+    for (const [key, item] of this.items) {
+      if (item.status !== "ready") continue
+      this.items.delete(key)
+      this.deps.registry?.remove(key)
+      changed = true
+    }
+    if (changed) this.notify()
+  }
+
+  // abortAll runs from the provider cleanup. In dev, StrictMode mounts,
+  // cleans up, and mounts again on the same queue instance, so a later
+  // addFiles/retry must be able to restart the pump.
+  private resume() {
+    this.stopped = false
   }
 
   abortAll() {

@@ -6,19 +6,14 @@ import { useForm } from "react-hook-form"
 
 import { Alert, AlertDescription } from "@workspace/ui/components/alert"
 import { Button } from "@workspace/ui/components/button"
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@workspace/ui/components/card"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 
 import { authErrorMessage } from "@/lib/auth/errors"
 import { useSession } from "@/lib/auth/session-provider"
 
+import { AuthCard, AuthFooterLink } from "./auth-card"
+import { PasswordInput } from "./password-input"
 import { loginSchema, type LoginValues } from "./schemas"
 
 export function LoginForm({ next = "/dashboard" }: { next?: string }) {
@@ -42,78 +37,67 @@ export function LoginForm({ next = "/dashboard" }: { next?: string }) {
   const { errors, isSubmitting } = form.formState
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Sign in</CardTitle>
-        <CardDescription>
-          Use your operator account to manage events.
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className="space-y-4"
-          noValidate
-        >
-          <div className="space-y-2">
-            <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              autoComplete="email"
-              aria-invalid={Boolean(errors.email)}
-              {...form.register("email")}
-            />
-            {errors.email && (
-              <p className="text-sm text-destructive">{errors.email.message}</p>
-            )}
-          </div>
-
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label htmlFor="password">Password</Label>
-              <a
-                href="/forgot-password"
-                className="text-xs text-muted-foreground underline-offset-4 hover:underline"
-              >
-                Forgot password?
-              </a>
-            </div>
-            <Input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              aria-invalid={Boolean(errors.password)}
-              {...form.register("password")}
-            />
-            {errors.password && (
-              <p className="text-sm text-destructive">
-                {errors.password.message}
-              </p>
-            )}
-          </div>
-
-          {errors.root && (
-            <Alert variant="destructive">
-              <AlertDescription>{errors.root.message}</AlertDescription>
-            </Alert>
+    <AuthCard
+      title="Sign in"
+      description="Use your operator account to manage events."
+      footer={
+        <>
+          No account? <AuthFooterLink href="/signup">Create one</AuthFooterLink>
+        </>
+      }
+    >
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className="space-y-2.5"
+        noValidate
+      >
+        <div className="space-y-1.5">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            autoComplete="email"
+            aria-invalid={Boolean(errors.email)}
+            {...form.register("email")}
+          />
+          {errors.email && (
+            <p className="text-sm text-destructive">{errors.email.message}</p>
           )}
+        </div>
 
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting ? "Signing in..." : "Sign in"}
-          </Button>
-        </form>
+        <div className="space-y-1.5">
+          <Label htmlFor="password">Password</Label>
+          <PasswordInput
+            id="password"
+            autoComplete="current-password"
+            aria-invalid={Boolean(errors.password)}
+            {...form.register("password")}
+          />
+          {errors.password && (
+            <p className="text-sm text-destructive">
+              {errors.password.message}
+            </p>
+          )}
+          <div className="text-right">
+            <a
+              href="/forgot-password"
+              className="text-xs text-muted-foreground underline underline-offset-4 hover:text-foreground"
+            >
+              Forgot password?
+            </a>
+          </div>
+        </div>
 
-        <p className="mt-4 text-center text-sm text-muted-foreground">
-          No account?{" "}
-          <a
-            href="/signup"
-            className="text-foreground underline-offset-4 hover:underline"
-          >
-            Create one
-          </a>
-        </p>
-      </CardContent>
-    </Card>
+        {errors.root && (
+          <Alert variant="destructive">
+            <AlertDescription>{errors.root.message}</AlertDescription>
+          </Alert>
+        )}
+
+        <Button type="submit" className="w-full" disabled={isSubmitting}>
+          {isSubmitting ? "Signing in..." : "Sign in"}
+        </Button>
+      </form>
+    </AuthCard>
   )
 }

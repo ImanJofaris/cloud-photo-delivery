@@ -6,7 +6,7 @@ export default function NewEventPage() {
       <div>
         <h1 className="text-2xl font-semibold">New event</h1>
         <p className="text-sm text-muted-foreground">
-          Set up an event gallery in under a minute.
+          Set up the gallery, then upload photos or share the QR.
         </p>
       </div>
       <EventForm />

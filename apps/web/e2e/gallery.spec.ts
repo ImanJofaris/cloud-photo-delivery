@@ -46,7 +46,7 @@ async function galleryHref(page: Page) {
 
 async function uploadPhoto(page: Page, filename: string) {
   await page.getByRole("tab", { name: "Photos" }).click()
-  await page.getByRole("button", { name: "Upload photos" }).click()
+  await expect(page.getByTestId("upload-dropzone")).toBeVisible()
   await page.setInputFiles('input[type="file"]', {
     name: filename,
     mimeType: "image/jpeg",
@@ -67,12 +67,11 @@ async function uploadPhoto(page: Page, filename: string) {
 
 async function setVisibility(
   page: Page,
-  option: "Public" | "Password protected" | "Private",
+  option: "Public" | "Password" | "Private",
   password?: string
 ) {
   await page.getByRole("tab", { name: "Settings" }).click()
-  await page.getByLabel("Visibility").click()
-  await page.getByRole("option", { name: option }).click()
+  await page.getByRole("button", { name: option, exact: true }).click()
   if (password) {
     await page.getByLabel("Gallery password").fill(password)
   }
@@ -126,7 +125,7 @@ test("password gallery: blocked until the correct password is entered", async ({
   await signup(page)
   const eventName = `E2E Password ${Date.now()}`
   await createEvent(page, eventName)
-  await setVisibility(page, "Password protected", "open-sesame")
+  await setVisibility(page, "Password", "open-sesame")
   const href = await galleryHref(page)
 
   test.skip(!(await uploadPhoto(page, "e2e-password.jpg")), "worker not running")

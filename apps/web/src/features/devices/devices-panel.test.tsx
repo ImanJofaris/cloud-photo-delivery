@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react"
+import { render, screen, waitFor, within } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 
@@ -65,6 +65,12 @@ function mockQueries({
   } as unknown as ReturnType<typeof useEventOptions>)
 }
 
+function cardFor(label: string) {
+  const card = screen.getByText(label).closest('[data-slot="card"]')
+  if (!card) throw new Error(`Card not found for ${label}`)
+  return within(card as HTMLElement)
+}
+
 describe("DevicesPanel", () => {
   const createMutate = vi.fn()
   const rotateMutate = vi.fn()
@@ -121,6 +127,67 @@ describe("DevicesPanel", () => {
     render(<DevicesPanel />)
 
     expect(screen.getByText("Unknown event")).toBeInTheDocument()
+  })
+
+  it("renders assigned events as a neutral chip", () => {
+    mockQueries({
+      devices: [device({ assignedEventId: "event-1" })],
+      events: [{ id: "event-1", name: "Wedding", status: "active" }],
+    })
+
+    render(<DevicesPanel />)
+
+    expect(
+      screen.getByText("Wedding").closest('[data-slot="badge"]')
+    ).not.toBeNull()
+  })
+
+  it("shows a fleet summary computed from devices and events", () => {
+    const lastUsedAt = new Date(Date.now() - 5 * 60_000).toISOString()
+    mockQueries({
+      devices: [
+        device({
+          id: "device-1",
+          name: "Booth 1",
+          assignedEventId: "event-1",
+          lastUsedAt,
+        }),
+        device({ id: "device-2", name: "Booth 2", assignedEventId: "event-2" }),
+        device({
+          id: "device-3",
+          name: "Old iPad",
+          revokedAt: "2026-09-13T11:00:00Z",
+        }),
+      ],
+      events: [
+        { id: "event-1", name: "Wedding", status: "active" },
+        { id: "event-2", name: "Family Day", status: "active" },
+      ],
+    })
+
+    render(<DevicesPanel />)
+
+    const activeCard = cardFor("Active devices")
+    expect(activeCard.getByText("2")).toBeInTheDocument()
+    expect(activeCard.getByText("Across 2 events")).toBeInTheDocument()
+
+    const lastUploadCard = cardFor("Last upload")
+    expect(lastUploadCard.getByText("5 min ago")).toBeInTheDocument()
+    expect(lastUploadCard.getByText("Booth 1")).toBeInTheDocument()
+
+    const revokedCard = cardFor("Revoked devices")
+    expect(revokedCard.getByText("1")).toBeInTheDocument()
+    expect(revokedCard.getByText("Kept for audit")).toBeInTheDocument()
+  })
+
+  it("keeps the upload scope note on the devices card", () => {
+    mockQueries({ devices: [device()] })
+
+    render(<DevicesPanel />)
+
+    expect(
+      screen.getByText(/100 uploads per minute per device/)
+    ).toBeInTheDocument()
   })
 
   it("disables actions on revoked devices", () => {

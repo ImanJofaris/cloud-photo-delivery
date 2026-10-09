@@ -1,8 +1,8 @@
-import { render, screen, within } from "@testing-library/react"
+import { render, screen } from "@testing-library/react"
 import userEvent from "@testing-library/user-event"
 import { describe, expect, it, vi } from "vitest"
 
-import { UploadQueueList } from "./upload-queue"
+import { UploadQueueCard } from "./upload-queue"
 import type { UploadItem } from "./uploader"
 
 function item(overrides: Partial<UploadItem> = {}): UploadItem {
@@ -32,72 +32,69 @@ function setup(items: UploadItem[]) {
     onRetry: vi.fn(),
     onCancel: vi.fn(),
     onDiscard: vi.fn(),
+    onClearFinished: vi.fn(),
   }
-  render(<UploadQueueList items={items} {...handlers} />)
+  render(<UploadQueueCard items={items} {...handlers} />)
   return handlers
 }
 
-describe("UploadQueueList", () => {
+describe("UploadQueueCard", () => {
   it("renders nothing when empty", () => {
     const { container } = render(
-      <UploadQueueList
+      <UploadQueueCard
         items={[]}
         onRetry={vi.fn()}
         onCancel={vi.fn()}
         onDiscard={vi.fn()}
+        onClearFinished={vi.fn()}
       />
     )
     expect(container).toBeEmptyDOMElement()
   })
 
-  it("hides rows once their photo is ready", () => {
+  it("keeps finished rows visible as done", () => {
     setup([
       item({ status: "ready", progress: 100 }),
       item({ key: "k2", filename: "b.jpg", status: "uploading" }),
     ])
 
-    expect(screen.queryByText("a.jpg")).toBeNull()
+    expect(screen.getByText("a.jpg")).toBeInTheDocument()
+    expect(screen.getByText(/Done/)).toBeInTheDocument()
     expect(screen.getByText("b.jpg")).toBeInTheDocument()
   })
 
-  it("renders nothing when every item is ready", () => {
-    const { container } = render(
-      <UploadQueueList
-        items={[item({ status: "ready", progress: 100 })]}
-        onRetry={vi.fn()}
-        onCancel={vi.fn()}
-        onDiscard={vi.fn()}
-      />
-    )
-    expect(container).toBeEmptyDOMElement()
-  })
-
-  it("tracks the batch progress by photos the worker marked ready", () => {
+  it("summarises the batch in the header", () => {
     setup([
       item({ status: "ready", progress: 100 }),
       item({ key: "k2", filename: "b.jpg", status: "uploading", progress: 50 }),
+      item({ key: "k3", filename: "c.jpg", status: "uploading", progress: 10 }),
     ])
 
-    const batch = within(screen.getByTestId("upload-batch-progress"))
-    expect(batch.getByText("1 of 2 ready")).toBeInTheDocument()
-    expect(batch.getByText("50%")).toBeInTheDocument()
+    expect(screen.getByText("Uploading · 1 of 3")).toBeInTheDocument()
   })
 
-  it("waits for READY before counting a photo in the batch progress", () => {
+  it("waits for READY before counting a photo as finished", () => {
     setup([
       item({ status: "processing", progress: 100 }),
       item({ key: "k2", filename: "b.jpg", status: "uploading", progress: 100 }),
     ])
 
-    const batch = within(screen.getByTestId("upload-batch-progress"))
-    expect(batch.getByText("0 of 2 ready")).toBeInTheDocument()
-    expect(batch.getByText("0%")).toBeInTheDocument()
+    expect(screen.getByText("Uploading · 0 of 2")).toBeInTheDocument()
   })
 
-  it("hides the batch progress for a single file", () => {
-    setup([item({ status: "uploading", progress: 10 })])
+  it("disables Clear finished while nothing is done", () => {
+    setup([item({ status: "uploading" })])
 
-    expect(screen.queryByTestId("upload-batch-progress")).toBeNull()
+    expect(
+      screen.getByRole("button", { name: "Clear finished" })
+    ).toBeDisabled()
+  })
+
+  it("clears finished rows", async () => {
+    const handlers = setup([item({ status: "ready" })])
+
+    await userEvent.click(screen.getByRole("button", { name: "Clear finished" }))
+    expect(handlers.onClearFinished).toHaveBeenCalledTimes(1)
   })
 
   it("shows progress and a cancel action while uploading", async () => {
@@ -146,5 +143,12 @@ describe("UploadQueueList", () => {
     setup([item({ status: "interrupted", file: null, fromRegistry: true })])
     expect(screen.queryByRole("button", { name: "Retry" })).toBeNull()
     expect(screen.getByRole("button", { name: "Remove" })).toBeInTheDocument()
+  })
+
+  it("leaves done rows without per-file actions", () => {
+    setup([item({ status: "ready", progress: 100 })])
+    expect(screen.queryByRole("button", { name: "Retry" })).toBeNull()
+    expect(screen.queryByRole("button", { name: "Remove" })).toBeNull()
+    expect(screen.queryByRole("button", { name: /Cancel/ })).toBeNull()
   })
 })

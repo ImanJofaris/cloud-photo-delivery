@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest"
 import type { components } from "@workspace/api-client"
 
 import {
+  busiestDays,
   fillDailySeries,
   formatCount,
   formatUtcDay,
   formatUtcDayLong,
+  formatUtcWeekday,
+  formatUtcWindowRange,
   seriesTotal,
   utcDaySeries,
 } from "./format"
@@ -97,5 +100,54 @@ describe("seriesTotal", () => {
 
     expect(seriesTotal(filled, "galleryViews")).toBe(5)
     expect(seriesTotal(filled, "qrScans")).toBe(5)
+  })
+})
+
+describe("formatUtcWeekday", () => {
+  it("formats a UTC weekday and date", () => {
+    expect(formatUtcWeekday("2026-09-12")).toBe("Sat 12 Sept")
+  })
+
+  it("handles invalid input", () => {
+    expect(formatUtcWeekday("nope")).toBe("—")
+  })
+})
+
+describe("formatUtcWindowRange", () => {
+  it("formats a range inside one year", () => {
+    expect(
+      formatUtcWindowRange(30, new Date("2026-10-09T12:00:00Z"))
+    ).toBe("10 Sept to 9 Oct")
+  })
+
+  it("adds years when the window crosses a year boundary", () => {
+    expect(
+      formatUtcWindowRange(90, new Date("2026-01-15T12:00:00Z"))
+    ).toBe("18 Oct 2025 to 15 Jan 2026")
+  })
+})
+
+describe("busiestDays", () => {
+  it("ranks days by views, then downloads", () => {
+    const daily = [
+      day({ date: "2026-09-14", galleryViews: 100, downloads: 5 }),
+      day({ date: "2026-09-15", galleryViews: 100, downloads: 9 }),
+      day({ date: "2026-09-16", galleryViews: 40, downloads: 1 }),
+      day({ date: "2026-09-17" }),
+    ]
+
+    expect(busiestDays(daily, 2).map((entry) => entry.date)).toEqual([
+      "2026-09-15",
+      "2026-09-14",
+    ])
+  })
+
+  it("ignores days without views or downloads", () => {
+    expect(
+      busiestDays([
+        day({ uniqueVisitors: 3, qrScans: 2 }),
+        day({ date: "2026-09-13" }),
+      ])
+    ).toEqual([])
   })
 })

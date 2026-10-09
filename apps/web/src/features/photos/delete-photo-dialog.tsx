@@ -14,24 +14,28 @@ import {
 type Photo = components["schemas"]["Photo"]
 
 export function DeletePhotoDialog({
-  photo,
+  photos,
   pending,
   onOpenChange,
   onConfirm,
 }: {
-  photo: Photo | null
+  photos: Photo[]
   pending: boolean
   onOpenChange: (open: boolean) => void
   onConfirm: () => void
 }) {
+  const single = photos.length === 1 ? photos[0] : null
   return (
-    <Dialog open={photo !== null} onOpenChange={onOpenChange}>
+    <Dialog open={photos.length > 0} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Delete photo?</DialogTitle>
+          <DialogTitle>
+            {single ? "Delete photo?" : `Delete ${photos.length} photos?`}
+          </DialogTitle>
           <DialogDescription>
-            &ldquo;{photo?.filename || "This photo"}&rdquo; will be removed from
-            the event and its gallery. This cannot be undone.
+            {single
+              ? `"${single.filename || "This photo"}" will be removed from the event and its gallery. This cannot be undone.`
+              : `These ${photos.length} photos will be removed from the event and its gallery. This cannot be undone.`}
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -47,7 +51,11 @@ export function DeletePhotoDialog({
             disabled={pending}
             onClick={onConfirm}
           >
-            {pending ? "Deleting..." : "Delete photo"}
+            {pending
+              ? "Deleting..."
+              : single
+                ? "Delete photo"
+                : `Delete ${photos.length} photos`}
           </Button>
         </DialogFooter>
       </DialogContent>

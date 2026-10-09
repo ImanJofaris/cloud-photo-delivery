@@ -4,25 +4,51 @@ import { RotateCcw, X } from "lucide-react"
 import Link from "next/link"
 
 import { Button } from "@workspace/ui/components/button"
+import {
+  Card,
+  CardAction,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@workspace/ui/components/card"
 import { Progress } from "@workspace/ui/components/progress"
+import { cn } from "@workspace/ui/lib/utils"
 
 import { formatBytes } from "@/features/events/format"
 
 import type { UploadItem } from "./uploader"
 
-function statusText(item: UploadItem): string {
+type RowTone = "default" | "success" | "danger"
+
+const toneIndicator: Record<RowTone, string> = {
+  default: "",
+  success: "[&_[data-slot=progress-indicator]]:bg-emerald-600",
+  danger: "[&_[data-slot=progress-indicator]]:bg-destructive",
+}
+
+function rowMeta(item: UploadItem): { text: string; tone: RowTone } {
   switch (item.status) {
     case "queued":
-      return "Waiting"
+      return { text: "Waiting", tone: "default" }
     case "uploading":
-      return `${item.progress}%`
+      return { text: `${item.progress}%`, tone: "default" }
     case "processing":
-      return "Processing"
+      return { text: "Processing", tone: "success" }
     case "ready":
-      return "Ready"
+      return { text: "Done", tone: "success" }
+    case "interrupted":
+      return { text: "Interrupted", tone: "danger" }
     default:
-      return "Failed"
+      return { text: "Failed", tone: "danger" }
   }
+}
+
+function isActive(item: UploadItem): boolean {
+  return (
+    item.status === "queued" ||
+    item.status === "uploading" ||
+    item.status === "processing"
+  )
 }
 
 function UploadQueueRow({
@@ -36,17 +62,34 @@ function UploadQueueRow({
   onCancel: (key: string) => void
   onDiscard: (key: string) => void
 }) {
-  const showProgress = item.status === "queued" || item.status === "uploading"
+  const meta = rowMeta(item)
+  const progress =
+    item.status === "ready" || item.status === "processing"
+      ? 100
+      : item.status === "queued"
+        ? 0
+        : item.progress
+
   return (
-    <li className="flex items-center gap-3 rounded-md border px-3 py-2">
+    <li className="flex items-center gap-3 border-t py-3 first:border-t-0 first:pt-0 last:pb-0">
       <div className="min-w-0 flex-1 space-y-1.5">
         <div className="flex items-baseline justify-between gap-3">
-          <p className="truncate text-sm">{item.filename}</p>
-          <span className="shrink-0 text-xs text-muted-foreground">
-            {formatBytes(item.size)} · {statusText(item)}
+          <p
+            className={cn(
+              "truncate text-sm font-medium",
+              meta.tone === "danger" && "text-destructive"
+            )}
+          >
+            {item.filename}
+          </p>
+          <span className="shrink-0 text-xs text-muted-foreground tabular-nums">
+            {formatBytes(item.size)} · {meta.text}
           </span>
         </div>
-        {showProgress && <Progress value={item.progress} className="gap-0" />}
+        <Progress
+          value={progress}
+          className={cn("gap-0", toneIndicator[meta.tone])}
+        />
         {item.error && (
           <div className="text-xs text-destructive" role="alert">
             <span>{item.error}</span>
@@ -65,18 +108,18 @@ function UploadQueueRow({
         {item.status === "failed" && item.file && (
           <Button
             type="button"
-            size="sm"
-            variant="ghost"
+            size="xs"
+            variant="outline"
             onClick={() => onRetry(item.key)}
           >
             <RotateCcw />
             Retry
           </Button>
         )}
-        {(showProgress || item.status === "processing") && (
+        {isActive(item) && (
           <Button
             type="button"
-            size="icon-sm"
+            size="icon-xs"
             variant="ghost"
             aria-label={`Cancel ${item.filename}`}
             onClick={() => onCancel(item.key)}
@@ -84,10 +127,10 @@ function UploadQueueRow({
             <X />
           </Button>
         )}
-        {item.status !== "processing" && !showProgress && (
+        {(item.status === "failed" || item.status === "interrupted") && (
           <Button
             type="button"
-            size="sm"
+            size="xs"
             variant="ghost"
             onClick={() => onDiscard(item.key)}
           >
@@ -97,10 +140,6 @@ function UploadQueueRow({
       </div>
     </li>
   )
-}
-
-export function visibleUploadItems(items: UploadItem[]): UploadItem[] {
-  return items.filter((item) => item.status !== "ready")
 }
 
 export function batchProgress(items: UploadItem[]): {
@@ -117,50 +156,53 @@ export function batchProgress(items: UploadItem[]): {
   }
 }
 
-function UploadBatchProgress({ items }: { items: UploadItem[] }) {
-  const { total, ready, percent } = batchProgress(items)
-  return (
-    <div className="space-y-1.5" data-testid="upload-batch-progress">
-      <div className="flex items-baseline justify-between gap-3">
-        <p className="text-sm font-medium">
-          {ready} of {total} ready
-        </p>
-        <span className="text-xs text-muted-foreground tabular-nums">
-          {percent}%
-        </span>
-      </div>
-      <Progress value={percent} className="gap-0" />
-    </div>
-  )
-}
-
-export function UploadQueueList({
+export function UploadQueueCard({
   items,
   onRetry,
   onCancel,
   onDiscard,
+  onClearFinished,
 }: {
   items: UploadItem[]
   onRetry: (key: string) => void
   onCancel: (key: string) => void
   onDiscard: (key: string) => void
+  onClearFinished: () => void
 }) {
-  const visible = visibleUploadItems(items)
-  if (visible.length === 0) return null
+  if (items.length === 0) return null
+  const { total, ready } = batchProgress(items)
+
   return (
-    <div className="space-y-3">
-      {items.length > 1 && <UploadBatchProgress items={items} />}
-      <ul className="space-y-2" data-testid="upload-queue">
-        {visible.map((item) => (
-          <UploadQueueRow
-            key={item.key}
-            item={item}
-            onRetry={onRetry}
-            onCancel={onCancel}
-            onDiscard={onDiscard}
-          />
-        ))}
-      </ul>
-    </div>
+    <Card>
+      <CardHeader>
+        <CardTitle>
+          Uploading · {ready} of {total}
+        </CardTitle>
+        <CardAction>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={ready === 0}
+            onClick={onClearFinished}
+          >
+            Clear finished
+          </Button>
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        <ul data-testid="upload-queue">
+          {items.map((item) => (
+            <UploadQueueRow
+              key={item.key}
+              item={item}
+              onRetry={onRetry}
+              onCancel={onCancel}
+              onDiscard={onDiscard}
+            />
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
   )
 }

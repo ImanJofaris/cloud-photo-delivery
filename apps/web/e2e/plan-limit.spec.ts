@@ -59,7 +59,9 @@ test("plan limit: the 402 links to billing instead of dead-ending", async ({
     page.getByText("You have reached your plan's event limit.")
   ).toBeVisible({ timeout: 15_000 })
 
-  const billingLink = page.getByRole("button", { name: "View plans" })
+  const billingLink = page
+    .getByRole("alert")
+    .getByRole("button", { name: "View plans" })
   await expect(billingLink).toHaveAttribute("href", "/billing")
   await billingLink.click()
   await expect(page).toHaveURL(/\/billing/)

@@ -169,17 +169,24 @@ export function useUpdateEvent(eventId: string) {
   })
 }
 
+export function applyEventSettings(
+  eventId: string,
+  input: UpdateEventSettingsRequest
+): Promise<EventSettings> {
+  return apiCall<EventSettings>((client) =>
+    client.PATCH("/events/{eventID}/settings", {
+      params: { path: { eventID: eventId } },
+      body: input,
+    })
+  )
+}
+
 export function useUpdateEventSettings(eventId: string) {
   const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: (input: UpdateEventSettingsRequest) =>
-      apiCall<EventSettings>((client) =>
-        client.PATCH("/events/{eventID}/settings", {
-          params: { path: { eventID: eventId } },
-          body: input,
-        })
-      ),
+      applyEventSettings(eventId, input),
     onSuccess: (settings) => {
       queryClient.setQueryData(eventKeys.settings(eventId), settings)
     },

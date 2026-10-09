@@ -26,22 +26,29 @@ export function AnalyticsTotals({
   eventCount,
   photoCount,
   loading = false,
+  captions,
 }: {
   totals?: AnalyticsCounters
   eventCount?: number
   photoCount?: number
   loading?: boolean
+  captions?: Partial<Record<keyof AnalyticsCounters, string>>
 }) {
   return (
     <div className="space-y-4">
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {ANALYTICS_COUNTERS.map((counter) => (
-          <Card key={counter.key}>
-            <CardHeader className="pb-2">
+          <Card key={counter.key} size="sm">
+            <CardHeader className="gap-1">
               <CardDescription>{counter.label}</CardDescription>
-              <CardTitle className="text-2xl">
+              <CardTitle className="text-2xl tabular-nums">
                 {loading || !totals ? "—" : formatCount(totals[counter.key])}
               </CardTitle>
+              {captions?.[counter.key] && (
+                <p className="text-xs text-muted-foreground">
+                  {captions[counter.key]}
+                </p>
+              )}
             </CardHeader>
           </Card>
         ))}
