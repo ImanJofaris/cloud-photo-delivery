@@ -152,6 +152,7 @@ export class UploadQueue {
   }
 
   addFiles(files: File[]): { filename: string; reason: string }[] {
+    this.resume()
     const rejected: { filename: string; reason: string }[] = []
     for (const [key, item] of this.items) {
       if (item.status === "ready") {
@@ -193,6 +194,7 @@ export class UploadQueue {
   retry(key: string) {
     const item = this.items.get(key)
     if (!item || !item.file) return
+    this.resume()
     item.status = "queued"
     item.error = null
     item.errorCode = null
@@ -258,6 +260,13 @@ export class UploadQueue {
       changed = true
     }
     if (changed) this.notify()
+  }
+
+  // abortAll runs from the provider cleanup. In dev, StrictMode mounts,
+  // cleans up, and mounts again on the same queue instance, so a later
+  // addFiles/retry must be able to restart the pump.
+  private resume() {
+    this.stopped = false
   }
 
   abortAll() {

@@ -152,6 +152,18 @@ describe("UploadQueue", () => {
     expect(deps.registry?.list("event-1")[0].photoId).toBe("photo-1")
   })
 
+  it("resumes after abortAll when new files are added", async () => {
+    const deps = makeDeps()
+    const queue = new UploadQueue("event-1", deps)
+    queue.abortAll()
+
+    queue.addFiles([makeFile("a.jpg", "image/jpeg", 1024)])
+
+    const item = await waitForTerminal(queue)
+    expect(item.status).toBe("processing")
+    expect(deps.initialize).toHaveBeenCalledOnce()
+  })
+
   it("retries retryable transport errors with backoff", async () => {
     let calls = 0
     const put: PutTransport = async ({ onProgress }) => {
