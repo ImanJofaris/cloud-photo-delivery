@@ -6,6 +6,7 @@ import { analyticsErrorMessage } from "./errors"
 import {
   ANALYTICS_MAX_DAYS,
   ANALYTICS_MIN_DAYS,
+  ANALYTICS_PANEL_WINDOWS,
   ANALYTICS_WINDOWS,
   DEFAULT_ANALYTICS_WINDOW,
   parseAnalyticsDays,
@@ -15,6 +16,10 @@ describe("analytics window schema", () => {
   it("offers the four preset windows with 30 as the default", () => {
     expect(ANALYTICS_WINDOWS).toEqual([7, 30, 90, 365])
     expect(DEFAULT_ANALYTICS_WINDOW).toBe(30)
+  })
+
+  it("offers the 7/30/90 windows for the analytics page control", () => {
+    expect(ANALYTICS_PANEL_WINDOWS).toEqual([7, 30, 90])
   })
 
   it("accepts whole days from 1 to 365", () => {
