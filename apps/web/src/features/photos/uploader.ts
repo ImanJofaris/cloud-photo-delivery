@@ -247,6 +247,19 @@ export class UploadQueue {
     this.notify()
   }
 
+  // Ready items are photos that already live in the library; clearing them
+  // only drops the queue rows. discard() would delete the photo itself.
+  clearFinished() {
+    let changed = false
+    for (const [key, item] of this.items) {
+      if (item.status !== "ready") continue
+      this.items.delete(key)
+      this.deps.registry?.remove(key)
+      changed = true
+    }
+    if (changed) this.notify()
+  }
+
   abortAll() {
     this.stopped = true
     for (const controller of this.controllers.values()) {

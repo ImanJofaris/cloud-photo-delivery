@@ -376,4 +376,48 @@ describe("UploadQueue", () => {
       deps.registry?.list("event-1").some((entry) => entry.filename === "a.jpg")
     ).toBe(false)
   })
+
+  it("clears finished rows without deleting their photos", async () => {
+    const deps = makeDeps()
+    const queue = new UploadQueue("event-1", deps)
+    queue.addFiles([makeFile("a.jpg", "image/jpeg", 1024)])
+    await waitForTerminal(queue)
+
+    queue.applyPhotoStatuses([
+      { id: "photo-1", status: "READY", errorMessage: null },
+    ])
+    queue.clearFinished()
+
+    expect(queue.getItems()).toHaveLength(0)
+    expect(deps.deletePhoto).not.toHaveBeenCalled()
+    expect(deps.registry?.list("event-1")).toHaveLength(0)
+  })
+
+  it("keeps unfinished rows when clearing finished ones", async () => {
+    let photo = 0
+    const deps = makeDeps({
+      initialize: vi.fn(async () =>
+        simpleInit({ photoId: `photo-${(photo += 1)}` })
+      ),
+    })
+    const queue = new UploadQueue("event-1", deps)
+    queue.addFiles([
+      makeFile("a.jpg", "image/jpeg", 1024),
+      makeFile("b.jpg", "image/jpeg", 1024),
+    ])
+    await vi.waitFor(() => {
+      expect(queue.getItems()).toHaveLength(2)
+      expect(
+        queue.getItems().every((item) => item.status === "processing")
+      ).toBe(true)
+    })
+
+    queue.applyPhotoStatuses([
+      { id: "photo-1", status: "READY", errorMessage: null },
+    ])
+    queue.clearFinished()
+
+    expect(queue.getItems()).toHaveLength(1)
+    expect(queue.getItems()[0].status).toBe("processing")
+  })
 })
