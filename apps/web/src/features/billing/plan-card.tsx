@@ -10,10 +10,10 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
+import { cn } from "@workspace/ui/lib/utils"
 
 import {
   formatByteLimit,
@@ -60,40 +60,49 @@ export function PlanCard({
       : `${actionLabel} ${plan.name}`
 
   return (
-    <Card className={current ? "border-primary" : undefined}>
+    <Card className={cn(current && "ring-2 ring-primary")}>
       <CardHeader>
-        <div className="flex items-center justify-between gap-2">
-          <CardTitle>{plan.name}</CardTitle>
-          {current && <Badge>Current</Badge>}
+        <div className="flex flex-wrap items-center gap-2">
+          <CardTitle className="text-sm font-semibold">{plan.name}</CardTitle>
+          {current && (
+            <Badge
+              variant="outline"
+              className="border-transparent bg-primary/10 text-primary"
+            >
+              Current
+            </Badge>
+          )}
         </div>
-        <CardDescription>
-          <span className="text-2xl font-semibold text-foreground">
+        <CardDescription className="flex items-baseline gap-1.5">
+          <span className="text-xl font-semibold tracking-tight text-foreground">
             {formatMYR(price, plan.currency)}
-          </span>{" "}
-          / {interval === "year" ? "year" : "month"}
+          </span>
+          <span className="text-xs font-medium">
+            / {interval === "year" ? "year" : "month"}
+          </span>
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        <ul className="space-y-1.5 text-sm">
+      <CardContent className="flex flex-1 flex-col gap-4">
+        <ul className="space-y-1.5 text-xs text-muted-foreground">
           {limitsFor(plan).map((limit) => (
-            <li key={limit} className="flex items-center gap-2">
-              <Check className="size-4 shrink-0 text-muted-foreground" />
+            <li key={limit} className="flex items-start gap-2">
+              <Check className="mt-0.5 size-3.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
               <span>{limit}</span>
             </li>
           ))}
         </ul>
-      </CardContent>
-      <CardFooter>
         <Button
-          className="w-full"
+          className="mt-auto w-full"
           variant={action === "current" ? "outline" : "default"}
           aria-label={ariaLabel}
-          disabled={disabled || action === "current" || action === "unavailable"}
+          disabled={
+            disabled || action === "current" || action === "unavailable"
+          }
           onClick={onAction}
         >
           {actionLabel}
         </Button>
-      </CardFooter>
+      </CardContent>
     </Card>
   )
 }

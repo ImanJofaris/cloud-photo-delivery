@@ -19,21 +19,25 @@ import {
   TableHeader,
   TableRow,
 } from "@workspace/ui/components/table"
+import { cn } from "@workspace/ui/lib/utils"
 
 import { formatDate } from "@/features/events/format"
 
-import { formatMYR } from "./format"
+import { formatInvoiceRef, formatMYR } from "./format"
 
 type Invoice = components["schemas"]["Invoice"]
 type InvoiceStatus = components["schemas"]["InvoiceStatus"]
 
-const STATUS_VARIANTS: Record<
-  InvoiceStatus,
-  "default" | "secondary" | "outline"
-> = {
-  open: "outline",
-  paid: "secondary",
-  void: "outline",
+const STATUS_LABELS: Record<InvoiceStatus, string> = {
+  open: "Open",
+  paid: "Paid",
+  void: "Void",
+}
+
+const STATUS_STYLES: Record<InvoiceStatus, string> = {
+  open: "bg-amber-500/10 text-amber-700 dark:text-amber-400",
+  paid: "bg-emerald-500/10 text-emerald-700 dark:text-emerald-400",
+  void: "bg-muted text-muted-foreground",
 }
 
 export function InvoicesTable({
@@ -50,8 +54,10 @@ export function InvoicesTable({
   return (
     <Card id="invoices">
       <CardHeader>
-        <CardTitle>Invoices</CardTitle>
-        <CardDescription>Recent billing history.</CardDescription>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <CardTitle>Invoices</CardTitle>
+          <CardDescription>Newest first</CardDescription>
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         {invoices.length === 0 ? (
@@ -62,26 +68,29 @@ export function InvoicesTable({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead>Invoice</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead>Amount</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Issued</TableHead>
-                <TableHead>Paid</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {invoices.map((invoice) => (
                 <TableRow key={invoice.id}>
+                  <TableCell className="font-mono text-xs" title={invoice.id}>
+                    {formatInvoiceRef(invoice.id)}
+                  </TableCell>
+                  <TableCell>{formatDate(invoice.issuedAt)}</TableCell>
                   <TableCell className="font-medium">
                     {formatMYR(invoice.amountCents, invoice.currency)}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={STATUS_VARIANTS[invoice.status]}>
-                      {invoice.status}
+                    <Badge
+                      variant="outline"
+                      className={cn(STATUS_STYLES[invoice.status])}
+                    >
+                      {STATUS_LABELS[invoice.status]}
                     </Badge>
-                  </TableCell>
-                  <TableCell>{formatDate(invoice.issuedAt)}</TableCell>
-                  <TableCell>
-                    {invoice.paidAt ? formatDate(invoice.paidAt) : "—"}
                   </TableCell>
                 </TableRow>
               ))}
@@ -96,7 +105,7 @@ export function InvoicesTable({
               disabled={isFetchingNextPage}
               onClick={onLoadMore}
             >
-              {isFetchingNextPage ? "Loading..." : "Load more"}
+              {isFetchingNextPage ? "Loading..." : "Load older invoices"}
             </Button>
           </div>
         )}

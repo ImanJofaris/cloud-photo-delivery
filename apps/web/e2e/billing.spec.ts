@@ -33,7 +33,7 @@ test("billing: subscribe with manual billing, cancel, and resume", async ({
   await signup(page)
   await page.goto("/billing")
   await expect(page.getByRole("heading", { name: "Billing" })).toBeVisible()
-  await expect(page.getByText("Free plan", { exact: true })).toBeVisible()
+  await expect(page.getByRole("heading", { name: "Free" })).toBeVisible()
 
   await page.getByRole("button", { name: "Subscribe to Starter" }).click()
   await expect(
@@ -52,10 +52,10 @@ test("billing: subscribe with manual billing, cancel, and resume", async ({
     .getByRole("button", { name: "Done" })
     .click()
 
-  await expect(page.getByText(/Starter plan/)).toBeVisible({
+  await expect(page.getByRole("heading", { name: "Starter" })).toBeVisible({
     timeout: 15_000,
   })
-  await expect(page.getByText("Active", { exact: true })).toBeVisible()
+  await expect(page.getByText(/renews \d/)).toBeVisible()
   await expect(
     page.getByRole("main").getByText("Events", { exact: true })
   ).toBeVisible()
@@ -66,7 +66,7 @@ test("billing: subscribe with manual billing, cancel, and resume", async ({
     .getByRole("button", { name: "Cancel subscription" })
     .click()
 
-  await expect(page.getByText(/Cancels on/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/ends \d/)).toBeVisible({ timeout: 15_000 })
 
   await page.getByRole("button", { name: "Resume" }).click()
   await page
@@ -74,5 +74,5 @@ test("billing: subscribe with manual billing, cancel, and resume", async ({
     .getByRole("button", { name: "Resume subscription" })
     .click()
 
-  await expect(page.getByText(/Renews on/)).toBeVisible({ timeout: 15_000 })
+  await expect(page.getByText(/renews \d/)).toBeVisible({ timeout: 15_000 })
 })

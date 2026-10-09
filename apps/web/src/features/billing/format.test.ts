@@ -5,6 +5,7 @@ import { ApiError, type components } from "@workspace/api-client"
 import { billingErrorMessage } from "./errors"
 import {
   formatByteLimit,
+  formatInvoiceRef,
   formatLimit,
   formatMYR,
   isHttpUrl,
@@ -71,6 +72,12 @@ describe("usage formatting", () => {
 
   it("formats MYR amounts", () => {
     expect(formatMYR(2900)).toMatch(/29[.,]00/)
+  })
+
+  it("derives a short invoice reference from the id", () => {
+    expect(formatInvoiceRef("3f2a91c4-1111-4111-8111-000000000001")).toBe(
+      "INV-3F2A91C4"
+    )
   })
 
   it("caps usage percent at 100", () => {
