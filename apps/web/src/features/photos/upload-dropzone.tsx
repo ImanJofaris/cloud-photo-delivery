@@ -1,6 +1,6 @@
 "use client"
 
-import { ImagePlus } from "lucide-react"
+import { CloudUpload } from "lucide-react"
 import * as React from "react"
 
 import { Button } from "@workspace/ui/components/button"
@@ -161,21 +161,32 @@ export function UploadDropzone({
       }}
       onDrop={(event) => void handleDrop(event)}
       className={cn(
-        "flex flex-col items-center justify-center gap-2 rounded-lg border border-dashed p-6 text-center transition-colors",
+        "flex flex-col gap-4 rounded-xl border border-dashed bg-muted/30 p-4 transition-colors sm:flex-row sm:items-center",
         dragging && "border-primary bg-primary/5",
         className
       )}
     >
-      <ImagePlus className="size-6 text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">Drag photos here, or</p>
+      <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <CloudUpload className="size-4" />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium">
+            Drag photos here, or browse files
+          </p>
+          <p className="text-xs text-muted-foreground">
+            JPEG, PNG or WebP up to 100 MB each. Uploads go straight to
+            storage.
+          </p>
+        </div>
+      </div>
       <Button
         type="button"
-        variant="outline"
         size="sm"
         disabled={disabled}
         onClick={() => inputRef.current?.click()}
       >
-        Choose photos
+        Choose files
       </Button>
       <input
         ref={inputRef}
@@ -188,9 +199,6 @@ export function UploadDropzone({
           event.target.value = ""
         }}
       />
-      <p className="text-xs text-muted-foreground">
-        You can drag a whole folder too · JPEG, PNG or WebP · up to 100 MB each
-      </p>
     </div>
   )
 }
