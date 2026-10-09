@@ -19,6 +19,12 @@ const dayLongFormatter = new Intl.DateTimeFormat("en-MY", {
   month: "short",
   day: "numeric",
 })
+const weekdayFormatter = new Intl.DateTimeFormat("en-MY", {
+  timeZone: "UTC",
+  weekday: "short",
+  day: "numeric",
+  month: "short",
+})
 
 function parseUtcDay(date: string): Date | null {
   const parsed = new Date(`${date}T00:00:00Z`)
@@ -37,6 +43,28 @@ export function formatUtcDay(date: string): string {
 export function formatUtcDayLong(date: string): string {
   const parsed = parseUtcDay(date)
   return parsed ? dayLongFormatter.format(parsed) : "—"
+}
+
+export function formatUtcWeekday(date: string): string {
+  const parsed = parseUtcDay(date)
+  if (!parsed) return "—"
+  const parts = weekdayFormatter.formatToParts(parsed)
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? ""
+  return `${value("weekday")} ${value("day")} ${value("month")}`
+}
+
+export function formatUtcWindowRange(
+  days: number,
+  now: Date = new Date()
+): string {
+  const series = utcDaySeries(days, now)
+  const first = series[0]
+  const last = series[series.length - 1]
+  if (!first || !last) return "—"
+  const sameYear = first.slice(0, 4) === last.slice(0, 4)
+  const formatter = sameYear ? formatUtcDay : formatUtcDayLong
+  return `${formatter(first)} to ${formatter(last)}`
 }
 
 export function utcDaySeries(days: number, now: Date = new Date()): string[] {
@@ -76,4 +104,19 @@ export function seriesTotal(
   metric: AnalyticsMetric
 ): number {
   return daily.reduce((sum, day) => sum + day[metric], 0)
+}
+
+export function busiestDays(
+  daily: AnalyticsDay[],
+  count = 3
+): AnalyticsDay[] {
+  return daily
+    .filter((day) => day.galleryViews > 0 || day.downloads > 0)
+    .sort(
+      (a, b) =>
+        b.galleryViews - a.galleryViews ||
+        b.downloads - a.downloads ||
+        b.date.localeCompare(a.date)
+    )
+    .slice(0, count)
 }
