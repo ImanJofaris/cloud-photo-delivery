@@ -1,0 +1,1501 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Cloud Photo Delivery, every page</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:var(--font-sans,ui-sans-serif,system-ui,sans-serif);color:var(--foreground,#101014);-webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+.wrap{display:flex;flex-direction:column;gap:44px;padding-bottom:8px}
+.page-head{padding-top:10px}
+.kicker{font-size:11px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--muted-foreground,#6b7280)}
+.page-head h1{font-size:27px;font-weight:800;letter-spacing:-.025em;margin-top:7px}
+.lede{margin-top:9px;font-size:13.5px;line-height:1.6;color:var(--muted-foreground,#6b7280);max-width:60ch}
+.mock{display:flex;flex-direction:column;gap:14px}
+.eyebrow{font-size:11px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--primary,#7c3aed)}
+.mock h2{font-size:19.5px;font-weight:750;letter-spacing:-.02em;margin-top:5px}
+.mock .sub{margin-top:4px;font-size:13px;color:var(--muted-foreground,#6b7280)}
+.stage{background:var(--muted,#f4f4f5);border:1px solid var(--border,rgba(0,0,0,.07));border-radius:20px;padding:16px;overflow:hidden}
+.viewport{position:relative;width:100%;overflow:hidden}
+.canvas{position:absolute;top:0;left:0;transform-origin:top left}
+.cap{font-size:13.5px;line-height:1.55;color:var(--muted-foreground,#6b7280);display:flex;gap:10px}
+.cap::before{content:"";flex:none;width:6px;height:6px;border-radius:99px;background:var(--primary,#7c3aed);margin-top:8px}
+.footer{font-size:12.5px;line-height:1.5;color:var(--muted-foreground,#6b7280);border-top:1px solid var(--border,rgba(0,0,0,.08));padding-top:14px}
+
+.ic{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex:none;display:inline-block;vertical-align:middle}
+
+.win{display:flex;flex-direction:column;background:#fff;border-radius:16px;overflow:hidden;box-shadow:0 1px 2px rgba(10,10,14,.12),0 18px 44px rgba(10,10,14,.16)}
+.chrome{height:40px;flex:none;display:flex;align-items:center;gap:7px;padding:0 14px;background:#f2f3f5;border-bottom:1px solid rgba(0,0,0,.06)}
+.dot{width:11px;height:11px;border-radius:50%}
+.url{margin-left:10px;height:22px;flex:1;max-width:400px;border-radius:8px;background:#fff;box-shadow:inset 0 0 0 1px rgba(0,0,0,.07);display:flex;align-items:center;padding:0 10px;font-size:11px;color:#6b7280;font-family:"IBM Plex Mono",var(--font-mono,monospace);white-space:nowrap;overflow:hidden}
+
+.app{display:flex;height:100%;background:#fbfbfc;color:#0a0a0e;font-size:13px;letter-spacing:-.01em;line-height:1.35}
+.side{width:232px;flex:none;background:#f6f7f9;border-right:1px solid #e9e9ef;padding:14px 12px 12px;display:flex;flex-direction:column;gap:18px}
+.brand{display:flex;align-items:center;gap:10px;padding:2px 4px}
+.mark{width:34px;height:34px;border-radius:10px;background:#0a0a0e;color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:800;letter-spacing:.05em;flex:none}
+.brand .t1{font-size:12.5px;font-weight:700;line-height:1.2}
+.brand .t2{font-size:10.5px;color:#71717a;margin-top:1px}
+.nav{display:flex;flex-direction:column;gap:2px}
+.g{font-size:10px;font-weight:700;letter-spacing:.13em;text-transform:uppercase;color:#8b8f98;padding:0 8px;margin-bottom:7px}
+.nav a{display:flex;align-items:center;gap:9px;height:31px;border-radius:9px;padding:0 8px;font-size:12.5px;color:#45454e;text-decoration:none}
+.nav a.on{background:rgba(10,10,14,.07);color:#0a0a0e;font-weight:700}
+.side .foot{margin-top:auto;display:flex;align-items:center;gap:9px;padding:10px 6px 2px;border-top:1px solid #e9e9ef}
+.avatar{width:30px;height:30px;border-radius:9px;background:#e5e5ea;color:#45454e;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;flex:none}
+.main{flex:1;min-width:0;padding:20px 22px;display:flex;flex-direction:column;gap:14px;overflow:hidden}
+.topline{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}
+.pg{font-size:21px;font-weight:800;letter-spacing:-.025em}
+.metasub{font-size:12px;color:#71717a;margin-top:3px}
+.actions{display:flex;align-items:center;gap:8px;flex:none}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;height:32px;padding:0 12px;border-radius:12px;font:inherit;font-size:12.5px;font-weight:700;letter-spacing:-.01em;border:0;background:transparent;color:inherit;cursor:default;white-space:nowrap}
+.btn.primary{background:oklch(0.5393 0.2713 286.7462);color:#fff}
+.btn.primary .ic{stroke-width:2.4}
+.btn.outline{background:#fff;box-shadow:inset 0 0 0 1px #e4e4ea;color:#0a0a0e}
+.btn.ghost{color:#45454e}
+.btn.danger{background:#fee2e2;color:#b91c1c}
+.btn.sm{height:28px;padding:0 10px;font-size:12px;border-radius:10px}
+.btn.xs{height:24px;padding:0 8px;font-size:11px;border-radius:8px}
+.btn.icon{width:32px;padding:0}
+.card{background:#fff;border-radius:22px;box-shadow:0 0 0 1px rgba(15,15,25,.08)}
+.cardhead{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px 10px}
+.cardtitle{font-size:13.5px;font-weight:750}
+.link{display:inline-flex;align-items:center;gap:3px;font-size:12px;font-weight:700;color:oklch(0.5393 0.2713 286.7462);text-decoration:none}
+
+.alerts{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.alert{display:flex;align-items:center;gap:11px;border-radius:20px;padding:12px 14px;box-shadow:0 0 0 1px rgba(15,15,25,.05)}
+.alert.amber{background:#fdf4e6}
+.alert.violet{background:#f2edfe}
+.ic-lg{width:32px;height:32px;border-radius:11px;display:flex;align-items:center;justify-content:center;flex:none}
+.alert.amber .ic-lg{background:#f7e2bf;color:#9a5a08}
+.alert.violet .ic-lg{background:#e3d8fd;color:#5b21b6}
+.alert .tt{font-size:12.5px;font-weight:750}
+.alert .ss{font-size:11.5px;color:#71717a;margin-top:2px}
+.alert .act{margin-left:auto;flex:none}
+
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.stat{padding:13px 15px;display:flex;flex-direction:column;gap:5px}
+.stat .lab{font-size:11.5px;color:#71717a}
+.stat .val{font-size:21px;font-weight:800;letter-spacing:-.03em;display:flex;align-items:center;gap:8px;line-height:1.1}
+.delta{font-size:10.5px;font-weight:750;padding:2px 7px;border-radius:99px;background:#d9f5e5;color:#0b7a4b;letter-spacing:0}
+.delta.gray{background:#f0f0f3;color:#63636b}
+.ss{font-size:11.5px;color:#71717a}
+.spark{width:100%;height:24px;margin-top:auto;display:block}
+.bar{height:6px;border-radius:99px;background:#ececf0;overflow:hidden}
+.bar i{display:block;height:100%;border-radius:99px;background:oklch(0.5393 0.2713 286.7462)}
+
+.cols{display:grid;grid-template-columns:1.55fr 1fr;gap:12px;flex:1;min-height:0}
+.ev{display:flex;align-items:center;gap:12px;padding:11px 16px;border-top:1px solid #f1f1f4;text-decoration:none;color:inherit}
+.ev .nm{font-size:13px;font-weight:700}
+.ev .mt{display:flex;align-items:center;gap:7px;font-size:11.5px;color:#71717a;margin-top:3px}
+.ev .rt{margin-left:auto;display:flex;align-items:center;gap:12px;font-size:11.5px;color:#71717a;flex:none}
+.ev .rt .warn{color:#9a5a08;font-weight:700}
+.badge{display:inline-flex;align-items:center;height:19px;padding:0 8px;border-radius:99px;font-size:10.5px;font-weight:750;letter-spacing:0;white-space:nowrap}
+.b-active{background:#d9f5e5;color:#0b7a4b}
+.b-upcoming{background:#e0ebfe;color:#1d4ed8}
+.b-completed{background:#f0f0f3;color:#63636b}
+.b-amber{background:#fbeed3;color:#9a5a08}
+.b-red{background:#fee2e2;color:#b91c1c}
+.b-violet{background:#e3d8fd;color:#5b21b6}
+.qa{display:flex;flex-direction:column;gap:8px;padding:0 16px 16px}
+.rowbtn{display:flex;align-items:center;gap:10px;height:38px;border-radius:13px;padding:0 12px;font-size:12.5px;font-weight:700;background:#fff;box-shadow:inset 0 0 0 1px #e7e7ec}
+.rowbtn.primary{background:oklch(0.5393 0.2713 286.7462);color:#fff;box-shadow:none}
+.activity{display:flex;flex-direction:column;gap:11px;padding:2px 16px 16px}
+.act{display:flex;gap:9px;font-size:12px;line-height:1.45}
+.act b{font-weight:750}
+.act .dotm{width:6px;height:6px;border-radius:99px;background:#c9c9cf;margin-top:6px;flex:none}
+.act .dotm.v{background:oklch(0.5393 0.2713 286.7462)}
+.act .tm{display:block;font-size:11px;color:#8b8f98;margin-top:2px}
+
+.seg{display:inline-flex;background:#f0f0f4;border-radius:11px;padding:3px;gap:2px}
+.seg span{font-size:12px;font-weight:700;padding:5px 11px;border-radius:8px;color:#71717a}
+.seg span.on{background:#fff;color:#0a0a0e;box-shadow:0 1px 3px rgba(10,10,14,.14)}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.label{font-size:12px;font-weight:650}
+.hint{font-size:11px;color:#8b8f98}
+.input{height:34px;border-radius:11px;background:#fff;box-shadow:inset 0 0 0 1px #e2e2e8;display:flex;align-items:center;gap:8px;padding:0 11px;font-size:12.5px;color:#3f3f46;white-space:nowrap;overflow:hidden;min-width:0}
+.input.pht{color:#a7a7b0}
+.input.area{height:70px;align-items:flex-start;padding:9px 11px;white-space:normal;line-height:1.5}
+.input.sel{justify-content:space-between}
+.input .ic{opacity:.6}
+.switch{width:36px;height:21px;border-radius:99px;background:#d9d9df;position:relative;flex:none}
+.switch.on{background:oklch(0.5393 0.2713 286.7462)}
+.switch::after{content:"";position:absolute;top:2.5px;left:2.5px;width:16px;height:16px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.switch.on::after{left:17.5px}
+.togrow{display:flex;align-items:center;gap:12px;padding:9px 0;border-top:1px solid #f4f4f7}
+.togrow .tx{flex:1;min-width:0}
+.togrow .tt2{font-size:12.5px;font-weight:650}
+.togrow .dd{font-size:11px;color:#8b8f98;margin-top:2px}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.fchip{display:inline-flex;align-items:center;gap:6px;height:30px;padding:0 12px;border-radius:99px;font-size:12px;font-weight:700;background:#fff;box-shadow:inset 0 0 0 1px #e4e4ea;color:#45454e}
+.fchip.on{background:#0a0a0e;color:#fff;box-shadow:none}
+.fchip .n{font-weight:800;opacity:.55}
+
+.tbl{width:100%;border-collapse:collapse}
+.tbl th{font-size:10.5px;font-weight:750;letter-spacing:.06em;text-transform:uppercase;color:#8b8f98;text-align:left;padding:10px 16px 8px;border-bottom:1px solid #f1f1f4;white-space:nowrap}
+.tbl td{padding:11px 16px;border-bottom:1px solid #f5f5f7;font-size:12.5px;vertical-align:middle}
+.tbl tr:last-child td{border-bottom:0}
+.tbl .nm{font-weight:700}
+.tbl .rev td{color:#a1a1aa}
+.mono{font-family:"IBM Plex Mono",var(--font-mono,monospace);font-size:11px}
+.kv{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 16px;border-top:1px solid #f1f1f4;font-size:12px}
+.kv .k{color:#71717a;display:flex;align-items:center;gap:8px}
+.kv .v{font-weight:750}
+.dotg{width:8px;height:8px;border-radius:50%;background:#12b76a;flex:none;display:inline-block}
+.dotg.amber{background:#f59e0b}
+.dotg.gray{background:#c9c9cf}
+
+.drop{border:1.5px dashed #d4d4dc;border-radius:16px;padding:16px;display:flex;align-items:center;gap:14px;background:#fbfbfd}
+.drop .ic-lg{background:#f2edfe;color:#5b21b6;width:36px;height:36px}
+.pitem{display:flex;align-items:center;gap:10px;padding:8px 0;border-top:1px solid #f4f4f7}
+.pitem:first-child{border-top:0}
+.pbar2{flex:1;height:6px;border-radius:99px;background:#ececf0;overflow:hidden}
+.pbar2 i{display:block;height:100%;border-radius:99px;background:oklch(0.5393 0.2713 286.7462)}
+.pbar2.done i{background:#0b7a4b}
+.pbar2.fail i{background:#b91c1c}
+.nm2{font-size:12px;font-weight:650;display:flex;justify-content:space-between;gap:10px;margin-bottom:5px}
+.nm2 span{color:#8b8f98;font-weight:500}
+.cov{width:48px;height:48px;border-radius:12px;flex:none}
+.covwrap{position:relative;flex:none}
+.starbadge{position:absolute;left:-5px;top:-5px;width:19px;height:19px;border-radius:50%;background:#fbeed3;color:#9a5a08;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff}
+.starbadge .ic{width:10px;height:10px}
+.selbox{position:absolute;right:6px;top:6px;width:20px;height:20px;border-radius:50%;background:oklch(0.5393 0.2713 286.7462);color:#fff;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 2px #fff;z-index:3}
+.selbox .ic{width:11px;height:11px;stroke-width:3}
+.bulkbar{display:inline-flex;align-items:center;gap:10px;background:#0a0a0e;color:#fff;border-radius:99px;padding:7px 8px 7px 14px;font-size:12px;font-weight:700}
+.bulkbar .btn{height:26px;font-size:11.5px;border-radius:99px}
+
+.plans{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.plan{padding:15px;display:flex;flex-direction:column;gap:9px;position:relative;background:#fff;border-radius:18px;box-shadow:0 0 0 1px rgba(15,15,25,.08)}
+.plan.cur{box-shadow:0 0 0 2px oklch(0.5393 0.2713 286.7462)}
+.planname{font-size:13px;font-weight:750;display:flex;align-items:center;gap:8px}
+.price{font-size:20px;font-weight:800;letter-spacing:-.02em;display:flex;align-items:baseline;gap:6px}
+.per{font-size:11px;color:#8b8f98;font-weight:600}
+.plist{list-style:none;display:grid;gap:6px;margin-top:2px}
+.plist li{display:flex;gap:7px;font-size:11.5px;color:#45454e;align-items:flex-start;line-height:1.4}
+.plist .ic{width:13px;height:13px;color:#0b7a4b;margin-top:1px;flex:none}
+
+.pv{overflow:hidden;border-radius:16px;box-shadow:inset 0 0 0 1px #ececf0;background:#fff}
+.pvcover{height:76px;position:relative;background:linear-gradient(118deg,#f6cfae,#ecab86 46%,#c97b92)}
+.pvcover::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 100% at 18% 8%,rgba(255,255,255,.35),transparent 58%)}
+.pvbody{padding:12px 14px 14px;position:relative}
+.pvlogo{width:36px;height:36px;border-radius:50%;background:#c2477f;color:#fff;font-size:10px;font-weight:800;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 3px #fff;margin-top:-30px;margin-bottom:7px}
+
+.authbody{flex:1;min-height:0;background:#fbfbfc;display:flex;align-items:center;justify-content:center;padding:18px 0}
+.authcard{width:304px;background:#fff;border-radius:20px;box-shadow:0 0 0 1px rgba(15,15,25,.1),0 10px 26px rgba(15,15,25,.06);padding:18px}
+.authtitle{font-size:16px;font-weight:800;letter-spacing:-.02em}
+.authsub{font-size:11.5px;color:#71717a;margin-top:3px;margin-bottom:13px}
+.authfoot{font-size:11.5px;color:#71717a;text-align:center;margin-top:12px}
+.authfoot b{color:#0a0a0e}
+.authstack{display:flex;flex-direction:column;gap:10px}
+.alertbox{border-radius:12px;padding:9px 11px;font-size:11.5px;display:flex;gap:8px;align-items:flex-start;line-height:1.45}
+.alertbox.ok{background:#e7f7ee;color:#0b7a4b}
+.alertbox.err{background:#fee2e2;color:#b91c1c}
+.alertbox .ic{width:14px;height:14px;margin-top:1px}
+
+.phones{display:flex;flex-wrap:wrap;gap:22px;justify-content:center;padding:18px 6px}
+.phone{width:328px;flex:none;background:#141419;border-radius:46px;padding:9px;box-shadow:0 0 0 1px rgba(255,255,255,.07),0 0 0 3px rgba(10,10,14,.6),0 22px 44px rgba(10,10,14,.25)}
+.pscreen{position:relative;width:310px;height:660px;border-radius:38px;overflow:hidden;background:#fff;color:#0f0f13;font-size:12px;letter-spacing:-.01em;line-height:1.35;display:flex;flex-direction:column}
+.pstat{height:26px;flex:none;display:flex;align-items:center;justify-content:space-between;padding:0 18px;font-size:11px;font-weight:750}
+.phead{flex:none;height:54px;display:flex;align-items:center;gap:9px;padding:0 12px;background:rgba(255,255,255,.9);box-shadow:0 1px 0 rgba(10,10,14,.06);position:relative;z-index:3}
+.plogo{width:26px;height:26px;border-radius:50%;background:linear-gradient(135deg,#dd8ab6,#a63e73);color:#fff;font-size:9px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none}
+.lang{margin-left:auto;display:inline-flex;background:#f1f1f4;border-radius:99px;padding:2px}
+.lang span{font-size:9.5px;font-weight:800;padding:3px 8px;border-radius:99px;color:#71717a}
+.lang span.on{background:#fff;color:#0f0f13;box-shadow:0 1px 3px rgba(10,10,14,.16)}
+.lg-hero{height:104px;flex:none;position:relative;background:linear-gradient(118deg,#f6cfae 0%,#ecab86 46%,#c97b92 100%)}
+.lg-hero::after,.pv-photo::after{content:"";position:absolute;inset:0;background:radial-gradient(120% 100% at 18% 8%,rgba(255,255,255,.35),transparent 58%)}
+.lg-copy{padding:12px 14px 10px}
+.lg-title{font-size:18px;font-weight:800;letter-spacing:-.025em}
+.lg-meta{display:flex;flex-wrap:wrap;gap:10px;font-size:11px;color:#71717a;margin-top:5px}
+.chiprow{display:flex;gap:6px;margin-top:9px}
+.chip{display:inline-flex;align-items:center;height:22px;padding:0 9px;border-radius:99px;font-size:10.5px;font-weight:750;background:#f1f1f4;color:#45454e}
+.chip.warm{background:#fce9f1;color:#b23a6e}
+.pgrid{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:0 12px 90px;overflow:hidden}
+.tile{position:relative;border-radius:13px;overflow:hidden}
+.tile::before{content:"";position:absolute;inset:0;background:radial-gradient(120% 90% at 22% 12%,rgba(255,255,255,.3),transparent 55%);z-index:1}
+.t11{aspect-ratio:1/1}.t45{aspect-ratio:4/5}
+.g1{background:linear-gradient(135deg,#f4cdb2,#e3a07c,#bd6f55)}
+.g2{background:linear-gradient(135deg,#cfd9ea,#9db1cd,#6d86a9)}
+.g3{background:linear-gradient(135deg,#ece0d1,#cdb191,#a98761)}
+.g4{background:linear-gradient(135deg,#ddd2ee,#b3a1d6,#8471b3)}
+.g5{background:linear-gradient(135deg,#f4dfd6,#dbb09a,#b98a74)}
+.g6{background:linear-gradient(135deg,#d3e3da,#a3c4b2,#7aa28c)}
+.g7{background:linear-gradient(135deg,#f3d8d8,#e0a8a8,#c88080)}
+.g8{background:linear-gradient(160deg,#2f2a3a,#4a4258,#6a5f7d)}
+.wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:8.5px;font-weight:800;letter-spacing:.22em;color:rgba(255,255,255,.6);transform:rotate(-14deg);z-index:2;text-shadow:0 1px 2px rgba(0,0,0,.12)}
+.newtag{position:absolute;left:7px;top:7px;z-index:2;background:#fff;color:#0f0f13;font-size:9px;font-weight:800;letter-spacing:.06em;padding:3px 7px;border-radius:99px;box-shadow:0 1px 3px rgba(10,10,14,.2)}
+.pbar{position:absolute;left:0;right:0;bottom:0;padding:10px 12px 22px;display:flex;gap:9px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.96) 46%);box-shadow:0 -1px 0 rgba(10,10,14,.05);z-index:4}
+.homebar{position:absolute;bottom:7px;left:50%;transform:translateX(-50%);width:96px;height:4px;border-radius:99px;background:rgba(10,10,14,.85);z-index:5}
+.pscreen .btn{height:38px;border-radius:13px;font-size:12.5px}
+.pscreen .btn.primary{background:#c2477f}
+.pscreen .btn.grow{flex:1;min-width:0}
+.pscreen .btn.sq{width:38px;padding:0;flex:none}
+.viewer-top{flex:none;height:46px;display:flex;align-items:center;gap:6px;padding:0 12px}
+.viewer-top .mid{margin:0 auto;font-size:12px;font-weight:750}
+.pv-photo{height:378px;flex:none;position:relative;background:linear-gradient(152deg,#3b2f55 0%,#5d4a7d 48%,#8d6f9f 100%)}
+.pv-photo .wm{font-size:12px;letter-spacing:.3em;color:rgba(255,255,255,.65)}
+.vactions{display:flex;gap:8px;padding:10px 12px 0}
+.vcap{padding:11px 14px 0;font-size:12px;font-weight:750}
+.vsub{padding:3px 14px 0;font-size:10.5px;color:#8b8f98}
+.strip{display:flex;gap:7px;padding:12px 12px 0;overflow:hidden}
+.sthumb{width:46px;height:46px;border-radius:11px;flex:none;opacity:.7}
+.sthumb.on{opacity:1;box-shadow:0 0 0 2px #fff,0 0 0 4px #c2477f}
+.vhint{margin-top:auto;text-align:center;font-size:10.5px;color:#8b8f98;padding:8px 0 18px}
+
+.tabs{display:flex;gap:20px;border-bottom:1px solid #ececf0;padding:0 2px}
+.tabs span{font-size:12.5px;font-weight:750;color:#8b8f98;padding-bottom:9px;position:relative}
+.tabs .on{color:#0a0a0e}
+.tabs .on::after{content:"";position:absolute;left:0;right:0;bottom:-1px;height:2px;border-radius:2px;background:#0a0a0e}
+.expiry{display:flex;align-items:center;gap:12px;padding:12px 16px}
+.expiry .ic-lg{background:#f7e2bf;color:#9a5a08}
+.qrw{background:#fff;padding:9px;border-radius:16px;box-shadow:inset 0 0 0 1px #ececf0;flex:none}
+.linkpill{display:flex;align-items:center;gap:8px;height:36px;border-radius:12px;background:#f6f6f8;box-shadow:inset 0 0 0 1px #ececf0;padding:0 11px;font-size:11.5px;color:#45454e;font-family:"IBM Plex Mono",var(--font-mono,monospace)}
+.uploads{display:flex;gap:8px;padding:2px 16px 14px}
+.uthumb{width:86px;height:86px;border-radius:14px;flex:none}
+.uthumb.more{background:#f0f0f3;color:#71717a;display:flex;align-items:center;justify-content:center;font-weight:800;font-size:12px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<symbol id="i-home" viewBox="0 0 24 24"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M9 22V12h6v10"/></symbol>
+<symbol id="i-chart" viewBox="0 0 24 24"><path d="M3 3v16a2 2 0 0 0 2 2h16"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></symbol>
+<symbol id="i-calendar" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></symbol>
+<symbol id="i-camera" viewBox="0 0 24 24"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></symbol>
+<symbol id="i-palette" viewBox="0 0 24 24"><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.9 0 1.7-.7 1.7-1.7 0-.4-.2-.8-.4-1.1-.3-.3-.4-.7-.4-1.1 0-1 .8-1.7 1.7-1.7H16c3.3 0 6-2.7 6-6 0-5-4.5-8.4-10-8.4z"/><circle cx="13.5" cy="6.5" r="1" fill="currentColor" stroke="none"/><circle cx="17.5" cy="10.5" r="1" fill="currentColor" stroke="none"/><circle cx="8.5" cy="7.5" r="1" fill="currentColor" stroke="none"/><circle cx="6.5" cy="12.5" r="1" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-card" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/></symbol>
+<symbol id="i-bell" viewBox="0 0 24 24"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></symbol>
+<symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+<symbol id="i-chev-r" viewBox="0 0 24 24"><path d="m9 18 6-6-6-6"/></symbol>
+<symbol id="i-chev-down" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></symbol>
+<symbol id="i-arrow-left" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></symbol>
+<symbol id="i-arrow-right" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></symbol>
+<symbol id="i-zap" viewBox="0 0 24 24"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></symbol>
+<symbol id="i-users" viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></symbol>
+<symbol id="i-user" viewBox="0 0 24 24"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></symbol>
+<symbol id="i-download" viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></symbol>
+<symbol id="i-share" viewBox="0 0 24 24"><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="m16 6-4-4-4 4"/><path d="M12 2v13"/></symbol>
+<symbol id="i-copy" viewBox="0 0 24 24"><rect x="8" y="8" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></symbol>
+<symbol id="i-globe" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20"/><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></symbol>
+<symbol id="i-printer" viewBox="0 0 24 24"><path d="M6 9V2h12v7"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8" rx="1"/></symbol>
+<symbol id="i-chat" viewBox="0 0 24 24"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/></symbol>
+<symbol id="i-heart" viewBox="0 0 24 24"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7z"/></symbol>
+<symbol id="i-more" viewBox="0 0 24 24"><circle cx="12" cy="5" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.4" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.4" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-pin" viewBox="0 0 24 24"><path d="M20 10c0 4.99-5.54 10.19-7.4 11.8a1 1 0 0 1-1.2 0C9.54 20.19 4 14.99 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></symbol>
+<symbol id="i-updown" viewBox="0 0 24 24"><path d="m7 15 5 5 5-5"/><path d="m7 9 5-5 5 5"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></symbol>
+<symbol id="i-x" viewBox="0 0 24 24"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></symbol>
+<symbol id="i-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+<symbol id="i-star" viewBox="0 0 24 24"><path d="M12 2l2.9 6.26 6.6 1.04-4.75 4.34 1.05 6.36L12 16.6 6.2 20l1.05-6.36L2.5 9.3l6.6-1.04z" fill="currentColor" stroke="none"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/></symbol>
+<symbol id="i-pencil" viewBox="0 0 24 24"><path d="M21.17 6.81a1 1 0 0 0-3.98-3.99L3.84 16.17a2 2 0 0 0-.5.83l-1.32 4.35a.5.5 0 0 0 .62.63l4.35-1.32a2 2 0 0 0 .83-.5z"/><path d="m15 5 4 4"/></symbol>
+<symbol id="i-cloud-up" viewBox="0 0 24 24"><path d="M12 13v8"/><path d="M4 14.9A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.24"/><path d="m8 17 4-4 4 4"/></symbol>
+<symbol id="i-lock" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></symbol>
+<symbol id="i-mail" viewBox="0 0 24 24"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></symbol>
+<symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7z"/><circle cx="12" cy="12" r="3"/></symbol>
+<symbol id="i-key" viewBox="0 0 24 24"><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3"/><path d="M9.7 14.3a5.5 5.5 0 1 1-7.8 7.8 5.5 5.5 0 0 1 7.8-7.8Z"/></symbol>
+<symbol id="i-link" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></symbol>
+<symbol id="i-receipt" viewBox="0 0 24 24"><path d="M4 2v20l2-1 2 1 2-1 2 1 2-1 2 1 2-1 2 1V2l-2 1-2-1-2 1-2-1-2 1-2-1-2 1z"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><path d="M12 6.5v11"/></symbol>
+<symbol id="i-refresh" viewBox="0 0 24 24"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v6h-6"/></symbol>
+<symbol id="i-alert" viewBox="0 0 24 24"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></symbol>
+<symbol id="i-db" viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M3 5v14a9 3 0 0 0 18 0V5"/><path d="M3 12a9 3 0 0 0 18 0"/></symbol>
+<symbol id="i-activity" viewBox="0 0 24 24"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></symbol>
+<symbol id="i-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+<symbol id="i-shield" viewBox="0 0 24 24"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></symbol>
+</defs></svg>
+
+<main class="wrap">
+<header class="page-head">
+  <p class="kicker">Cloud Photo Delivery · Web direction</p>
+  <h1>Every page, one direction</h1>
+  <p class="lede">The complete operator app, auth, and guest gallery, drawn against the current build: the same design tokens (violet primary, round cards, Plus Jakarta Sans) and the same API surface. Sample data throughout.</p>
+</header>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">01 · Operator dashboard</p>
+    <h2>Today at a glance</h2>
+    <p class="sub">The morning briefing: alerts, live events, usage, and shortcuts on one screen.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="800" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/dashboard"></div>
+          <div class="app" style="height:760px">
+            <aside class="side" data-nav="Dashboard"></aside>
+            <main class="main">
+              <div class="topline">
+                <div><h3 class="pg">Dashboard</h3><div class="metasub">Friday, 9 October · 3 active events</div></div>
+                <div class="actions">
+                  <button class="btn outline icon"><svg class="ic"><use href="#i-bell"/></svg></button>
+                  <button class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>New event</button>
+                </div>
+              </div>
+              <div class="alerts">
+                <div class="alert amber">
+                  <div class="ic-lg"><svg class="ic"><use href="#i-clock"/></svg></div>
+                  <div><div class="tt">Aina &amp; Haziq closes in 3 days</div><div class="ss">Gallery expires 12 Oct. Extend to keep it online.</div></div>
+                  <div class="act"><button class="btn outline sm">Extend</button></div>
+                </div>
+                <div class="alert violet">
+                  <div class="ic-lg"><svg class="ic"><use href="#i-zap"/></svg></div>
+                  <div><div class="tt">CIMB Family Day is live</div><div class="ss">412 photos · 96 guests so far</div></div>
+                  <div class="act"><button class="btn outline sm">Open event</button></div>
+                </div>
+              </div>
+              <div class="stats">
+                <div class="card stat">
+                  <div class="lab">Photos · 30 days</div>
+                  <div class="val">3,482 <span class="delta">+18%</span></div>
+                  <svg class="spark" viewBox="0 0 150 30" preserveAspectRatio="none"><path d="M0 23 L15 20 L30 22 L45 15 L60 17 L75 11 L90 14 L105 8 L120 11 L135 6 L150 4" fill="none" stroke="oklch(0.5393 0.2713 286.7462)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                </div>
+                <div class="card stat">
+                  <div class="lab">Guests · 30 days</div>
+                  <div class="val">921 <span class="delta">+6%</span></div>
+                  <div class="ss">Across 3 active events</div>
+                </div>
+                <div class="card stat">
+                  <div class="lab">Active events</div>
+                  <div class="val">3</div>
+                  <div class="ss">2 expire within a week</div>
+                </div>
+                <div class="card stat">
+                  <div class="lab">Storage</div>
+                  <div class="val">62.4 GB</div>
+                  <div class="bar"><i style="width:62%"></i></div>
+                  <div class="ss">of 100 GB · Pro plan</div>
+                </div>
+              </div>
+              <div class="cols">
+                <div class="card" style="display:flex;flex-direction:column;min-height:0">
+                  <div class="cardhead"><span class="cardtitle">Your events</span><a class="link">View all<svg class="ic" style="width:12px;height:12px"><use href="#i-chev-r"/></svg></a></div>
+                  <div style="display:flex;flex-direction:column">
+                    <a class="ev"><div><div class="nm">Aina &amp; Haziq Wedding</div><div class="mt">Aina · 4 Oct 2026 <span class="badge b-active">Active</span></div></div><div class="rt">486 photos <svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                    <a class="ev"><div><div class="nm">CIMB Family Day</div><div class="mt">CIMB · 3 Oct 2026 <span class="badge b-active">Active</span></div></div><div class="rt">412 photos <svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                    <a class="ev"><div><div class="nm">Nana &amp; Farid Engagement</div><div class="mt">Nana · 27 Sep 2026 <span class="badge b-active">Active</span></div></div><div class="rt">238 photos <svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                    <a class="ev"><div><div class="nm">Sarah's Birthday</div><div class="mt">Sarah · 18 Oct 2026 <span class="badge b-upcoming">Upcoming</span></div></div><div class="rt">0 photos <svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                    <a class="ev"><div><div class="nm">Merdeka Corporate Dinner</div><div class="mt">Petronas · 31 Aug 2026 <span class="badge b-completed">Completed</span></div></div><div class="rt">1,204 photos <svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                    <a class="ev"><div><div class="nm">Zul's Raya Open House</div><div class="mt">Zul · 28 Mar 2026 <span class="badge b-amber">Archived</span></div></div><div class="rt">642 photos <svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                  </div>
+                  <div style="margin-top:auto;padding:10px 16px 14px"><button class="btn ghost sm" style="width:100%">View all events</button></div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card">
+                    <div class="cardhead"><span class="cardtitle">Quick actions</span></div>
+                    <div class="qa">
+                      <div class="rowbtn primary"><svg class="ic"><use href="#i-plus"/></svg>New event</div>
+                      <div class="rowbtn"><svg class="ic"><use href="#i-share"/></svg>Share the latest gallery</div>
+                      <div class="rowbtn"><svg class="ic"><use href="#i-camera"/></svg>Booths &amp; devices</div>
+                    </div>
+                  </div>
+                  <div class="card" style="flex:1">
+                    <div class="cardhead"><span class="cardtitle">Recent activity</span></div>
+                    <div class="activity">
+                      <div class="act"><span class="dotm v"></span><div><b>86 photos</b> uploaded to CIMB Family Day<span class="tm">12 minutes ago</span></div></div>
+                      <div class="act"><span class="dotm"></span><div>A guest unlocked the Aina &amp; Haziq gallery<span class="tm">26 minutes ago</span></div></div>
+                      <div class="act"><span class="dotm"></span><div><b>Export ready</b> for Aina &amp; Haziq, 4.1 GB ZIP<span class="tm">41 minutes ago</span></div></div>
+                      <div class="act"><span class="dotm"></span><div>QR scanned at Photobooth 2<span class="tm">55 minutes ago</span></div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Alerts, live events, usage, and quick actions on one full-width screen, with plan usage inline.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">02 · Operator analytics</p>
+    <h2>The trend first</h2>
+    <p class="sub">Counters, a bigger chart, and the busiest days for the selected window.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="820" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/analytics"></div>
+          <div class="app" style="height:780px">
+            <aside class="side" data-nav="Analytics"></aside>
+            <main class="main">
+              <div class="topline">
+                <div><h3 class="pg">Analytics</h3><div class="metasub">Gallery activity across all of your events.</div></div>
+                <div class="seg"><span>7 days</span><span class="on">30 days</span><span>90 days</span></div>
+              </div>
+              <div class="stats">
+                <div class="card stat"><div class="lab">Gallery views</div><div class="val">8,214 <span class="delta">+12%</span></div><div class="ss">10 Sep to 9 Oct</div></div>
+                <div class="card stat"><div class="lab">Unique visitors</div><div class="val">3,108</div><div class="ss">sum of daily uniques</div></div>
+                <div class="card stat"><div class="lab">Downloads</div><div class="val">1,204</div><div class="ss">originals on for 2 events</div></div>
+                <div class="card stat"><div class="lab">QR scans</div><div class="val">2,886</div><div class="ss">across 5 booths</div></div>
+              </div>
+              <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+                <div class="cardhead">
+                  <span class="cardtitle">Views and downloads</span>
+                  <div style="display:flex;align-items:center;gap:14px;font-size:11.5px;color:#71717a">
+                    <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:#c4b5fd;display:inline-block"></span>Views</span>
+                    <span style="display:inline-flex;align-items:center;gap:6px"><span style="width:9px;height:9px;border-radius:3px;background:#7c3aed;display:inline-block"></span>Downloads</span>
+                  </div>
+                </div>
+                <div id="chart" style="padding:0 10px 12px;flex:1"></div>
+              </div>
+              <div style="display:grid;grid-template-columns:1.5fr 1fr;gap:12px">
+                <div class="card">
+                  <div class="cardhead"><span class="cardtitle">Busiest days</span></div>
+                  <div class="activity" style="padding-bottom:12px;gap:9px">
+                    <div class="act"><span class="dotm v"></span><div><b>Sat 4 Oct</b> · 486 views, 62 downloads<span class="tm">Aina &amp; Haziq Wedding</span></div></div>
+                    <div class="act"><span class="dotm v"></span><div><b>Sat 3 Oct</b> · 412 views, 41 downloads<span class="tm">CIMB Family Day</span></div></div>
+                  </div>
+                </div>
+                <div class="card">
+                  <div class="cardhead"><span class="cardtitle">All time</span></div>
+                  <div class="kv" style="border-top:0;padding-top:2px"><span class="k">Events</span><span class="v">47</span></div>
+                  <div class="kv"><span class="k">Photos</span><span class="v">12,486</span></div>
+                  <div class="kv" style="border-bottom:0"><span class="k">Storage</span><span class="v">96.2 GB</span></div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">A window switcher, a larger views-and-downloads chart, and busiest days computed from the same daily series. Comparison against the previous window would need one API addition.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">03 · Operator events</p>
+    <h2>Find the event fast</h2>
+    <p class="sub">Search, status filters with counts, and the details that identify an event at a glance.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="780" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/events"></div>
+          <div class="app" style="height:740px">
+            <aside class="side" data-nav="Events"></aside>
+            <main class="main">
+              <div class="topline">
+                <div><h3 class="pg">Events</h3><div class="metasub">Manage your event galleries.</div></div>
+                <div class="actions"><button class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>New event</button></div>
+              </div>
+              <div style="display:flex;gap:10px;align-items:center">
+                <div class="input" style="flex:1;max-width:320px"><svg class="ic" style="width:14px;height:14px"><use href="#i-search"/></svg><span class="pht">Search events</span></div>
+                <div class="input sel" style="width:150px;margin-left:auto"><span>Newest first</span><svg class="ic" style="width:14px;height:14px"><use href="#i-chev-down"/></svg></div>
+              </div>
+              <div class="chips">
+                <span class="fchip on">All <span class="n">12</span></span>
+                <span class="fchip">Active <span class="n">3</span></span>
+                <span class="fchip">Upcoming <span class="n">2</span></span>
+                <span class="fchip">Completed <span class="n">5</span></span>
+                <span class="fchip">Expired <span class="n">1</span></span>
+                <span class="fchip">Archived <span class="n">1</span></span>
+              </div>
+              <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+                <div style="display:flex;flex-direction:column;flex:1">
+                  <a class="ev" style="border-top:0"><div class="cov g1"></div><div><div class="nm">Aina &amp; Haziq Wedding</div><div class="mt">Aina · 4 Oct 2026 · Dewan Perdana Felda, KL <span class="badge b-active">Active</span></div></div><div class="rt"><span>486 photos</span><span class="warn">closes in 3 days</span><svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                  <a class="ev"><div class="cov g2"></div><div><div class="nm">CIMB Family Day</div><div class="mt">CIMB · 3 Oct 2026 · Menara CIMB, KL <span class="badge b-active">Active</span></div></div><div class="rt"><span>412 photos</span><span>closes 21 Oct</span><svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                  <a class="ev"><div class="cov g5"></div><div><div class="nm">Nana &amp; Farid Engagement</div><div class="mt">Nana · 27 Sep 2026 · Putrajaya <span class="badge b-active">Active</span></div></div><div class="rt"><span>238 photos</span><span class="warn">closes in 6 days</span><svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                  <a class="ev"><div class="cov g6"></div><div><div class="nm">Sarah's Birthday</div><div class="mt">Sarah · 18 Oct 2026 · Petaling Jaya <span class="badge b-upcoming">Upcoming</span></div></div><div class="rt"><span>0 photos</span><span>starts 18 Oct</span><svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                  <a class="ev"><div class="cov g8"></div><div><div class="nm">Merdeka Corporate Dinner</div><div class="mt">Petronas · 31 Aug 2026 · Kuala Lumpur <span class="badge b-completed">Completed</span></div></div><div class="rt"><span>1,204 photos</span><span>ended</span><svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                  <a class="ev"><div class="cov g3"></div><div><div class="nm">Zul's Raya Open House</div><div class="mt">Zul · 28 Mar 2026 · Shah Alam <span class="badge b-red">Expired</span></div></div><div class="rt"><span>642 photos</span><span>expired 30 Apr</span><svg class="ic" style="width:13px;height:13px;opacity:.45"><use href="#i-chev-r"/></svg></div></a>
+                </div>
+                <div style="margin-top:auto;display:flex;align-items:center;justify-content:center;gap:12px;padding:10px 16px 14px">
+                  <button class="btn outline sm">Load more</button><span class="ss">Showing 6 of 12</span>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Status chips with counts replace the select, and each row carries a cover, expiry tone, and photo count. Covers use the existing owner re-presign endpoint.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">04 · Operator new event</p>
+    <h2>Create and see it</h2>
+    <p class="sub">The form, the gallery it produces, and the plan it uses, on one screen.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="840" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/events/new"></div>
+          <div class="app" style="height:800px">
+            <aside class="side" data-nav="Events"></aside>
+            <main class="main">
+              <div style="font-size:12px;color:#71717a;display:flex;align-items:center;gap:5px"><svg class="ic" style="width:13px;height:13px"><use href="#i-arrow-left"/></svg>Events</div>
+              <div class="topline" style="margin-top:-6px">
+                <div><h3 class="pg" style="font-size:20px">New event</h3><div class="metasub">Set up the gallery, then upload photos or share the QR.</div></div>
+              </div>
+              <div class="cols" style="grid-template-columns:1.35fr 1fr">
+                <div class="card" style="padding:16px;display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="label" style="font-size:12.5px">Event details</div>
+                  <div class="field"><span class="label">Event name</span><div class="input">Sarah's Birthday</div></div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="field"><span class="label">Event date</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-calendar"/></svg>18 Oct 2026</div></div>
+                    <div class="field"><span class="label">Location</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-pin"/></svg>Petaling Jaya</div></div>
+                  </div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                    <div class="field"><span class="label">Client name</span><div class="input">Sarah Lim</div></div>
+                    <div class="field"><span class="label">Client email</span><div class="input">sarah@example.com</div></div>
+                  </div>
+                  <div class="field"><span class="label">Description</span><div class="input area">Birthday celebration at the family home. Photobooth corner from 7pm.</div></div>
+                  <div style="border-top:1px solid #f1f1f4;padding-top:12px;display:flex;flex-direction:column;gap:10px">
+                    <div>
+                      <div class="label" style="font-size:12.5px">Gallery defaults</div>
+                      <div class="hint" style="margin-top:2px">Applied right after creation through the existing settings endpoint.</div>
+                    </div>
+                    <div class="field"><span class="label">Visibility</span><div class="input sel"><span>Public, anyone with the link</span><svg class="ic" style="width:14px;height:14px"><use href="#i-chev-down"/></svg></div></div>
+                    <div>
+                      <div class="togrow"><div class="tx"><div class="tt2">Allow downloads</div><div class="dd">Guests can save web-size photos.</div></div><span class="switch on"></span></div>
+                      <div class="togrow"><div class="tx"><div class="tt2">Original downloads</div><div class="dd">Full resolution, uses more data.</div></div><span class="switch"></span></div>
+                    </div>
+                  </div>
+                  <div style="margin-top:auto;display:flex;align-items:center;gap:10px">
+                    <button class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>Create event</button>
+                    <button class="btn ghost">Cancel</button>
+                    <span class="hint" style="margin-left:auto">Everything stays editable in Settings.</span>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card">
+                    <div class="cardhead"><span class="cardtitle">Guest preview</span><span class="ss">Live from the form</span></div>
+                    <div style="padding:0 16px 16px">
+                      <div class="pv">
+                        <div class="pvcover"></div>
+                        <div class="pvbody">
+                          <div class="pvlogo">PP</div>
+                          <div style="font-size:15px;font-weight:800">Sarah's Birthday</div>
+                          <div class="ss" style="margin-top:2px">18 Oct 2026 · Petaling Jaya</div>
+                          <div class="chiprow"><span class="chip">Gallery opens right away</span></div>
+                        </div>
+                      </div>
+                      <div class="hint" style="margin-top:8px">This is the header guests see after scanning the QR.</div>
+                    </div>
+                  </div>
+                  <div class="card">
+                    <div class="cardhead"><span class="cardtitle">Plan usage</span><a class="link">View plans</a></div>
+                    <div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:10px">
+                      <div><div style="display:flex;justify-content:space-between;font-size:12px"><span class="ss">Events</span><b>3 of 10</b></div><div class="bar" style="margin-top:5px"><i style="width:30%"></i></div></div>
+                      <div><div style="display:flex;justify-content:space-between;font-size:12px"><span class="ss">Storage</span><b>62.4 of 100 GB</b></div><div class="bar" style="margin-top:5px"><i style="width:62%"></i></div></div>
+                    </div>
+                  </div>
+                  <div class="alert violet" style="align-items:flex-start">
+                    <div class="ic-lg"><svg class="ic"><use href="#i-zap"/></svg></div>
+                    <div><div class="tt">Fast start</div><div class="ss">After saving you land on the event page to upload photos and print the QR standee.</div></div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Common defaults apply right after creation, with a guest preview and the plan it will use beside the form.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">05 · Event overview</p>
+    <h2>Run the booth from one screen</h2>
+    <p class="sub">During a live event the operator needs three things fast: the QR, the share link, and how the night is going.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="800" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/events/aina-haziq"></div>
+          <div class="app" style="height:760px">
+            <aside class="side" data-nav="Events"></aside>
+            <main class="main">
+              <div style="font-size:12px;color:#71717a;display:flex;align-items:center;gap:5px"><svg class="ic" style="width:13px;height:13px"><use href="#i-arrow-left"/></svg>Events</div>
+              <div class="topline" style="margin-top:-6px">
+                <div>
+                  <div style="display:flex;align-items:center;gap:10px"><h3 class="pg" style="font-size:20px">Aina &amp; Haziq Wedding</h3><span class="badge b-active">Active</span></div>
+                  <div class="metasub">Aina · 4 Oct 2026 · Dewan Perdana Felda, Kuala Lumpur</div>
+                </div>
+                <div class="actions">
+                  <button class="btn outline">Open gallery</button>
+                  <button class="btn outline"><svg class="ic"><use href="#i-printer"/></svg>Print QR standee</button>
+                  <button class="btn primary"><svg class="ic"><use href="#i-share"/></svg>Share</button>
+                </div>
+              </div>
+              <div class="tabs"><span class="on">Overview</span><span>Photos</span><span>Analytics</span><span>Settings</span></div>
+              <div class="card expiry">
+                <div class="ic-lg"><svg class="ic"><use href="#i-clock"/></svg></div>
+                <div><div style="font-size:12.5px;font-weight:750">Gallery closes 12 Oct 2026 · in 3 days</div><div class="ss">After expiry guests see a closed page until you extend the event.</div></div>
+                <div style="margin-left:auto;display:flex;align-items:center;gap:12px;flex:none">
+                  <div class="bar" style="width:150px"><i style="width:76%;background:#e8a33d"></i></div>
+                  <button class="btn outline sm">Extend expiry</button>
+                </div>
+              </div>
+              <div class="cols" style="grid-template-columns:1.45fr 1fr">
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card" style="display:flex;gap:18px;padding:16px">
+                    <div class="qrw"><svg id="qr" width="126" height="126" fill="#0a0a0e"></svg></div>
+                    <div style="display:flex;flex-direction:column;min-width:0">
+                      <div style="font-size:13.5px;font-weight:750">Gallery QR</div>
+                      <div style="font-size:12px;color:#71717a;margin-top:5px;line-height:1.5">Print it on the booth standee or send it in chat. <b style="color:#0a0a0e">312 scans</b> so far for this event.</div>
+                      <div style="margin-top:auto;display:flex;gap:8px">
+                        <button class="btn outline sm"><svg class="ic" style="width:13px;height:13px"><use href="#i-printer"/></svg>Print standee</button>
+                        <button class="btn outline sm"><svg class="ic" style="width:13px;height:13px"><use href="#i-download"/></svg>PNG</button>
+                        <button class="btn ghost sm"><svg class="ic" style="width:13px;height:13px"><use href="#i-copy"/></svg>Copy link</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="stats">
+                    <div class="card stat" style="padding:12px 14px"><div class="lab">Photos</div><div class="val" style="font-size:18px">486</div><div class="ss">+42 today</div></div>
+                    <div class="card stat" style="padding:12px 14px"><div class="lab">Guests</div><div class="val" style="font-size:18px">214</div><div class="ss">+9 today</div></div>
+                    <div class="card stat" style="padding:12px 14px"><div class="lab">Downloads</div><div class="val" style="font-size:18px">128</div><div class="ss">originals on</div></div>
+                    <div class="card stat" style="padding:12px 14px"><div class="lab">Views</div><div class="val" style="font-size:18px">1,022</div><div class="ss">since 4 Oct</div></div>
+                  </div>
+                  <div class="card" style="flex:1;min-height:0">
+                    <div class="cardhead"><span class="cardtitle">Latest uploads</span><a class="link">View all 486<svg class="ic" style="width:12px;height:12px"><use href="#i-chev-r"/></svg></a></div>
+                    <div class="uploads">
+                      <div class="uthumb g1"></div>
+                      <div class="uthumb g5"></div>
+                      <div class="uthumb g3"></div>
+                      <div class="uthumb g6"></div>
+                      <div class="uthumb g4"></div>
+                      <div class="uthumb more">+481</div>
+                    </div>
+                    <div class="ss" style="padding:0 16px 16px">Auto-refreshes while the event runs.</div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card">
+                    <div class="cardhead"><span class="cardtitle">Share</span></div>
+                    <div style="padding:0 16px 16px;display:flex;flex-direction:column;gap:10px">
+                      <div class="linkpill"><svg class="ic" style="width:14px;height:14px"><use href="#i-globe"/></svg>cpd.my/e/aina-haziq<svg class="ic" style="width:14px;height:14px;margin-left:auto;opacity:.6"><use href="#i-copy"/></svg></div>
+                      <button class="btn primary" style="width:100%;height:36px"><svg class="ic"><use href="#i-chat"/></svg>Send on WhatsApp</button>
+                      <div style="font-size:11.5px;color:#71717a;display:flex;align-items:center;gap:6px"><span style="width:6px;height:6px;border-radius:99px;background:#25d366;flex:none"></span>Saved contact: Aina · 012-345 6789</div>
+                    </div>
+                  </div>
+                  <div class="card" style="flex:1">
+                    <div class="cardhead"><span class="cardtitle">Details</span></div>
+                    <div class="kv"><span class="k">Event date</span><span class="v">4 Oct 2026</span></div>
+                    <div class="kv"><span class="k">Expires</span><span class="v" style="display:flex;align-items:center;gap:7px">12 Oct 2026 <span class="badge b-amber">3 days left</span></span></div>
+                    <div class="kv"><span class="k">Created</span><span class="v">28 Sep 2026</span></div>
+                    <div class="kv"><span class="k">Location</span><span class="v">Dewan Perdana Felda, KL</span></div>
+                    <div class="kv"><span class="k">QR scans</span><span class="v">312</span></div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">The QR and share cards lead, expiry becomes a countdown, and stats and latest uploads stay on the first tab.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">06 · Event photos</p>
+    <h2>Uploads you can watch</h2>
+    <p class="sub">Per-file upload state, library filters, and multi-select for the booth back office.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="860" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/events/aina-haziq/photos"></div>
+          <div class="app" style="height:820px">
+            <aside class="side" data-nav="Events"></aside>
+            <main class="main">
+              <div style="font-size:12px;color:#71717a;display:flex;align-items:center;gap:5px"><svg class="ic" style="width:13px;height:13px"><use href="#i-arrow-left"/></svg>Events</div>
+              <div class="topline" style="margin-top:-6px">
+                <div>
+                  <div style="display:flex;align-items:center;gap:10px"><h3 class="pg" style="font-size:20px">Aina &amp; Haziq Wedding</h3><span class="badge b-active">Active</span></div>
+                  <div class="metasub">486 photos · 2.4 GB · last upload 2 minutes ago</div>
+                </div>
+                <div class="actions">
+                  <button class="btn outline">Open gallery</button>
+                  <button class="btn primary"><svg class="ic"><use href="#i-share"/></svg>Share</button>
+                </div>
+              </div>
+              <div class="tabs"><span>Overview</span><span class="on">Photos</span><span>Analytics</span><span>Settings</span></div>
+              <div class="card" style="padding:14px 16px;display:flex;gap:14px;align-items:center">
+                <div class="drop" style="flex:1">
+                  <div class="ic-lg"><svg class="ic"><use href="#i-cloud-up"/></svg></div>
+                  <div><div style="font-size:12.5px;font-weight:750">Drag photos here, or browse files</div><div class="ss" style="margin-top:2px">JPEG, PNG or WebP up to 25 MB. Uploads go straight to storage.</div></div>
+                </div>
+                <button class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>Choose files</button>
+              </div>
+              <div class="card">
+                <div class="cardhead"><span class="cardtitle">Uploading · 1 of 3</span><a class="link">Clear finished</a></div>
+                <div style="padding:0 16px 12px">
+                  <div class="pitem">
+                    <div class="cov g1" style="width:34px;height:34px;border-radius:9px"></div>
+                    <div style="flex:1;min-width:0"><div class="nm2">IMG_4021.jpg <span>78% · 1.2 MB/s</span></div><div class="pbar2"><i style="width:78%"></i></div></div>
+                  </div>
+                  <div class="pitem">
+                    <div class="cov g5" style="width:34px;height:34px;border-radius:9px"></div>
+                    <div style="flex:1;min-width:0"><div class="nm2">IMG_4022.jpg <span>Processing</span></div><div class="pbar2 done"><i style="width:100%"></i></div></div>
+                    <span class="badge b-violet">Queue</span>
+                  </div>
+                  <div class="pitem">
+                    <div class="cov g8" style="width:34px;height:34px;border-radius:9px"></div>
+                    <div style="flex:1;min-width:0"><div class="nm2" style="color:#b91c1c">IMG_4019.jpg <span>Upload failed · check connection</span></div><div class="pbar2 fail"><i style="width:34%"></i></div></div>
+                    <button class="btn outline xs"><svg class="ic" style="width:12px;height:12px"><use href="#i-refresh"/></svg>Retry</button>
+                  </div>
+                </div>
+              </div>
+              <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+                <div class="cardhead">
+                  <span class="cardtitle">486 photos</span>
+                  <div style="display:flex;align-items:center;gap:8px">
+                    <div class="chips">
+                      <span class="fchip on" style="height:26px;font-size:11.5px">All</span>
+                      <span class="fchip" style="height:26px;font-size:11.5px">Processing <span class="n">6</span></span>
+                      <span class="fchip" style="height:26px;font-size:11.5px">Failed <span class="n">2</span></span>
+                    </div>
+                    <div class="input sel" style="width:126px;height:28px;font-size:11.5px"><span>Newest</span><svg class="ic" style="width:12px;height:12px"><use href="#i-chev-down"/></svg></div>
+                    <button class="btn outline sm"><svg class="ic" style="width:13px;height:13px"><use href="#i-check"/></svg>Select</button>
+                  </div>
+                </div>
+                <div style="padding:2px 16px 8px;display:grid;grid-template-columns:repeat(8,86px);gap:8px">
+                  <div style="position:relative"><div class="uthumb g1"></div><span class="starbadge"><svg class="ic"><use href="#i-star"/></svg></span></div>
+                  <div style="position:relative"><div class="uthumb g2"></div><span class="selbox"><svg class="ic"><use href="#i-check"/></svg></span></div>
+                  <div style="position:relative"><div class="uthumb g3"></div><span class="selbox"><svg class="ic"><use href="#i-check"/></svg></span></div>
+                  <div class="uthumb g5"></div>
+                  <div class="uthumb g4"></div>
+                  <div class="uthumb g6"></div>
+                  <div class="uthumb g7"></div>
+                  <div class="uthumb g8"></div>
+                  <div class="uthumb g6"></div>
+                  <div class="uthumb g1"></div>
+                  <div class="uthumb g5"></div>
+                  <div class="uthumb g2"></div>
+                  <div class="uthumb g3"></div>
+                  <div class="uthumb g7"></div>
+                  <div class="uthumb g4"></div>
+                  <div class="uthumb g8"></div>
+                </div>
+                <div style="margin-top:auto;display:flex;align-items:center;justify-content:space-between;padding:8px 16px 14px">
+                  <div class="bulkbar">2 selected<button class="btn outline xs"><svg class="ic" style="width:12px;height:12px"><use href="#i-trash"/></svg>Delete</button><button class="btn ghost xs" style="color:#fff">Clear</button></div>
+                  <span class="ss">Cover photo marked with a star. Selection disables single-photo actions.</span>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">A per-file upload queue with retry, library filters for processing and failed, and multi-select delete. Cover selection uses the existing event settings.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">07 · Event settings</p>
+    <h2>One page per decision</h2>
+    <p class="sub">Access, permissions, and the irreversible stuff, with a preview of what guests get.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="800" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/events/aina-haziq/settings"></div>
+          <div class="app" style="height:760px">
+            <aside class="side" data-nav="Events"></aside>
+            <main class="main">
+              <div style="font-size:12px;color:#71717a;display:flex;align-items:center;gap:5px"><svg class="ic" style="width:13px;height:13px"><use href="#i-arrow-left"/></svg>Events</div>
+              <div class="topline" style="margin-top:-6px">
+                <div>
+                  <div style="display:flex;align-items:center;gap:10px"><h3 class="pg" style="font-size:20px">Aina &amp; Haziq Wedding</h3><span class="badge b-active">Active</span></div>
+                  <div class="metasub">Settings apply to the public gallery and guest actions.</div>
+                </div>
+                <div class="actions"><button class="btn outline">Open gallery</button></div>
+              </div>
+              <div class="tabs"><span>Overview</span><span>Photos</span><span>Analytics</span><span class="on">Settings</span></div>
+              <div class="cols" style="grid-template-columns:1.35fr 1fr">
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card" style="padding:14px 16px">
+                    <div style="display:flex;align-items:center;justify-content:space-between">
+                      <span class="cardtitle">Gallery access</span>
+                      <div class="seg"><span class="on">Public</span><span>Password</span></div>
+                    </div>
+                    <div class="field" style="margin-top:10px"><span class="label">Password</span><div class="input pht"><svg class="ic" style="width:14px;height:14px"><use href="#i-lock"/></svg>Only needed for password protected events<svg class="ic" style="width:14px;height:14px;margin-left:auto"><use href="#i-eye"/></svg></div><span class="hint">Guests enter this once before they see any photos.</span></div>
+                  </div>
+                  <div class="card" style="padding:14px 16px">
+                    <div class="cardtitle">Guest permissions</div>
+                    <div class="togrow" style="margin-top:6px"><div class="tx"><div class="tt2">Allow downloads</div><div class="dd">Guests can save web-size photos.</div></div><span class="switch on"></span></div>
+                    <div class="togrow"><div class="tx"><div class="tt2">Original downloads</div><div class="dd">Full resolution files, uses more guest data and plan storage traffic.</div></div><span class="switch"></span></div>
+                    <div class="togrow" style="border-bottom:0"><div class="tx"><div class="tt2">Watermark</div><div class="dd">Applies your branding watermark to guest previews.</div></div><span class="switch on"></span></div>
+                  </div>
+                  <div class="card" style="padding:14px 16px;flex:1">
+                    <div class="cardtitle" style="color:#b91c1c">Danger zone</div>
+                    <div style="display:flex;align-items:center;gap:12px;margin-top:10px">
+                      <div style="flex:1"><div class="tt2" style="font-size:12.5px;font-weight:650">Archive event</div><div class="dd" style="font-size:11px;color:#8b8f98;margin-top:2px">Hides the gallery and pauses uploads. Photos stay safe.</div></div>
+                      <button class="btn outline sm">Archive</button>
+                    </div>
+                    <div style="border-top:1px solid #f4f4f7;margin-top:12px;padding-top:12px">
+                      <div class="tt2" style="font-size:12.5px;font-weight:650">Delete event</div>
+                      <div class="dd" style="font-size:11px;color:#8b8f98;margin-top:2px">Removes the event, its photos, and every shared link. This cannot be undone.</div>
+                      <div style="display:flex;gap:8px;margin-top:10px">
+                        <div class="input" style="flex:1;font-size:12px;color:#a7a7b0">Type Aina &amp; Haziq Wedding to confirm</div>
+                        <button class="btn danger sm"><svg class="ic" style="width:13px;height:13px"><use href="#i-trash"/></svg>Delete forever</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card">
+                    <div class="cardhead"><span class="cardtitle">Guest preview</span><span class="badge b-active">Updates live</span></div>
+                    <div style="padding:0 16px 14px">
+                      <div class="pv">
+                        <div class="pvcover"></div>
+                        <div class="pvbody">
+                          <div class="pvlogo">PP</div>
+                          <div style="font-size:15px;font-weight:800">Aina &amp; Haziq Wedding</div>
+                          <div class="ss" style="margin-top:2px">4 Oct 2026 · Dewan Perdana Felda, KL</div>
+                          <div class="chiprow"><span class="chip">486 photos</span><span class="chip warm">Downloads on</span></div>
+                          <div style="display:flex;gap:8px;margin-top:12px">
+                            <button class="btn primary" style="flex:1;height:34px;background:#c2477f;font-size:12px"><svg class="ic" style="width:13px;height:13px"><use href="#i-download"/></svg>Download all</button>
+                            <button class="btn outline" style="height:34px;flex:none;width:40px;padding:0"><svg class="ic" style="width:13px;height:13px"><use href="#i-chat"/></svg></button>
+                          </div>
+                        </div>
+                      </div>
+                      <div class="hint" style="margin-top:8px">Reflects the switches on the left before you save.</div>
+                    </div>
+                  </div>
+                  <div class="card" style="padding:14px 16px">
+                    <div style="display:flex;gap:10px;align-items:flex-start">
+                      <div class="ic-lg" style="width:30px;height:30px;background:#f2edfe;color:#5b21b6"><svg class="ic" style="width:15px;height:15px"><use href="#i-alert"/></svg></div>
+                      <div><div class="tt2" style="font-size:12.5px;font-weight:650">What guests see after expiry</div><div class="dd" style="font-size:11px;color:#8b8f98;margin-top:3px;line-height:1.5">A closed page with your business name and contact, never a broken link. Extend any time to reopen.</div></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Plain-language switches with a live guest preview; archiving and deletion move in beside them with typed confirmation.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">08 · Operator devices</p>
+    <h2>Booth health at a glance</h2>
+    <p class="sub">Which booth is feeding which event, and when it last checked in.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="720" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/devices"></div>
+          <div class="app" style="height:680px">
+            <aside class="side" data-nav="Devices"></aside>
+            <main class="main">
+              <div class="topline">
+                <div><h3 class="pg">Devices</h3><div class="metasub">Photobooths that upload straight to your events with an API key.</div></div>
+                <div class="actions"><button class="btn primary"><svg class="ic"><use href="#i-plus"/></svg>Add device</button></div>
+              </div>
+              <div class="stats" style="grid-template-columns:repeat(3,1fr)">
+                <div class="card stat" style="padding:12px 15px"><div class="lab">Active devices</div><div class="val" style="font-size:19px">3</div><div class="ss">across 2 events</div></div>
+                <div class="card stat" style="padding:12px 15px"><div class="lab">Uploads today</div><div class="val" style="font-size:19px">214</div><div class="ss">all booths combined</div></div>
+                <div class="card stat" style="padding:12px 15px"><div class="lab">Last upload</div><div class="val" style="font-size:19px"><span class="dotg"></span>2 min ago</div><div class="ss">Photobooth 1</div></div>
+              </div>
+              <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+                <div class="cardhead"><span class="cardtitle">All devices</span><span class="ss">Revoked devices stay listed for audit.</span></div>
+                <table class="tbl">
+                  <thead><tr><th>Name</th><th>Key prefix</th><th>Event</th><th>Status</th><th>Last used</th><th style="text-align:right">Actions</th></tr></thead>
+                  <tbody>
+                    <tr><td class="nm"><svg class="ic" style="width:13px;height:13px;margin-right:6px;opacity:.6"><use href="#i-camera"/></svg>Photobooth 1</td><td class="mono">cpd_live_4f8a…</td><td><span class="badge" style="background:#f0f0f3;color:#45454e">Aina &amp; Haziq Wedding</span></td><td><span class="badge b-active">Active</span></td><td>2 min ago</td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.6"><use href="#i-more"/></svg></td></tr>
+                    <tr><td class="nm"><svg class="ic" style="width:13px;height:13px;margin-right:6px;opacity:.6"><use href="#i-camera"/></svg>Photobooth 2</td><td class="mono">cpd_live_9c21…</td><td><span class="badge" style="background:#f0f0f3;color:#45454e">CIMB Family Day</span></td><td><span class="badge b-active">Active</span></td><td>12 min ago</td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.6"><use href="#i-more"/></svg></td></tr>
+                    <tr><td class="nm"><svg class="ic" style="width:13px;height:13px;margin-right:6px;opacity:.6"><use href="#i-camera"/></svg>Studio iMac</td><td class="mono">cpd_live_2e77…</td><td><span class="ss">Unscoped</span></td><td><span class="badge b-active">Active</span></td><td>3 hours ago</td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.6"><use href="#i-more"/></svg></td></tr>
+                    <tr class="rev"><td class="nm"><svg class="ic" style="width:13px;height:13px;margin-right:6px;opacity:.6"><use href="#i-camera"/></svg>Old iPad</td><td class="mono">cpd_live_77aa…</td><td><span class="badge" style="background:#f0f0f3;color:#63636b">Merdeka Dinner</span></td><td><span class="badge b-completed">Revoked</span></td><td>31 Aug 2026</td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.3"><use href="#i-more"/></svg></td></tr>
+                  </tbody>
+                </table>
+                <div style="margin-top:auto;display:flex;align-items:center;gap:8px;padding:10px 16px 14px;border-top:1px solid #f5f5f7">
+                  <div class="ic-lg" style="width:26px;height:26px;background:#f2edfe;color:#5b21b6"><svg class="ic" style="width:13px;height:13px"><use href="#i-key"/></svg></div>
+                  <span class="ss">Keys upload only to their assigned event, limited to 100 uploads per minute per device.</span>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Device health at a glance above the existing table: last upload, uploads today, and the event each booth feeds.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">09 · Operator branding</p>
+    <h2>See the guest view while editing</h2>
+    <p class="sub">Assets, identity, and color, next to the header guests will actually see.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="800" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/branding"></div>
+          <div class="app" style="height:760px">
+            <aside class="side" data-nav="Branding"></aside>
+            <main class="main">
+              <div class="topline">
+                <div><h3 class="pg">Branding</h3><div class="metasub">This is what guests see on every gallery you deliver.</div></div>
+                <div class="actions"><button class="btn ghost">Discard</button><button class="btn primary"><svg class="ic"><use href="#i-check"/></svg>Save changes</button></div>
+              </div>
+              <div class="cols" style="grid-template-columns:1.2fr 1fr">
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card" style="padding:14px 16px">
+                    <div class="cardtitle">Assets</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+                      <div style="display:flex;align-items:center;gap:12px">
+                        <div style="width:48px;height:48px;border-radius:50%;background:#c2477f;color:#fff;font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;flex:none">PP</div>
+                        <div><div class="tt2">Logo</div><div class="dd">PNG or SVG, square</div><a class="link" style="margin-top:3px">Replace<svg class="ic" style="width:11px;height:11px"><use href="#i-chev-down"/></svg></a></div>
+                      </div>
+                      <div style="display:flex;align-items:center;gap:12px">
+                        <div class="cov g5" style="border-radius:12px"></div>
+                        <div><div class="tt2">Profile image</div><div class="dd">Shown behind the logo</div><a class="link" style="margin-top:3px">Replace<svg class="ic" style="width:11px;height:11px"><use href="#i-chev-down"/></svg></a></div>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="card" style="padding:14px 16px">
+                    <div class="cardtitle">Identity</div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:10px">
+                      <div class="field"><span class="label">Business name</span><div class="input">Pixel Party Photobooth</div></div>
+                      <div class="field"><span class="label">Contact email</span><div class="input">hello@pixelparty.my</div></div>
+                      <div class="field"><span class="label">Contact phone</span><div class="input">+60 12-345 6789</div></div>
+                      <div class="field"><span class="label">Website</span><div class="input">https://pixelparty.my</div></div>
+                    </div>
+                  </div>
+                  <div class="card" style="padding:14px 16px">
+                    <div class="cardtitle">Color</div>
+                    <div style="display:flex;align-items:center;gap:10px;margin-top:10px">
+                      <span style="width:34px;height:34px;border-radius:11px;background:#c2477f;box-shadow:inset 0 0 0 1px rgba(0,0,0,.08);flex:none"></span>
+                      <div class="input" style="width:120px"><span class="mono">#c2477f</span></div>
+                      <div style="display:flex;gap:6px;margin-left:6px">
+                        <span style="width:22px;height:22px;border-radius:50%;background:#c2477f;display:inline-block"></span>
+                        <span style="width:22px;height:22px;border-radius:50%;background:#e0873f;display:inline-block"></span>
+                        <span style="width:22px;height:22px;border-radius:50%;background:#2f8f6b;display:inline-block"></span>
+                        <span style="width:22px;height:22px;border-radius:50%;background:#3a6ea8;display:inline-block"></span>
+                        <span style="width:22px;height:22px;border-radius:50%;background:#5b4a78;display:inline-block"></span>
+                      </div>
+                      <span class="hint" style="margin-left:auto">Used on the gallery header, buttons and accents.</span>
+                    </div>
+                  </div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card">
+                    <div class="cardhead"><span class="cardtitle">Guest preview</span><span class="ss">Matches the public gallery header</span></div>
+                    <div style="padding:0 16px 14px">
+                      <div class="pv">
+                        <div class="pvcover"></div>
+                        <div class="pvbody">
+                          <div class="pvlogo">PP</div>
+                          <div style="font-size:15px;font-weight:800">Aina &amp; Haziq Wedding</div>
+                          <div class="ss" style="margin-top:2px">4 Oct 2026 · Dewan Perdana Felda, KL</div>
+                          <div class="chiprow"><span class="chip">486 photos</span></div>
+                        </div>
+                      </div>
+                      <div style="display:flex;gap:8px;margin-top:12px">
+                        <div style="flex:1;height:64px;border-radius:13px;background:linear-gradient(135deg,#f4cdb2,#e3a07c,#bd6f55)"></div>
+                        <div style="flex:1;height:64px;border-radius:13px;background:linear-gradient(135deg,#f4dfd6,#dbb09a,#b98a74)"></div>
+                        <div style="flex:1;height:64px;border-radius:13px;background:linear-gradient(135deg,#f3d8d8,#e0a8a8,#c88080)"></div>
+                      </div>
+                      <div class="hint" style="margin-top:8px">Preview reflects unsaved changes.</div>
+                    </div>
+                  </div>
+                  <div class="card" style="padding:14px 16px;flex:1">
+                    <div style="display:flex;gap:10px;align-items:flex-start">
+                      <div class="ic-lg" style="width:30px;height:30px;background:#f2edfe;color:#5b21b6"><svg class="ic" style="width:15px;height:15px"><use href="#i-palette"/></svg></div>
+                      <div><div class="tt2" style="font-size:12.5px;font-weight:650">Custom branding is a Starter feature</div><div class="dd" style="font-size:11px;color:#8b8f98;margin-top:3px;line-height:1.5">On the Free plan the gallery uses the default slate theme. Upgrading applies your brand to every existing gallery as well.</div><a class="link" style="margin-top:6px">Compare plans<svg class="ic" style="width:11px;height:11px"><use href="#i-chev-r"/></svg></a></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Assets, identity, and color on the left, with the guest header preview updating on the right.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">10 · Operator billing</p>
+    <h2>Plan, usage, invoices</h2>
+    <p class="sub">What you pay, what you have used, and every receipt, on one page.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="900" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/billing"></div>
+          <div class="app" style="height:860px">
+            <aside class="side" data-nav="Billing"></aside>
+            <main class="main">
+              <div class="topline">
+                <div><h3 class="pg">Billing</h3><div class="metasub">Your plan, usage, and invoices.</div></div>
+              </div>
+              <div class="card" style="padding:16px;display:flex;gap:20px;align-items:center">
+                <div style="min-width:200px">
+                  <div style="display:flex;align-items:center;gap:9px"><span style="font-size:17px;font-weight:800">Pro</span><span class="badge b-violet">Current plan</span></div>
+                  <div class="ss" style="margin-top:4px">MYR 99 / month · renews 1 Nov 2026</div>
+                  <div style="display:flex;gap:8px;margin-top:10px">
+                    <button class="btn outline sm">Change plan</button>
+                    <button class="btn ghost sm">Cancel</button>
+                  </div>
+                </div>
+                <div style="flex:1;display:grid;grid-template-columns:1fr 1fr;gap:18px">
+                  <div><div style="display:flex;justify-content:space-between;font-size:12px"><span class="ss">Events</span><b>3 of 10</b></div><div class="bar" style="margin-top:6px"><i style="width:30%"></i></div><div class="hint" style="margin-top:5px">3 active, 43 delivered all time</div></div>
+                  <div><div style="display:flex;justify-content:space-between;font-size:12px"><span class="ss">Storage</span><b>62.4 of 100 GB</b></div><div class="bar" style="margin-top:6px"><i style="width:62%"></i></div><div class="hint" style="margin-top:5px">Originals and previews included</div></div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:2px 2px 0">
+                <span class="cardtitle">Plans</span>
+                <div class="seg"><span class="on">Monthly</span><span>Yearly</span></div>
+              </div>
+              <div class="plans">
+                <div class="plan">
+                  <div class="planname">Starter</div>
+                  <div class="price">MYR 39 <span class="per">/ month</span></div>
+                  <ul class="plist">
+                    <li><svg class="ic"><use href="#i-check"/></svg>3 events at a time</li>
+                    <li><svg class="ic"><use href="#i-check"/></svg>20 GB storage</li>
+                    <li><svg class="ic"><use href="#i-check"/></svg>Custom branding</li>
+                  </ul>
+                  <button class="btn outline" style="width:100%;margin-top:auto">Downgrade</button>
+                </div>
+                <div class="plan cur">
+                  <div class="planname">Pro <span class="badge b-violet">Current</span></div>
+                  <div class="price">MYR 99 <span class="per">/ month</span></div>
+                  <ul class="plist">
+                    <li><svg class="ic"><use href="#i-check"/></svg>10 events at a time</li>
+                    <li><svg class="ic"><use href="#i-check"/></svg>100 GB storage</li>
+                    <li><svg class="ic"><use href="#i-check"/></svg>API access for booths</li>
+                    <li><svg class="ic"><use href="#i-check"/></svg>Original downloads</li>
+                  </ul>
+                  <button class="btn outline" style="width:100%;margin-top:auto">Manage</button>
+                </div>
+                <div class="plan">
+                  <div class="planname">Studio</div>
+                  <div class="price">MYR 199 <span class="per">/ month</span></div>
+                  <ul class="plist">
+                    <li><svg class="ic"><use href="#i-check"/></svg>Unlimited events</li>
+                    <li><svg class="ic"><use href="#i-check"/></svg>1 TB storage</li>
+                    <li><svg class="ic"><use href="#i-check"/></svg>Priority support</li>
+                  </ul>
+                  <button class="btn primary" style="width:100%;margin-top:auto">Upgrade</button>
+                </div>
+              </div>
+              <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+                <div class="cardhead"><span class="cardtitle">Invoices</span><span class="ss">Last 12 months</span></div>
+                <table class="tbl">
+                  <thead><tr><th>Invoice</th><th>Date</th><th>Amount</th><th>Status</th><th style="text-align:right">Receipt</th></tr></thead>
+                  <tbody>
+                    <tr><td class="mono">INV-0042</td><td>1 Oct 2026</td><td class="nm">MYR 99.00</td><td><span class="badge b-active">Paid</span></td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.6"><use href="#i-download"/></svg></td></tr>
+                    <tr><td class="mono">INV-0041</td><td>1 Sep 2026</td><td class="nm">MYR 99.00</td><td><span class="badge b-active">Paid</span></td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.6"><use href="#i-download"/></svg></td></tr>
+                    <tr><td class="mono">INV-0040</td><td>1 Aug 2026</td><td class="nm">MYR 99.00</td><td><span class="badge b-active">Paid</span></td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.6"><use href="#i-download"/></svg></td></tr>
+                    <tr><td class="mono">INV-0039</td><td>1 Jul 2026</td><td class="nm">MYR 99.00</td><td><span class="badge b-active">Paid</span></td><td style="text-align:right"><svg class="ic" style="width:15px;height:15px;opacity:.6"><use href="#i-download"/></svg></td></tr>
+                  </tbody>
+                </table>
+                <div style="margin-top:auto;display:flex;align-items:center;justify-content:center;gap:12px;padding:8px 16px 14px">
+                  <button class="btn ghost sm">Load older invoices</button>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Plan, usage, and the comparison grid stay together; invoices gain status and download.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">11 · Admin</p>
+    <h2>Health and stats first</h2>
+    <p class="sub">Read-only: platform counters, service health, and the two audit tables.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="900" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/admin"></div>
+          <div class="app" style="height:860px">
+            <aside class="side" data-nav="Admin"></aside>
+            <main class="main">
+              <div class="topline">
+                <div>
+                  <div style="display:flex;align-items:center;gap:10px"><h3 class="pg">Admin</h3><span class="badge b-violet"><svg class="ic" style="width:11px;height:11px"><use href="#i-shield"/></svg>Read only</span></div>
+                  <div class="metasub">Platform overview for operators and subscriptions.</div>
+                </div>
+                <span class="ss">Signed in as admin@cloudphotodelivery.my</span>
+              </div>
+              <div class="stats" style="grid-template-columns:repeat(6,1fr)">
+                <div class="card stat" style="padding:11px 13px"><div class="lab">Operators</div><div class="val" style="font-size:18px">128</div></div>
+                <div class="card stat" style="padding:11px 13px"><div class="lab">Events</div><div class="val" style="font-size:18px">412</div></div>
+                <div class="card stat" style="padding:11px 13px"><div class="lab">Photos</div><div class="val" style="font-size:18px">86,204</div></div>
+                <div class="card stat" style="padding:11px 13px"><div class="lab">Storage</div><div class="val" style="font-size:18px">1.2 TB</div></div>
+                <div class="card stat" style="padding:11px 13px"><div class="lab">Revenue · MYR</div><div class="val" style="font-size:18px">18.4k</div></div>
+                <div class="card stat" style="padding:11px 13px"><div class="lab">Subscriptions</div><div class="val" style="font-size:18px">96</div></div>
+              </div>
+              <div class="card" style="padding:14px 16px">
+                <div style="display:flex;align-items:center;justify-content:space-between">
+                  <span class="cardtitle">Platform health</span><span class="ss">checked 30 seconds ago</span>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:12px">
+                  <div style="display:flex;align-items:center;gap:9px"><span class="dotg"></span><div><div class="tt2" style="font-size:12px;font-weight:650">API</div><div class="hint">Operational</div></div></div>
+                  <div style="display:flex;align-items:center;gap:9px"><span class="dotg"></span><div><div class="tt2" style="font-size:12px;font-weight:650">Database</div><div class="hint">Operational</div></div></div>
+                  <div style="display:flex;align-items:center;gap:9px"><span class="dotg"></span><div><div class="tt2" style="font-size:12px;font-weight:650">Worker</div><div class="hint">Operational</div></div></div>
+                  <div style="display:flex;align-items:center;gap:9px"><span class="dotg amber"></span><div><div class="tt2" style="font-size:12px;font-weight:650">Queue depth</div><div class="hint">12 jobs waiting</div></div></div>
+                </div>
+              </div>
+              <div class="card">
+                <div class="cardhead"><span class="cardtitle">Operators</span><a class="link">Load more<svg class="ic" style="width:12px;height:12px"><use href="#i-chev-down"/></svg></a></div>
+                <table class="tbl">
+                  <thead><tr><th>Email</th><th>Business</th><th>Plan</th><th>Events</th><th>Created</th><th>Role</th></tr></thead>
+                  <tbody>
+                    <tr><td class="nm">hello@pixelparty.my</td><td>Pixel Party Photobooth</td><td><span class="badge b-violet">Pro</span></td><td>47</td><td>2 Jan 2026</td><td><span class="badge b-amber">Admin</span></td></tr>
+                    <tr><td class="nm">studio@lensa.my</td><td>Lensa Studio</td><td><span class="badge b-violet">Studio</span></td><td>96</td><td>14 Nov 2025</td><td><span class="ss">—</span></td></tr>
+                    <tr><td class="nm">booth@sammycaptures.my</td><td>Sammy Captures</td><td><span class="badge b-violet">Pro</span></td><td>23</td><td>3 Mar 2026</td><td><span class="ss">—</span></td></tr>
+                    <tr><td class="nm">admin@cloudphotodelivery.my</td><td>CPD Operations</td><td><span class="ss">—</span></td><td>0</td><td>1 Dec 2025</td><td><span class="badge b-amber">Admin</span></td></tr>
+                  </tbody>
+                </table>
+              </div>
+              <div class="card" style="flex:1;display:flex;flex-direction:column;min-height:0">
+                <div class="cardhead"><span class="cardtitle">Subscriptions</span><span class="ss">All accounts</span></div>
+                <table class="tbl">
+                  <thead><tr><th>Account</th><th>Plan</th><th>Status</th><th>Renews</th><th>Created</th></tr></thead>
+                  <tbody>
+                    <tr><td class="nm">studio@lensa.my</td><td>Studio</td><td><span class="badge b-active">Active</span></td><td>1 Nov 2026</td><td>14 Nov 2025</td></tr>
+                    <tr><td class="nm">hello@pixelparty.my</td><td>Pro</td><td><span class="badge b-active">Active</span></td><td>1 Nov 2026</td><td>2 Jan 2026</td></tr>
+                    <tr><td class="nm">booth@sammycaptures.my</td><td>Pro</td><td><span class="badge b-amber">Cancels 18 Oct</span></td><td>18 Oct 2026</td><td>3 Mar 2026</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Health and platform counters first; operators and subscriptions stay read-only tables with load more.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">12 · Operator account</p>
+    <h2>Profile and plan</h2>
+    <p class="sub">Who you are on the platform, and what you are paying for.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="620" style="width:1060px">
+        <div class="win">
+          <div class="chrome" data-url="app.cloudphotodelivery.my/account"></div>
+          <div class="app" style="height:580px">
+            <aside class="side" data-nav="Account"></aside>
+            <main class="main">
+              <div class="topline">
+                <div><h3 class="pg">Account</h3><div class="metasub">Your operator profile.</div></div>
+              </div>
+              <div class="cols" style="grid-template-columns:1.4fr 1fr">
+                <div class="card" style="padding:16px">
+                  <div style="display:flex;align-items:center;gap:14px">
+                    <div class="avatar" style="width:48px;height:48px;border-radius:14px;font-size:14px">PP</div>
+                    <div><div style="font-size:15px;font-weight:800">Pixel Party Photobooth</div><div class="ss" style="margin-top:2px">hello@pixelparty.my</div></div>
+                    <span class="badge b-violet" style="margin-left:auto">Pro plan</span>
+                  </div>
+                  <div class="kv" style="margin-top:14px;border-top:1px solid #f1f1f4"><span class="k">Email</span><span class="v">hello@pixelparty.my</span></div>
+                  <div class="kv"><span class="k">Business name</span><span class="v">Pixel Party Photobooth</span></div>
+                  <div class="kv"><span class="k">Account ID</span><span class="v mono">usr_8f3a21c4</span></div>
+                  <div class="kv"><span class="k">Member since</span><span class="v">2 January 2026</span></div>
+                  <div class="kv"><span class="k">Role</span><span class="v">Operator</span></div>
+                  <div class="hint" style="margin-top:12px">Profile fields are read-only for now; contact support to change your business name.</div>
+                </div>
+                <div style="display:flex;flex-direction:column;gap:12px;min-height:0">
+                  <div class="card" style="padding:16px">
+                    <div style="display:flex;align-items:center;justify-content:space-between"><span class="cardtitle">Plan</span><a class="link">Manage</a></div>
+                    <div class="ss" style="margin-top:6px">Pro · MYR 99 / month · renews 1 Nov 2026</div>
+                    <div style="margin-top:12px"><div style="display:flex;justify-content:space-between;font-size:12px"><span class="ss">Storage</span><b>62.4 of 100 GB</b></div><div class="bar" style="margin-top:6px"><i style="width:62%"></i></div></div>
+                    <div style="margin-top:10px"><div style="display:flex;justify-content:space-between;font-size:12px"><span class="ss">Events</span><b>3 of 10</b></div><div class="bar" style="margin-top:6px"><i style="width:30%"></i></div></div>
+                  </div>
+                  <div class="card" style="padding:16px;flex:1">
+                    <div class="cardtitle">Signed in</div>
+                    <div class="ss" style="margin-top:6px">One active session on this browser. The refresh token stays in a secure cookie.</div>
+                    <button class="btn outline sm" style="margin-top:12px">Sign out</button>
+                  </div>
+                </div>
+              </div>
+            </main>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Profile plus a compact plan summary, both read from existing endpoints. Editing the profile would need a profile update endpoint first.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">13 · Auth</p>
+    <h2>One card, four flows</h2>
+    <p class="sub">Sign in, sign up, forgot, and reset share the same card, rhythm, and copy voice.</p>
+  </div>
+  <div class="stage">
+    <div class="viewport">
+      <div class="canvas" data-w="1060" data-h="880" style="width:1060px">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;height:880px">
+          <div class="win">
+            <div class="chrome" data-url="app.cloudphotodelivery.my/login"></div>
+            <div class="authbody">
+              <div class="authcard">
+                <div class="authtitle">Sign in</div>
+                <div class="authsub">Use your operator account to manage events.</div>
+                <div class="authstack">
+                  <div class="field"><span class="label">Email</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-mail"/></svg>hello@pixelparty.my</div></div>
+                  <div class="field"><span class="label">Password</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-lock"/></svg>••••••••••<svg class="ic" style="width:14px;height:14px;margin-left:auto;opacity:.5"><use href="#i-eye"/></svg></div></div>
+                  <div style="text-align:right;margin-top:-2px"><span style="font-size:11px;color:#71717a;text-decoration:underline">Forgot password?</span></div>
+                  <button class="btn primary" style="width:100%">Sign in</button>
+                </div>
+                <div class="authfoot">No account? <b>Create one</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="win">
+            <div class="chrome" data-url="app.cloudphotodelivery.my/signup"></div>
+            <div class="authbody">
+              <div class="authcard">
+                <div class="authtitle">Create account</div>
+                <div class="authsub">Start delivering event galleries to your clients.</div>
+                <div class="authstack">
+                  <div class="field"><span class="label">Business name (optional)</span><div class="input">Pixel Party Photobooth</div></div>
+                  <div class="field"><span class="label">Email</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-mail"/></svg>hello@pixelparty.my</div></div>
+                  <div class="field"><span class="label">Password</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-lock"/></svg>••••••••••</div><span class="hint">At least 10 characters.</span></div>
+                  <button class="btn primary" style="width:100%">Create account</button>
+                </div>
+                <div class="authfoot">Already registered? <b>Sign in</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="win">
+            <div class="chrome" data-url="app.cloudphotodelivery.my/forgot-password"></div>
+            <div class="authbody">
+              <div class="authcard">
+                <div class="authtitle">Reset password</div>
+                <div class="authsub">Enter your email and we will send a reset link.</div>
+                <div class="authstack">
+                  <div class="field"><span class="label">Email</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-mail"/></svg>hello@pixelparty.my</div></div>
+                  <div class="alertbox ok"><svg class="ic"><use href="#i-check"/></svg>Check your inbox. The link expires in 30 minutes.</div>
+                  <button class="btn outline" style="width:100%">Resend link</button>
+                </div>
+                <div class="authfoot"><b>Back to sign in</b></div>
+              </div>
+            </div>
+          </div>
+          <div class="win">
+            <div class="chrome" data-url="app.cloudphotodelivery.my/reset-password"></div>
+            <div class="authbody">
+              <div class="authcard">
+                <div class="authtitle">Set a new password</div>
+                <div class="authsub">For hello@pixelparty.my.</div>
+                <div class="authstack">
+                  <div class="field"><span class="label">New password</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-lock"/></svg>••••••••••<svg class="ic" style="width:14px;height:14px;margin-left:auto;opacity:.5"><use href="#i-eye"/></svg></div></div>
+                  <div class="field"><span class="label">Confirm password</span><div class="input"><svg class="ic" style="width:14px;height:14px"><use href="#i-lock"/></svg>••••••••••</div></div>
+                  <div class="alertbox err"><svg class="ic"><use href="#i-alert"/></svg>Passwords do not match yet.</div>
+                  <button class="btn primary" style="width:100%">Save new password</button>
+                </div>
+                <div class="authfoot">You will be signed in on this device.</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">The reset card shows an inline mismatch error; the forgot card shows the sent state. Both keep the guest-facing copy short and specific.</p>
+</section>
+
+<section class="mock">
+  <div>
+    <p class="eyebrow">14 · Guest gallery</p>
+    <h2>Built for the guest phone</h2>
+    <p class="sub">The guest arrives from a QR scan, most often holding a phone with one hand. The gallery is designed around that.</p>
+  </div>
+  <div class="stage">
+    <div class="phones">
+      <div class="phone">
+        <div class="pscreen">
+          <div class="pstat"><span>9:41</span><svg viewBox="0 0 52 12" width="52" height="12"><rect x="0" y="5" width="3" height="6" rx="0.8" fill="#0f0f13"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="0.8" fill="#0f0f13"/><rect x="9" y="2" width="3" height="9" rx="0.8" fill="#0f0f13"/><rect x="13.5" y="0.5" width="3" height="10.5" rx="0.8" fill="#0f0f13"/><path d="M23 4.2a8.4 8.4 0 0 1 10.6 0" fill="none" stroke="#0f0f13" stroke-width="1.6" stroke-linecap="round"/><path d="M25.2 7a5 5 0 0 1 6.2 0" fill="none" stroke="#0f0f13" stroke-width="1.6" stroke-linecap="round"/><circle cx="28.3" cy="9.8" r="1.2" fill="#0f0f13"/><rect x="38" y="1.5" width="12" height="9" rx="2.5" fill="none" stroke="#0f0f13" stroke-width="1.3" opacity=".45"/><rect x="39.7" y="3.2" width="8.6" height="5.6" rx="1.2" fill="#0f0f13"/></svg></div>
+          <div class="phead">
+            <div class="plogo">PP</div>
+            <div><div style="font-size:12px;font-weight:800;line-height:1.2">Pixel Party</div><div style="font-size:9.5px;color:#8b8f98">Photobooth · Kuala Lumpur</div></div>
+            <div class="lang"><span>BM</span><span class="on">EN</span></div>
+          </div>
+          <div class="lg-hero"></div>
+          <div class="lg-copy">
+            <div class="lg-title">Aina &amp; Haziq Wedding</div>
+            <div class="lg-meta">
+              <span style="display:inline-flex;align-items:center;gap:4px"><svg class="ic" style="width:12px;height:12px"><use href="#i-calendar"/></svg>4 Oct 2026</span>
+              <span style="display:inline-flex;align-items:center;gap:4px"><svg class="ic" style="width:12px;height:12px"><use href="#i-pin"/></svg>Dewan Perdana Felda, KL</span>
+            </div>
+            <div class="chiprow"><span class="chip">486 photos</span><span class="chip warm">42 new today</span></div>
+          </div>
+          <div class="pgrid">
+            <div class="tile t45 g1"><span class="newtag">NEW</span><span class="wm">PIXEL PARTY</span></div>
+            <div class="tile t11 g2"></div>
+            <div class="tile t11 g3"></div>
+            <div class="tile t45 g4"><span class="wm">PIXEL PARTY</span></div>
+            <div class="tile t45 g5"></div>
+            <div class="tile t11 g6"></div>
+          </div>
+          <div class="pbar">
+            <button class="btn primary grow"><svg class="ic"><use href="#i-download"/></svg>Download all · 486</button>
+            <button class="btn outline sq"><svg class="ic"><use href="#i-chat"/></svg></button>
+            <span class="homebar"></span>
+          </div>
+        </div>
+      </div>
+      <div class="phone">
+        <div class="pscreen">
+          <div class="pstat"><span>9:41</span><svg viewBox="0 0 52 12" width="52" height="12"><rect x="0" y="5" width="3" height="6" rx="0.8" fill="#0f0f13"/><rect x="4.5" y="3.5" width="3" height="7.5" rx="0.8" fill="#0f0f13"/><rect x="9" y="2" width="3" height="9" rx="0.8" fill="#0f0f13"/><rect x="13.5" y="0.5" width="3" height="10.5" rx="0.8" fill="#0f0f13"/><path d="M23 4.2a8.4 8.4 0 0 1 10.6 0" fill="none" stroke="#0f0f13" stroke-width="1.6" stroke-linecap="round"/><path d="M25.2 7a5 5 0 0 1 6.2 0" fill="none" stroke="#0f0f13" stroke-width="1.6" stroke-linecap="round"/><circle cx="28.3" cy="9.8" r="1.2" fill="#0f0f13"/><rect x="38" y="1.5" width="12" height="9" rx="2.5" fill="none" stroke="#0f0f13" stroke-width="1.3" opacity=".45"/><rect x="39.7" y="3.2" width="8.6" height="5.6" rx="1.2" fill="#0f0f13"/></svg></div>
+          <div class="viewer-top">
+            <svg class="ic" style="width:18px;height:18px"><use href="#i-arrow-left"/></svg>
+            <span class="mid">23 of 486</span>
+            <svg class="ic" style="width:18px;height:18px;opacity:.7"><use href="#i-more"/></svg>
+          </div>
+          <div class="pv-photo"><span class="wm">PIXEL PARTY</span></div>
+          <div class="vactions">
+            <button class="btn primary grow"><svg class="ic"><use href="#i-download"/></svg>Download original</button>
+            <button class="btn outline sq"><svg class="ic"><use href="#i-chat"/></svg></button>
+            <button class="btn outline sq"><svg class="ic"><use href="#i-heart"/></svg></button>
+          </div>
+          <div class="vcap">Uploaded 4 Oct, 8:12 PM · Photobooth 2</div>
+          <div class="vsub">Original · 4032 × 3024 · 4.2 MB</div>
+          <div class="strip">
+            <div class="sthumb g2"></div>
+            <div class="sthumb g5"></div>
+            <div class="sthumb on g1"></div>
+            <div class="sthumb g3"></div>
+            <div class="sthumb g6"></div>
+          </div>
+          <div class="vhint">Swipe for the next photo</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p class="cap">Download all and share stay in a sticky bar; the grid keeps photo shapes; the header collapses to one bar with a language toggle. The BM/EN toggle is UI copy only.</p>
+</section>
+
+<p class="footer">Not shown: the temporary root placeholder and the gallery 404, both of which keep the system styling. Everything outside the language toggle maps to endpoints that already exist in the current API.</p>
+</main>
+
+<script>
+document.querySelectorAll('.chrome[data-url]').forEach(function(el){
+  el.innerHTML = '<span class="dot" style="background:#f87171"></span><span class="dot" style="background:#fbbf24"></span><span class="dot" style="background:#34d399"></span><div class="url">' + el.dataset.url + '</div>';
+});
+var SIDE_ITEMS = [["Dashboard","#i-home"],["Analytics","#i-chart"],["Events","#i-calendar"],["Devices","#i-camera"],["Branding","#i-palette"],["Billing","#i-card"]];
+document.querySelectorAll('.side[data-nav]').forEach(function(el){
+  var nav = el.dataset.nav || "";
+  var h = '<div class="brand"><div class="mark">CPD</div><div><div class="t1">Cloud Photo Delivery</div><div class="t2">Operator dashboard</div></div></div><nav class="nav"><div class="g">Manage</div>';
+  SIDE_ITEMS.forEach(function(it){
+    h += '<a class="' + (it[0] === nav ? 'on' : '') + '"><svg class="ic"><use href="' + it[1] + '"/></svg>' + it[0] + '</a>';
+  });
+  if (nav === "Admin") { h += '<a class="on"><svg class="ic"><use href="#i-shield"/></svg>Admin</a>'; }
+  h += '</nav><div class="foot"><div class="avatar">PP</div><div style="min-width:0"><div class="t1">Pixel Party</div><div class="t2">hello@pixelparty.my</div></div><svg class="ic" style="margin-left:auto;opacity:.5"><use href="#i-updown"/></svg></div>';
+  el.innerHTML = h;
+});
+function fit(){
+  document.querySelectorAll('.viewport').forEach(function(vp){
+    var c = vp.querySelector('.canvas');
+    if (!c) return;
+    var w = vp.clientWidth;
+    var cw = parseFloat(c.dataset.w);
+    var ch = parseFloat(c.dataset.h);
+    var s = Math.min(w / cw, 1);
+    c.style.transform = 'scale(' + s.toFixed(4) + ')';
+    vp.style.height = Math.round(ch * s) + 'px';
+  });
+}
+addEventListener('resize', fit);
+addEventListener('load', fit);
+if (document.fonts && document.fonts.ready) { document.fonts.ready.then(fit); }
+fit();
+(function(){
+  var el = document.getElementById('chart');
+  if (!el) return;
+  var W = 748, H = 268, pad = { l: 34, r: 6, t: 10, b: 22 };
+  var views = [186,214,168,232,288,196,242,310,264,208,246,352,296,238,262,386,318,254,278,340,302,246,290,362,324,268,296,412,376,486];
+  var dl = [22,28,18,26,34,20,28,38,30,24,28,42,34,26,30,46,38,28,32,40,36,28,34,44,38,30,34,52,46,62];
+  var max = 540;
+  var iw = W - pad.l - pad.r, ih = H - pad.t - pad.b;
+  var bw = iw / 30;
+  var s = '';
+  [0, 0.25, 0.5, 0.75, 1].forEach(function(v){
+    var y = pad.t + ih * (1 - v);
+    s += '<line x1="' + pad.l + '" x2="' + (W - pad.r) + '" y1="' + y + '" y2="' + y + '" stroke="#f0f0f3" stroke-width="1"/>';
+    s += '<text x="' + (pad.l - 7) + '" y="' + (y + 3) + '" text-anchor="end" font-size="9" fill="#a1a1aa">' + Math.round(max * v) + '</text>';
+  });
+  for (var i = 0; i < 30; i++) {
+    var x = pad.l + i * bw;
+    var h1 = ih * views[i] / max;
+    s += '<rect x="' + (x + bw * 0.16) + '" y="' + (pad.t + ih - h1) + '" width="' + (bw * 0.68) + '" height="' + h1 + '" rx="2.5" fill="#c4b5fd"/>';
+    var h2 = ih * dl[i] / max;
+    s += '<rect x="' + (x + bw * 0.3) + '" y="' + (pad.t + ih - h2) + '" width="' + (bw * 0.4) + '" height="' + h2 + '" rx="2" fill="#7c3aed"/>';
+  }
+  [[1, "10 Sep"], [10, "19 Sep"], [20, "29 Sep"], [30, "9 Oct"]].forEach(function(l){
+    var x = pad.l + (l[0] - 0.5) * bw;
+    s += '<text x="' + x + '" y="' + (H - 6) + '" text-anchor="middle" font-size="9" fill="#a1a1aa">' + l[1] + '</text>';
+  });
+  el.innerHTML = '<svg viewBox="0 0 ' + W + ' ' + H + '" width="' + W + '" height="' + H + '">' + s + '</svg>';
+})();
+(function(){
+  var svg = document.getElementById('qr');
+  if (!svg) return;
+  var N = 25;
+  var m = Array.from({ length: N }, function(){ return Array(N).fill(false); });
+  function set(x, y, v){ if (x >= 0 && x < N && y >= 0 && y < N) m[y][x] = v; }
+  function finder(cx, cy){
+    for (var y = -1; y <= 7; y++) for (var x = -1; x <= 7; x++) {
+      var on = x >= 0 && x <= 6 && y >= 0 && y <= 6 && (x === 0 || x === 6 || y === 0 || y === 6 || (x >= 2 && x <= 4 && y >= 2 && y <= 4));
+      set(cx + x, cy + y, on);
+    }
+  }
+  function align(cx, cy){
+    for (var y = -2; y <= 2; y++) for (var x = -2; x <= 2; x++) {
+      var on = Math.max(Math.abs(x), Math.abs(y)) === 2 || (x === 0 && y === 0);
+      set(cx + x, cy + y, on);
+    }
+  }
+  var seed = 42;
+  function rnd(){ seed = (seed * 1103515245 + 12345) % 2147483648; return seed / 2147483648; }
+  for (var y = 0; y < N; y++) for (var x = 0; x < N; x++) { m[y][x] = rnd() > 0.52; }
+  finder(0, 0); finder(N - 7, 0); finder(0, N - 7); align(N - 9, N - 9);
+  for (var i = 8; i < N - 8; i++) { m[6][i] = i % 2 === 0; m[i][6] = i % 2 === 0; }
+  var S = 6, out = '';
+  for (var yy = 0; yy < N; yy++) for (var xx = 0; xx < N; xx++) {
+    if (m[yy][xx]) out += '<rect x="' + (xx * S) + '" y="' + (yy * S) + '" width="' + S + '" height="' + S + '"/>';
+  }
+  svg.setAttribute('viewBox', '0 0 ' + (N * S) + ' ' + (N * S));
+  svg.innerHTML = out;
+})();
+</script>
+</body>
+</html>
