@@ -26,6 +26,10 @@ export function formatLimit(value: number): string {
   return value === 0 ? "Unlimited" : value.toLocaleString("en-MY")
 }
 
+export function formatInvoiceRef(id: string): string {
+  return `INV-${id.replace(/-/g, "").slice(0, 8).toUpperCase()}`
+}
+
 export function formatByteLimit(bytes: number): string {
   return bytes === 0 ? "Unlimited" : formatBytes(bytes)
 }
