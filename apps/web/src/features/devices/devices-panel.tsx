@@ -1,6 +1,6 @@
 "use client"
 
-import { Camera, MoreHorizontal, Plus } from "lucide-react"
+import { Camera, KeyRound, MoreHorizontal, Plus } from "lucide-react"
 import * as React from "react"
 
 import type { components } from "@workspace/api-client"
@@ -11,6 +11,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
@@ -36,10 +37,17 @@ import { useEventOptions } from "@/features/events/api"
 import { useDevices } from "./api"
 import { DeviceFormDialog } from "./device-form-dialog"
 import { DeviceKeyDialog } from "./device-key-dialog"
-import { formatDeviceTimestamp, resolveEventName, UNKNOWN_EVENT } from "./format"
+import { DeviceSummaryRow } from "./device-summary"
+import {
+  formatDeviceTimestamp,
+  formatRelativeTime,
+  resolveEventName,
+  UNKNOWN_EVENT,
+} from "./format"
 import { RenameDeviceDialog } from "./rename-device-dialog"
 import { RevokeDeviceDialog } from "./revoke-device-dialog"
 import { RotateKeyDialog } from "./rotate-key-dialog"
+import { summarizeDevices } from "./summary"
 
 type Device = components["schemas"]["Device"]
 type DeviceWithKey = components["schemas"]["DeviceWithKey"]
@@ -72,7 +80,11 @@ export function DevicesPanel() {
     [events]
   )
 
-  const devices = devicesQuery.data?.items ?? []
+  const devices = React.useMemo(
+    () => devicesQuery.data?.items ?? [],
+    [devicesQuery.data]
+  )
+  const summary = React.useMemo(() => summarizeDevices(devices), [devices])
 
   return (
     <div className="space-y-6">
@@ -120,6 +132,8 @@ export function DevicesPanel() {
             </CardContent>
           </Card>
         )}
+
+      {devices.length > 0 && <DeviceSummaryRow summary={summary} />}
 
       {devices.length > 0 && (
         <Card>
@@ -170,18 +184,32 @@ export function DevicesPanel() {
                             {UNKNOWN_EVENT}
                           </span>
                         ) : (
-                          eventName
+                          <Badge variant="secondary">{eventName}</Badge>
                         )}
                       </TableCell>
                       <TableCell>
                         {revoked ? (
-                          <Badge variant="outline">Revoked</Badge>
+                          <Badge variant="secondary">Revoked</Badge>
                         ) : (
-                          <Badge variant="secondary">Active</Badge>
+                          <Badge
+                            variant="outline"
+                            className="bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
+                          >
+                            Active
+                          </Badge>
                         )}
                       </TableCell>
                       <TableCell>
-                        {formatDeviceTimestamp(device.lastUsedAt)}
+                        {device.lastUsedAt ? (
+                          <time
+                            dateTime={device.lastUsedAt}
+                            title={formatDeviceTimestamp(device.lastUsedAt)}
+                          >
+                            {formatRelativeTime(device.lastUsedAt)}
+                          </time>
+                        ) : (
+                          "Never"
+                        )}
                       </TableCell>
                       <TableCell>
                         {formatDeviceTimestamp(device.createdAt)}
@@ -227,6 +255,13 @@ export function DevicesPanel() {
               </TableBody>
             </Table>
           </CardContent>
+          <CardFooter className="gap-2 bg-transparent text-xs text-muted-foreground">
+            <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <KeyRound className="size-3.5" aria-hidden="true" />
+            </span>
+            Keys upload only to their assigned event, limited to 100 uploads
+            per minute per device.
+          </CardFooter>
         </Card>
       )}
 
