@@ -71,6 +71,19 @@ export const newEventSchema = createEventSchema
 
 export type NewEventValues = z.infer<typeof newEventSchema>
 
+export function createEventSettingsSchema(passwordProtected: boolean) {
+  return eventSettingsSchema.refine(
+    (values) =>
+      values.visibility !== "password" ||
+      passwordProtected ||
+      Boolean(values.password),
+    {
+      message: "Enter a password for password protected events",
+      path: ["password"],
+    }
+  )
+}
+
 export const EXTEND_PRESET_DAYS = [7, 30, 90] as const
 export const EXTEND_MIN_DAYS = 1
 export const EXTEND_MAX_DAYS = 3650

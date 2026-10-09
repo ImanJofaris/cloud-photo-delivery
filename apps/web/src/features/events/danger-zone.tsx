@@ -9,7 +9,6 @@ import { Button } from "@workspace/ui/components/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@workspace/ui/components/card"
@@ -53,26 +52,21 @@ export function DangerZone({
   }
 
   return (
-    <Card className="border-destructive/40">
+    <Card>
       <CardHeader>
-        <CardTitle>Danger zone</CardTitle>
-        <CardDescription>
-          Archiving hides the gallery. Deleting hides the event immediately;
-          photos stay recoverable for the 30-day grace period, after which the
-          worker purges database rows and R2 objects permanently. There is no
-          restore endpoint.
-        </CardDescription>
+        <CardTitle className="text-destructive">Danger zone</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
+      <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-medium">Archive event</p>
             <p className="text-xs text-muted-foreground">
-              The gallery stops accepting new photos.
+              Hides the gallery and pauses uploads. Photos stay safe.
             </p>
           </div>
           <Button
             variant="outline"
+            size="sm"
             onClick={() => void handleArchive()}
             disabled={status === "archived" || archiveEvent.isPending}
           >
@@ -81,24 +75,26 @@ export function DangerZone({
           </Button>
         </div>
 
-        <div className="space-y-3 border-t pt-6">
+        <div className="space-y-3 border-t pt-4">
           <div>
             <p className="text-sm font-medium">Delete event</p>
             <p className="text-xs text-muted-foreground">
-              Type the event name to confirm. This cannot be undone once the
-              grace period ends.
+              Removes the event, its photos, and every shared link after the
+              30-day grace period. This cannot be undone.
             </p>
           </div>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
             <div className="flex-1 space-y-2">
-              <Label htmlFor="confirmName">Event name</Label>
+              <Label htmlFor="confirmName" className="sr-only">
+                Event name
+              </Label>
               <Input
                 id="confirmName"
                 value={confirmName}
                 onChange={(changeEvent) =>
                   setConfirmName(changeEvent.target.value)
                 }
-                placeholder={eventName}
+                placeholder={`Type ${eventName} to confirm`}
               />
             </div>
             <Button
