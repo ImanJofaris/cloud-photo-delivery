@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest"
 
 import {
   expiryFromNow,
+  expiryProgressPercent,
   formatBytes,
   formatDate,
   formatTimeUntil,
@@ -95,5 +96,53 @@ describe("formatTimeUntil", () => {
   it("returns null for past or missing values", () => {
     expect(formatTimeUntil("2026-09-16T11:00:00Z", now)).toBeNull()
     expect(formatTimeUntil(null, now)).toBeNull()
+  })
+})
+
+describe("expiryProgressPercent", () => {
+  it("returns the elapsed share of the gallery period", () => {
+    expect(
+      expiryProgressPercent(
+        "2026-09-06T12:00:00Z",
+        "2026-09-16T12:00:00Z",
+        now
+      )
+    ).toBe(100)
+    expect(
+      expiryProgressPercent(
+        "2026-09-16T12:00:00Z",
+        "2026-09-26T12:00:00Z",
+        now
+      )
+    ).toBe(0)
+  })
+
+  it("clamps before the start and after the expiry", () => {
+    expect(
+      expiryProgressPercent(
+        "2026-10-06T12:00:00Z",
+        "2026-10-16T12:00:00Z",
+        now
+      )
+    ).toBe(0)
+    expect(
+      expiryProgressPercent(
+        "2026-08-06T12:00:00Z",
+        "2026-08-16T12:00:00Z",
+        now
+      )
+    ).toBe(100)
+  })
+
+  it("returns null without a usable window", () => {
+    expect(expiryProgressPercent(null, "2026-09-16T12:00:00Z", now)).toBeNull()
+    expect(expiryProgressPercent("2026-09-16T12:00:00Z", null, now)).toBeNull()
+    expect(
+      expiryProgressPercent(
+        "2026-09-16T12:00:00Z",
+        "2026-09-16T12:00:00Z",
+        now
+      )
+    ).toBeNull()
   })
 })
