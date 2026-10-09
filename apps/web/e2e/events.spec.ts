@@ -48,7 +48,6 @@ test("event lifecycle: create, find, settings, archive, delete", async ({
     timeout: 15_000,
   })
 
-  await page.getByRole("tab", { name: "Danger zone" }).click()
   await page.getByRole("button", { name: "Archive", exact: true }).click()
   await expect(page.getByText("Event archived")).toBeVisible({
     timeout: 15_000,

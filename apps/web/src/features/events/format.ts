@@ -88,6 +88,20 @@ export function formatTimeUntil(
   return days === 1 ? "1 day" : `${days} days`
 }
 
+export function expiryProgressPercent(
+  createdAt: string | null | undefined,
+  expiresAt: string | null | undefined,
+  now: number = Date.now()
+): number | null {
+  const start = parse(createdAt)
+  const end = parse(expiresAt)
+  if (!start || !end || end.getTime() <= start.getTime()) return null
+
+  const total = end.getTime() - start.getTime()
+  const elapsed = now - start.getTime()
+  return Math.min(100, Math.max(0, Math.round((elapsed / total) * 100)))
+}
+
 export function qrDownloadFilename(
   eventName: string,
   extension: "png" | "svg"

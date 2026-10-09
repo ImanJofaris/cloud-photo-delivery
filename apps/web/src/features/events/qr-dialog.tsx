@@ -1,6 +1,6 @@
 "use client"
 
-import { Copy, Download, Printer, QrCode } from "lucide-react"
+import { Copy, Download, Printer } from "lucide-react"
 import * as React from "react"
 import { toast } from "sonner"
 
@@ -67,22 +67,21 @@ export function downloadBlob(url: string, filename: string) {
   anchor.remove()
 }
 
-type QrAssets = {
+export type QrAssets = {
   png: Blob
   svg: Blob
   svgText: string
 }
 
-function QrDialogBody({
-  eventId,
-  eventName,
-}: {
-  eventId: string
-  eventName: string
-}) {
-  const [assets, setAssets] = React.useState<QrAssets | null>(null)
-  const [isError, setIsError] = React.useState(false)
-  const publicUrl = useEventPublicUrl(eventId)
+export function useQrAssets(eventId: string): {
+  assets: QrAssets | null
+  isError: boolean
+} {
+  const [loaded, setLoaded] = React.useState<{
+    eventId: string
+    assets: QrAssets
+  } | null>(null)
+  const [failedFor, setFailedFor] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let cancelled = false
@@ -105,9 +104,9 @@ function QrDialogBody({
           ),
         ])
         const svgText = await svgBlob.text()
-        if (!cancelled) setAssets({ png: pngBlob, svg: svgBlob, svgText })
+        if (!cancelled) setLoaded({ eventId, assets: { png: pngBlob, svg: svgBlob, svgText } })
       } catch {
-        if (!cancelled) setIsError(true)
+        if (!cancelled) setFailedFor(eventId)
       }
     }
 
@@ -116,6 +115,22 @@ function QrDialogBody({
       cancelled = true
     }
   }, [eventId])
+
+  return {
+    assets: loaded?.eventId === eventId ? loaded.assets : null,
+    isError: failedFor === eventId,
+  }
+}
+
+function QrDialogBody({
+  eventId,
+  eventName,
+}: {
+  eventId: string
+  eventName: string
+}) {
+  const { assets, isError } = useQrAssets(eventId)
+  const publicUrl = useEventPublicUrl(eventId)
 
   const pngUrl = useObjectUrl(assets?.png ?? null)
   const svgUrl = useObjectUrl(assets?.svg ?? null)
@@ -242,14 +257,5 @@ export function QrDialog({
         <QrDialogBody eventId={eventId} eventName={eventName} />
       ) : null}
     </Dialog>
-  )
-}
-
-export function QrTriggerButton({ onClick }: { onClick: () => void }) {
-  return (
-    <Button size="sm" variant="ghost" onClick={onClick}>
-      <QrCode />
-      QR code
-    </Button>
   )
 }
