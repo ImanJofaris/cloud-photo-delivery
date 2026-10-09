@@ -61,7 +61,7 @@ describe("BrandingForm", () => {
     } as unknown as ReturnType<typeof useSubscription>)
   })
 
-  it("shows the upgrade card when the plan has no branding", () => {
+  it("keeps the form read-only and shows the gate note without branding", () => {
     vi.mocked(useSubscription).mockReturnValue({
       data: { plan: { limits: { branding: false } } },
       isPending: false,
@@ -72,11 +72,14 @@ describe("BrandingForm", () => {
     expect(
       screen.getByText("Custom branding is a Starter feature")
     ).toBeInTheDocument()
-    expect(screen.getByRole("button", { name: "View plans" })).toHaveAttribute(
-      "href",
-      "/billing"
-    )
-    expect(screen.queryByLabelText("Business name")).not.toBeInTheDocument()
+    expect(screen.getByText("Booth Co")).toBeInTheDocument()
+    expect(screen.getByLabelText("Business name")).toBeDisabled()
+    expect(
+      screen.getByRole("button", { name: /Compare plans/ })
+    ).toHaveAttribute("href", "/billing")
+    expect(
+      screen.queryByRole("button", { name: "Save changes" })
+    ).not.toBeInTheDocument()
   })
 
   it("patches only the changed field and omits assets", async () => {
@@ -85,7 +88,7 @@ describe("BrandingForm", () => {
     const name = await screen.findByLabelText("Business name")
     await userEvent.clear(name)
     await userEvent.type(name, "New Booth")
-    await userEvent.click(screen.getByRole("button", { name: "Save branding" }))
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }))
 
     await waitFor(() =>
       expect(updateMutate).toHaveBeenCalledWith({ businessName: "New Booth" })
@@ -97,7 +100,7 @@ describe("BrandingForm", () => {
 
     const phone = await screen.findByLabelText("Contact phone")
     await userEvent.clear(phone)
-    await userEvent.click(screen.getByRole("button", { name: "Save branding" }))
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }))
 
     await waitFor(() =>
       expect(updateMutate).toHaveBeenCalledWith({ contactPhone: "" })
@@ -110,11 +113,43 @@ describe("BrandingForm", () => {
     const email = await screen.findByLabelText("Contact email")
     await userEvent.clear(email)
     await userEvent.type(email, "not-an-email")
-    await userEvent.click(screen.getByRole("button", { name: "Save branding" }))
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }))
 
     expect(
       await screen.findByText("Enter a valid email address.")
     ).toBeInTheDocument()
     expect(updateMutate).not.toHaveBeenCalled()
+  })
+
+  it("applies a preset color to the primary color", async () => {
+    render(<BrandingForm />)
+
+    await userEvent.click(screen.getByRole("button", { name: "Use #2f8f6b" }))
+    await userEvent.click(screen.getByRole("button", { name: "Save changes" }))
+
+    await waitFor(() =>
+      expect(updateMutate).toHaveBeenCalledWith({ primaryColor: "#2f8f6b" })
+    )
+  })
+
+  it("updates the guest preview from the form values", async () => {
+    render(<BrandingForm />)
+
+    const name = await screen.findByLabelText("Business name")
+    await userEvent.clear(name)
+    await userEvent.type(name, "Pixel Party")
+
+    expect(screen.getByText("Pixel Party")).toBeInTheDocument()
+  })
+
+  it("discards unsaved changes", async () => {
+    render(<BrandingForm />)
+
+    const name = await screen.findByLabelText("Business name")
+    await userEvent.clear(name)
+    await userEvent.type(name, "Temporary")
+    await userEvent.click(screen.getByRole("button", { name: "Discard" }))
+
+    expect(name).toHaveValue("Booth Co")
   })
 })

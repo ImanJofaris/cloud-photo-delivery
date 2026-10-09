@@ -85,7 +85,7 @@ test("branding: save business name and color, then see them in the gallery", asy
   await page
     .getByLabel("Contact email")
     .fill("branding@example.com")
-  await page.getByRole("button", { name: "Save branding" }).click()
+  await page.getByRole("button", { name: "Save changes" }).click()
 
   await expect(page.getByText("Branding saved")).toBeVisible({
     timeout: 15_000,

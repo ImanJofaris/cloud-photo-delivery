@@ -1,14 +1,21 @@
 "use client"
 
-import { ImagePlus } from "lucide-react"
+import { ChevronDown, ImagePlus } from "lucide-react"
 import * as React from "react"
 
 import { ApiError, type components } from "@workspace/api-client"
 
 import { Button } from "@workspace/ui/components/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@workspace/ui/components/dropdown-menu"
 import { Input } from "@workspace/ui/components/input"
 import { Label } from "@workspace/ui/components/label"
 import { Progress } from "@workspace/ui/components/progress"
+import { cn } from "@workspace/ui/lib/utils"
 
 import {
   UploadTransportError,
@@ -91,6 +98,7 @@ export function AssetUploadField({
   description,
   previewUrl,
   hasAsset,
+  disabled = false,
   onUploaded,
   onClear,
 }: {
@@ -99,6 +107,7 @@ export function AssetUploadField({
   description: string
   previewUrl: string | null
   hasAsset: boolean
+  disabled?: boolean
   onUploaded: (result: { storageKey: string; file: File }) => void
   onClear: () => void
 }) {
@@ -142,10 +151,14 @@ export function AssetUploadField({
   }
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor={`branding-${kind}`}>{label}</Label>
-      <div className="flex items-center gap-3">
-        <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-md border bg-muted">
+    <div className="min-w-0">
+      <div className="flex items-start gap-3">
+        <div
+          className={cn(
+            "flex size-12 shrink-0 items-center justify-center overflow-hidden border bg-muted",
+            kind === "logo" ? "rounded-full" : "rounded-xl"
+          )}
+        >
           {previewUrl ? (
             // Signed URLs and object URLs change per mount; next/image adds
             // nothing here.
@@ -160,45 +173,54 @@ export function AssetUploadField({
             <ImagePlus className="size-5 text-muted-foreground" />
           )}
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={uploading}
-            onClick={() => inputRef.current?.click()}
-          >
-            {uploading
-              ? `Uploading ${progress}%`
-              : hasAsset
-                ? "Replace"
-                : "Upload"}
-          </Button>
-          {hasAsset && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={uploading}
-              onClick={onClear}
-            >
-              Remove
-            </Button>
-          )}
+
+        <div className="min-w-0 flex-1 space-y-1">
+          <Label htmlFor={`branding-${kind}`} className="block">
+            {label}
+          </Label>
+          <p className="text-xs text-muted-foreground">{description}</p>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              disabled={uploading || disabled}
+              render={
+                <Button type="button" variant="link" size="xs" className="px-0">
+                  {uploading
+                    ? `Uploading ${progress}%`
+                    : hasAsset
+                      ? "Replace"
+                      : "Upload"}
+                  <ChevronDown aria-hidden="true" />
+                </Button>
+              }
+            />
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => inputRef.current?.click()}>
+                Upload new image
+              </DropdownMenuItem>
+              {hasAsset && (
+                <DropdownMenuItem variant="destructive" onClick={onClear}>
+                  Remove
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
+
       <Input
         ref={inputRef}
         id={`branding-${kind}`}
         type="file"
         accept="image/png,image/jpeg,image/webp"
         className="sr-only"
+        disabled={disabled}
         onChange={handleChange}
       />
-      <p className="text-xs text-muted-foreground">{description}</p>
-      {uploading && <Progress value={progress} />}
+
+      {uploading && <Progress className="mt-3" value={progress} />}
+
       {error && (
-        <div className="flex items-center gap-2">
+        <div className="mt-2 flex items-center gap-2">
           <p className="text-xs text-destructive" role="alert">
             {error}
           </p>
@@ -206,7 +228,8 @@ export function AssetUploadField({
             <Button
               type="button"
               variant="ghost"
-              size="sm"
+              size="xs"
+              disabled={disabled}
               onClick={() => void upload(lastFile)}
             >
               Retry

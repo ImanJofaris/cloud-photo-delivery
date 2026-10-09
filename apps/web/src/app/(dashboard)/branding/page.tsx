@@ -6,7 +6,7 @@ export default function BrandingPage() {
       <div>
         <h1 className="text-2xl font-semibold">Branding</h1>
         <p className="text-sm text-muted-foreground">
-          Logo, colors, and contact details for your public galleries.
+          This is what guests see on every gallery you deliver.
         </p>
       </div>
       <BrandingForm />
